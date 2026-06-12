@@ -154,4 +154,4 @@ User report: "parang di gumagana yung provider detection."
 - [x] Fix: switched provider to the RFC 8484 DoH wireformat endpoint dns.nextdns.io/{profile}; blocked = sinkhole A record (0.0.0.0/127.0.0.1) or RFC 8914 EDE filtered option (codes 15-18; NextDNS sends 17). Wireformat build/parse are pure companion functions, unit-tested.
 - [x] Second bug found by live probe and fixed: bare NXDOMAIN (nonexistent domain) was flagged as "Blocked by NextDNS" — false positive; now requires EDE/sinkhole evidence.
 - [x] Verify: NextDNS suite 15/15; full suite 133/133; assembleRelease green; live probe — doubleclick.net→NEXTDNS_BLOCK, example.com→clean, nonexistent domain→no signal.
-- [ ] Ships in the next release (fix is committed but v1.7, already published, still has the inert JSON path)
+- [x] Shipped in v1.8 (published 2026-06-13, tag v1.8)
