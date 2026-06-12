@@ -144,3 +144,14 @@ Unrelated issues found (not fixed this task):
 - [x] Item 4 (S4): Added trust-boundary KDoc to LinkInterceptActivity. Invariant VERIFIED — only the SAFE branch auto-forwards and it shows a user-visible safe/unverified toast first; null (unchecked) and blocked verdicts require an explicit tap. No silent-forward path found; no behavior change.
 - [x] Item 5 (S3): Added btnCancelScan (outlined style, matches btnOpenAnyway neighbor) visible during scanning; cancels scanJob + finishes WITHOUT opening. onBackPressed == Cancel while scanning. Cancel hidden once block/unchecked verdict UI shows. New string btn_cancel_scan="Cancel".
 - [x] Verify: :app:testDebugUnitTest = 129 tests, 0 failures/0 errors (was 127; +2 NextDNS). :app:assembleDebug BUILD SUCCESSFUL (manifest/layout/strings link clean). compileDebugKotlin green (only pre-existing HistoryActivity/ScanDetailActivity warnings).
+
+## 2026-06-13 — NextDNS provider: profile was never applied (root-cause fix)
+
+User report: "parang di gumagana yung provider detection."
+
+- [x] Diagnosis: SB/VT/HA verified working end-to-end (live pipeline smoke: THREAT 100 on Google's phishing test URL; keys valid; keys baked into published v1.7 APK). Real defect isolated to NextDNS.
+- [x] Root cause: dns.nextdns.io/resolve (JSON) ignores the profile entirely — bogus profiles return identical unfiltered answers, so "Blocked by NextDNS" API detection never fired.
+- [x] Fix: switched provider to the RFC 8484 DoH wireformat endpoint dns.nextdns.io/{profile}; blocked = sinkhole A record (0.0.0.0/127.0.0.1) or RFC 8914 EDE filtered option (codes 15-18; NextDNS sends 17). Wireformat build/parse are pure companion functions, unit-tested.
+- [x] Second bug found by live probe and fixed: bare NXDOMAIN (nonexistent domain) was flagged as "Blocked by NextDNS" — false positive; now requires EDE/sinkhole evidence.
+- [x] Verify: NextDNS suite 15/15; full suite 133/133; assembleRelease green; live probe — doubleclick.net→NEXTDNS_BLOCK, example.com→clean, nonexistent domain→no signal.
+- [ ] Ships in the next release (fix is committed but v1.7, already published, still has the inert JSON path)

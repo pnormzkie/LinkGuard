@@ -26,6 +26,20 @@ internal fun clientReturning(code: Int, body: String): OkHttpClient =
         })
         .build()
 
+/** Like [clientReturning] but with a raw byte body (e.g. DNS wireformat). */
+internal fun clientReturningBytes(code: Int, body: ByteArray): OkHttpClient =
+    OkHttpClient.Builder()
+        .addInterceptor(Interceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message("stub")
+                .body(body.toResponseBody("application/dns-message".toMediaType()))
+                .build()
+        })
+        .build()
+
 /** A client whose every call fails as if the network were down. */
 internal fun clientFailing(message: String = "network down"): OkHttpClient =
     OkHttpClient.Builder()
