@@ -43,6 +43,17 @@
         android:textSize="14sp"
         android:visibility="gone" />
 
+    <!-- Visible only while scanning: cancels the in-flight scan and closes without opening. -->
+    <Button
+        android:id="@+id/btnCancelScan"
+        style="?attr/materialButtonOutlinedStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="20dp"
+        android:textColor="@color/text_muted"
+        android:text="@string/btn_cancel_scan" />
+
     <LinearLayout
         android:id="@+id/buttonRow"
         android:layout_width="match_parent"

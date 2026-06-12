@@ -14,7 +14,8 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class NextDnsDomainSignalProviderTest {
 
-    private fun provider(client: okhttp3.OkHttpClient) = NextDnsDomainSignalProvider(client)
+    private fun provider(client: okhttp3.OkHttpClient) =
+        NextDnsDomainSignalProvider(client, profileId = "testprofile")
 
     // ── Success path ──────────────────────────────────────────────────────────
 
@@ -78,6 +79,24 @@ class NextDnsDomainSignalProviderTest {
     fun `malformed json propagates as failure`() = runTest {
         val result = runCatching { provider(clientReturning(200, """{"Status":""")).fetchSignals("example.com") }
         assertTrue("Truncated JSON must fail loud", result.isFailure)
+    }
+
+    // ── Blank profile (no NEXTDNS_PROFILE_ID configured) ──────────────────────
+
+    @Test
+    fun `blank profile skips network and yields no signal for unknown domain`() = runTest {
+        val provider = NextDnsDomainSignalProvider(clientFailing(), profileId = "")
+        // clientFailing() would throw if the network were hit; a clean empty result proves it wasn't.
+        assertTrue(provider.fetchSignals("example.com").isEmpty())
+    }
+
+    @Test
+    fun `blank profile still flags known trackers offline`() = runTest {
+        val provider = NextDnsDomainSignalProvider(clientFailing(), profileId = "")
+        val signals = provider.fetchSignals("doubleclick.net")
+
+        assertEquals(1, signals.size)
+        assertEquals("NEXTDNS_OFFLINE_BLOCK", signals[0].ruleId)
     }
 
     // EXPOSES BUG: a non-2xx resolve response sets isBlockedByApi=false

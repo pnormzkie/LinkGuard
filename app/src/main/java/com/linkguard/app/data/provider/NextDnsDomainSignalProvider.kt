@@ -17,23 +17,25 @@ import okhttp3.Request
 import java.io.IOException
 
 class NextDnsDomainSignalProvider(
-    private val client: OkHttpClient
+    private val client: OkHttpClient,
+    private val profileId: String = BuildConfig.NEXTDNS_PROFILE_ID
 ) : SignalProvider {
 
     private val gson = Gson()
-
-    companion object {
-        private const val PROFILE_ID = "2d1fa2"
-    }
 
     override suspend fun fetchSignals(input: String): List<ScanSignal> = withContext(Dispatchers.IO) {
         val domain = DomainExtractor.extract(input) ?: return@withContext emptyList()
         val isKnownTracker = KnownDomains.isTracker(domain)
 
+        // No profile configured: skip the network resolve entirely and fall back to the
+        // offline tracker list (mirrors how blank API keys are handled in the other providers).
+        if (profileId.isBlank()) {
+            return@withContext if (isKnownTracker) offlineBlockSignal(domain) else emptyList()
+        }
+
         try {
-            // Using your specific NextDNS Profile ID: 2d1fa2 in the correct resolve format
             val request = Request.Builder()
-                .url("https://dns.nextdns.io/resolve?profile=$PROFILE_ID&name=$domain&type=A")
+                .url("https://dns.nextdns.io/resolve?profile=$profileId&name=$domain&type=A")
                 .addHeader("Accept", "application/dns-json")
                 .get()
                 .build()
@@ -64,9 +66,9 @@ class NextDnsDomainSignalProvider(
                         ScanSignal(
                             ruleId = "NEXTDNS_BLOCK",
                             title = if (isKnownTracker) "Blocked by NextDNS: Ad/Tracker Filter" else "Blocked by NextDNS",
-                            description = if (isKnownTracker) 
-                                "This domain is filtered by your NextDNS privacy settings (Profile: $PROFILE_ID)."
-                                else "NextDNS infrastructure lookup indicates this domain is blocked by your security filters.",
+                            description = if (isKnownTracker)
+                                "This domain matches LinkGuard's ad/tracker filter list."
+                                else "LinkGuard's DNS threat-intelligence check indicates this domain is blocked.",
                             strength = SignalStrength.MEDIUM,
                             source = SignalSource.DOMAIN_SIGNAL,
                             score = 25,
@@ -79,21 +81,23 @@ class NextDnsDomainSignalProvider(
             Log.w("NextDNS", "Lookup failed${if (BuildConfig.DEBUG) " for $domain" else ""}: ${e.message}")
             // Fallback to local tracker list if network fails
             if (isKnownTracker) {
-                return@withContext listOf(
-                    ScanSignal(
-                        ruleId = "NEXTDNS_OFFLINE_BLOCK",
-                        title = "Blocked by NextDNS: Ad/Tracker Filter",
-                        description = "This domain is known to be filtered by NextDNS services.",
-                        strength = SignalStrength.MEDIUM,
-                        source = SignalSource.DOMAIN_SIGNAL,
-                        score = 25,
-                        matchedValue = domain
-                    )
-                )
+                return@withContext offlineBlockSignal(domain)
             }
             // Rethrow so the orchestrator can tell "check failed" apart from "no threat found".
             throw e
         }
         emptyList()
     }
+
+    private fun offlineBlockSignal(domain: String): List<ScanSignal> = listOf(
+        ScanSignal(
+            ruleId = "NEXTDNS_OFFLINE_BLOCK",
+            title = "Blocked by NextDNS: Ad/Tracker Filter",
+            description = "This domain matches LinkGuard's ad/tracker filter list.",
+            strength = SignalStrength.MEDIUM,
+            source = SignalSource.DOMAIN_SIGNAL,
+            score = 25,
+            matchedValue = domain
+        )
+    )
 }

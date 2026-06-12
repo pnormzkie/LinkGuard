@@ -30,6 +30,7 @@ android {
         buildConfigField "String", "VIRUSTOTAL_API_KEY", "\"${apiKey('VIRUSTOTAL_API_KEY')}\""
         buildConfigField "String", "SAFE_BROWSING_API_KEY", "\"${apiKey('SAFE_BROWSING_API_KEY')}\""
         buildConfigField "String", "HYBRID_ANALYSIS_API_KEY", "\"${apiKey('HYBRID_ANALYSIS_API_KEY')}\""
+        buildConfigField "String", "NEXTDNS_PROFILE_ID", "\"${apiKey('NEXTDNS_PROFILE_ID')}\""
     }
 
     signingConfigs {

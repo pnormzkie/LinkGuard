@@ -55,6 +55,7 @@
     <string name="link_blocked_title">⚠ Dangerous link blocked</string>
     <string name="link_suspicious_title">Suspicious link detected</string>
     <string name="link_risk_format">Risk score: %1$d%% — %2$s</string>
+    <string name="btn_cancel_scan">Cancel</string>
     <string name="btn_dont_open">Don\'t Open</string>
     <string name="btn_open_anyway">Open Anyway</string>
     <string name="link_safe_toast">✓ Link checked — safe</string>
