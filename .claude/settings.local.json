@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead\\(\"C:\\\\Users\\\\bizbo\\\\Downloads\\\\claude-code-setup.zip\"\\); $zip.Entries | Select-Object -ExpandProperty FullName; $zip.Dispose\\(\\))"
+    ]
+  }
+}

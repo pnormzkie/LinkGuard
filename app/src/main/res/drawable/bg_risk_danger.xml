@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- bg_risk_danger.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#1AFF4155" />
+    <stroke android:width="1.5dp" android:color="#40FF4155" />
+</shape>

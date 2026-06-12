@@ -1,0 +1,123 @@
+package com.linkguard.app.scanner
+
+import com.linkguard.app.data.ThreatLevel
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class HeuristicScannerTest {
+
+    private fun flagsOf(url: String, message: String? = null): List<String> =
+        HeuristicScanner.scanWithContext(url, message).flags
+
+    @Test
+    fun `official domain is safe with no flags`() {
+        val result = HeuristicScanner.scanWithContext("https://www.bpi.com.ph", null)
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertEquals(0, result.riskScore)
+        assertTrue(result.flags.isEmpty())
+    }
+
+    @Test
+    fun `suspicious tld is flagged`() {
+        val flags = flagsOf("https://abcd.xyz")
+        assertTrue(flags.any { it.contains("Suspicious domain extension") })
+    }
+
+    @Test
+    fun `url shortener is flagged`() {
+        val flags = flagsOf("https://bit.ly/abc")
+        assertTrue(flags.any { it.contains("URL shortener") })
+    }
+
+    @Test
+    fun `brand spoofing over http is danger`() {
+        val result = HeuristicScanner.scanWithContext("http://gcash-verify.com", null)
+        assertTrue(result.flags.any { it.contains("brand spoofing", ignoreCase = true) })
+        assertEquals(ThreatLevel.DANGER, result.threatLevel)
+    }
+
+    @Test
+    fun `homograph domain is flagged as lookalike`() {
+        val flags = flagsOf("https://g0ogle-login.com")
+        assertTrue(flags.any { it.contains("Lookalike domain detected") })
+    }
+
+    @Test
+    fun `ip address url is flagged`() {
+        val flags = flagsOf("http://192.168.0.1/login")
+        assertTrue(flags.any { it.contains("IP address") })
+    }
+
+    @Test
+    fun `dangerous file extension is flagged`() {
+        val flags = flagsOf("https://files.abcd.com/setup.apk")
+        assertTrue(flags.any { it.contains("Dangerous file type") })
+    }
+
+    @Test
+    fun `typosquatted brand is flagged`() {
+        val flags = flagsOf("https://paypa1.com")
+        assertTrue(flags.any { it.contains("typosquatting") })
+    }
+
+    @Test
+    fun `english smishing message is flagged`() {
+        val flags = flagsOf(
+            "https://example.com",
+            "Congratulations! Your reward is pending, click link to claim"
+        )
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `tagalog smishing message is flagged`() {
+        val flags = flagsOf(
+            "https://example.com",
+            "Nanalo ka ng P10,000! I-claim mo na dito"
+        )
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `tagalog blocked account message is flagged`() {
+        val flags = flagsOf(
+            "https://example.com",
+            "Ang iyong account ay na-block. I-verify agad para ma-restore."
+        )
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `benign tagalog message is not flagged`() {
+        val flags = flagsOf("https://example.com", "Kumusta, kita tayo bukas sa bahay")
+        assertFalse(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `smishing scores at most once even with multiple matches`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://example.com",
+            "Nanalo ka! Congratulations, your reward is pending. Click link to claim."
+        )
+        assertEquals(1, result.flags.count { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `score thresholds map to threat levels`() {
+        // ~85 points (http 30 + keyword 15 + spoof 40)
+        val danger = HeuristicScanner.scanWithContext("http://gcash-verify.com", null)
+        assertEquals(ThreatLevel.DANGER, danger.threatLevel)
+        assertTrue(danger.riskScore >= 60)
+
+        // 25 points (suspicious TLD only)
+        val suspicious = HeuristicScanner.scanWithContext("https://abcd.xyz", null)
+        assertEquals(ThreatLevel.SUSPICIOUS, suspicious.threatLevel)
+        assertTrue(suspicious.riskScore in 25..59)
+
+        // clean url
+        val safe = HeuristicScanner.scanWithContext("https://example.com", null)
+        assertEquals(ThreatLevel.SAFE, safe.threatLevel)
+    }
+}

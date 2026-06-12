@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ═══ Background ═══ -->
+    <color name="bg_deep">#080B12</color>
+    <color name="surface">#161B22</color>
+    <color name="surface2">#1C2128</color>
+    <color name="surface_hero">#0F1520</color>
+
+    <!-- ═══ Borders ═══ -->
+    <color name="border">#30363D</color>
+
+    <!-- ═══ Text ═══ -->
+    <color name="text_primary">#F0F4FF</color>
+    <color name="text_muted">#556080</color>
+
+    <!-- ═══ Accent Colors ═══ -->
+    <color name="cyan">#00E5FF</color>
+    <color name="cyan_dim">#1A00E5FF</color>   <!-- 10% opacity -->
+
+    <color name="red">#FF3D5A</color>
+    <color name="red_dim">#2AFF3D5A</color>    <!-- 16% opacity -->
+
+    <color name="yellow">#FFBE00</color>
+    <color name="yellow_dim">#2AFFBE00</color> <!-- 16% opacity -->
+
+    <color name="green">#00E676</color>
+    <color name="green_dim">#1A00E676</color>  <!-- 10% opacity -->
+
+    <!-- ═══ Material theme required ═══ -->
+    <color name="purple_200">#00E5FF</color>
+    <color name="purple_500">#00B2CC</color>
+    <color name="purple_700">#007A8A</color>
+    <color name="teal_200">#00E676</color>
+    <color name="teal_700">#00994D</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

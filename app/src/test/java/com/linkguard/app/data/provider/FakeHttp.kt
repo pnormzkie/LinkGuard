@@ -1,0 +1,33 @@
+package com.linkguard.app.data.provider
+
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import java.io.IOException
+
+/**
+ * Test seam for the providers' injected [OkHttpClient]: an application interceptor
+ * short-circuits every call with a canned response (or failure) before any DNS or
+ * socket work happens, so provider tests are deterministic and never touch the network.
+ */
+internal fun clientReturning(code: Int, body: String): OkHttpClient =
+    OkHttpClient.Builder()
+        .addInterceptor(Interceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message("stub")
+                .body(body.toResponseBody("application/json".toMediaType()))
+                .build()
+        })
+        .build()
+
+/** A client whose every call fails as if the network were down. */
+internal fun clientFailing(message: String = "network down"): OkHttpClient =
+    OkHttpClient.Builder()
+        .addInterceptor(Interceptor { throw IOException(message) })
+        .build()

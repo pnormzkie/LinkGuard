@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 1. Background Fill (Transparent/None for adaptive, or solid for legacy) -->
+    <!-- Note: For standard launcher icons, we want it to be clean -->
+
+    <!-- 2. Logo Group (Centered and Scaled for Launcher) -->
+    <group
+        android:translateX="27"
+        android:translateY="27"
+        android:scaleX="2.25"
+        android:scaleY="2.25">
+
+        <!-- Wings -->
+        <path
+            android:fillColor="#4D00E5FF"
+            android:pathData="M4,7c-1.5,0 -2.5,1.5 -2.5,3.5c0,1.5 0.5,3 1.5,4l1,-1.5c-0.5,-0.5 -1,-1.5 -1,-2.5c0,-1 0.5,-2 1,-2L4,7z M20,7c1.5,0 2.5,1.5 2.5,3.5c0,1.5 -0.5,3 -1.5,4l-1,-1.5c0.5,-0.5 1,-1.5 1,-2.5c0,-1 -0.5,-2 -1,-2L20,7z" />
+        <path
+            android:fillColor="#3300E5FF"
+            android:pathData="M2.5,9.5c-0.8,0 -1.2,1 -1.2,2s0.4,2 1.2,2.5l1,-1.5c-0.4,0 -0.6,-0.4 -0.6,-1s0.2,-1 0.6,-1L2.5,9.5z M21.5,9.5c0.8,0 1.2,1 1.2,2s-0.4,2 -1.2,2.5l-1,-1.5c0.4,0 0.6,-0.4 0.6,-1s-0.2,-1 -0.6,-1L21.5,9.5z" />
+
+        <!-- Ribbons -->
+        <path
+            android:fillColor="#6600E5FF"
+            android:pathData="M7.5,17.5L4.5,21.5L8.5,20.5L9.5,18.5z M16.5,17.5L19.5,21.5L15.5,20.5L14.5,18.5z" />
+
+        <!-- Main Crest Shield Body -->
+        <path
+            android:pathData="M12,2L4,5v6c0,5 4,9 8,10c4,-1 8,-5 8,-10V5L12,2z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:angle="315"
+                    android:endColor="#00E5FF"
+                    android:startColor="#0091EA"
+                    android:type="linear" />
+            </aapt:attr>
+        </path>
+
+        <!-- Divider -->
+        <path
+            android:fillColor="#26000000"
+            android:pathData="M12,2V21C16,20 20,16 20,11V5L12,2z" />
+
+        <!-- Sword Details -->
+        <path android:fillColor="#FFFFFF" android:pathData="M11.2,7h1.6v1.6h-1.6V7z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M9.5,10h5v1h-5V10z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M11.3,11h1.4l-0.2,3.5h-1L11.3,11z" />
+        <path
+            android:strokeWidth="1"
+            android:strokeColor="#FFFFFF"
+            android:strokeLineCap="round"
+            android:pathData="M8.5,13.5c0,0 1.5,2 3.5,2s3.5,-2 3.5,-2" />
+    </group>
+
+</vector>

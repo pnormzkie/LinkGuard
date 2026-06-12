@@ -1,0 +1,15 @@
+# Secrets — API keys and release signing credentials live here; never commit
+local.properties
+
+# Gradle
+.gradle/
+build/
+app/build/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Logs
+*.log

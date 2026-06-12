@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LinkGuard</string>
+    <string name="error_enter_url">Please enter a URL</string>
+    <string name="error_invalid_url">Invalid URL format</string>
+    <string name="scanning">Scanning…</string>
+    <string name="scan">SCAN</string>
+    <string name="risk">RISK</string>
+    <string name="full_history">Scan History</string>
+    <string name="clear_all">CLEAR ALL</string>
+    <string name="all">ALL</string>
+    <string name="danger">THREATS</string>
+    <string name="filter_suspicious">SUSPICIOUS ITEMS</string>
+    <string name="filter_safe">SAFE ITEMS</string>
+
+    <string name="last_scan_format">Last scan: %1$s</string>
+    <string name="no_scans_yet">No scans performed yet</string>
+    <string name="protection_active">Protection: ACTIVE</string>
+    <string name="protection_inactive">Protection: INACTIVE (Tap to Enable)</string>
+    <string name="realtime_protection">Real-time Protection</string>
+    <string name="notification_permission_msg">To protect you in real-time, LinkGuard needs permission to scan links in notifications. Enable \'LinkGuard\' in the next screen.</string>
+    <string name="settings">Settings</string>
+    <string name="not_now">Not Now</string>
+    <string name="error_invalid_url_qr">Invalid URL QR</string>
+    <string name="error_unsupported_qr">Unsupported QR type</string>
+    <string name="delete_scan">Delete Scan</string>
+    <string name="delete_scan_confirm">Remove this item from history?</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="yes">Yes</string>
+    <string name="clear_history">Clear History</string>
+    <string name="clear_history_confirm">Delete all scan history?</string>
+
+    <!-- Dashboard Labels -->
+    <string name="system_status">SYSTEM STATUS</string>
+    <string name="scan_link">Scan Link</string>
+    <string name="qr_code_scanner">QR Code Scanner</string>
+    <string name="qr_scanner_subtitle">Scan or upload QR codes</string>
+    <string name="history_subtitle">Review your previous activity</string>
+    <string name="recent_activity">RECENT ACTIVITY</string>
+    <string name="no_recent_activity">No recent activity yet</string>
+
+    <!-- App Updates -->
+    <string name="update_available_title">Update Available</string>
+    <string name="update_available_msg">LinkGuard %1$s is available (you have %2$s).</string>
+    <string name="update_download">Download</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading update… The install prompt will appear when it\'s ready.</string>
+    <string name="version_footer">Version %1$s • Tap to check for updates</string>
+    <string name="update_up_to_date">You\'re on the latest version (%1$s)</string>
+    <string name="update_check_failed">Could not check for updates. Please check your connection.</string>
+
+    <!-- Link interception -->
+    <string name="link_scanning">Checking link safety…</string>
+    <string name="link_blocked_title">⚠ Dangerous link blocked</string>
+    <string name="link_suspicious_title">Suspicious link detected</string>
+    <string name="link_risk_format">Risk score: %1$d%% — %2$s</string>
+    <string name="btn_dont_open">Don\'t Open</string>
+    <string name="btn_open_anyway">Open Anyway</string>
+    <string name="link_safe_toast">✓ Link checked — safe</string>
+    <string name="link_unverified_toast">Opened without online verification — local checks only</string>
+    <string name="link_unchecked_title">Couldn\'t verify this link</string>
+    <string name="link_unchecked_reason">LinkGuard couldn\'t check this link — the scan didn\'t complete. Open it only if you trust the source.</string>
+    <string name="open_with">Open with</string>
+
+    <!-- UI Standardized Labels -->
+    <string name="threats_label">THREATS</string>
+    <string name="suspicious_items_label">SUSPICIOUS ITEMS</string>
+    <string name="safe_items_label">SAFE ITEMS</string>
+    <string name="no_history_found">No scan history found</string>
+
+    <!-- History (clear-all dialog + filtered empty state) -->
+    <string name="clear_all_history_title">Clear All History</string>
+    <string name="clear_all_history_confirm">This will permanently delete all scan records. Continue?</string>
+    <string name="clear_all_action">Clear All</string>
+    <string name="no_items_for_category">No items found for this category</string>
+
+    <!-- QR scanner -->
+    <string name="camera_permission_denied">Camera permission denied</string>
+    <string name="qr_align_instruction">ALIGN QR CODE INSIDE THE FRAME</string>
+    <string name="qr_upload_from_gallery">Upload QR from Gallery</string>
+    <string name="qr_none_in_image">No QR code found in image</string>
+    <string name="qr_read_failed">Failed to read QR code</string>
+    <string name="qr_image_open_error">Error opening image</string>
+    <string name="cd_back">Back</string>
+
+    <!-- Scan detail -->
+    <string name="invalid_scan_data">Invalid scan data</string>
+    <string name="status_dangerous_link">DANGEROUS LINK</string>
+    <string name="status_suspicious_link">SUSPICIOUS LINK</string>
+    <string name="status_safe_link">SAFE LINK</string>
+    <string name="source_qr_scan">QR Scan</string>
+    <string name="source_manual_scan">Manual Scan</string>
+    <string name="url_copied">URL copied</string>
+
+    <!-- Threat alert popup -->
+    <string name="threat_alert_title">Threat Alert</string>
+    <string name="suspicious_link_title">Suspicious Link</string>
+    <string name="threat_alert_source_system">System</string>
+    <string name="threat_prefix_dangerous">Dangerous</string>
+    <string name="threat_prefix_suspicious">Suspicious</string>
+    <string name="threat_alert_message">%1$s Link Detected from %2$s via %3$s.\n\nURL: %4$s\n\nProtect yourself immediately.</string>
+
+    <!-- History list item -->
+    <string name="scan_meta_format">via %1$s · %2$s</string>
+    <string name="status_badge_danger">⚠ DANGER</string>
+    <string name="status_badge_suspicious">⚡ SUSPICIOUS</string>
+    <string name="status_badge_safe">✓ SAFE</string>
+
+    <!-- Payment QR snackbar (manual handling) -->
+    <string name="payment_qr_valid_header">✓ Valid payment QR</string>
+    <string name="payment_qr_merchant_line">\nMerchant: %1$s</string>
+    <string name="payment_qr_city_line">\nCity: %1$s</string>
+    <string name="payment_qr_verify_reminder">\nAlways verify merchant details before paying.</string>
+    <string name="payment_qr_invalid_format">⚠ Suspicious or invalid payment QR\n%1$s</string>
+</resources>

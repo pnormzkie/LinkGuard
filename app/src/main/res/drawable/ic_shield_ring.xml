@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- Outer dashed ring (Note: android:strokeDashArray is not supported in VectorDrawable) -->
+    <path
+        android:pathData="M50,5A45,45 0,1 1,49.9 5"
+        android:strokeWidth="1"
+        android:strokeColor="#4000E5FF"
+        android:strokeLineCap="round" />
+
+    <!-- Inner solid ring -->
+    <path
+        android:pathData="M50,12A38,38 0,1 1,49.9 12"
+        android:strokeWidth="0.5"
+        android:strokeColor="#8000E5FF" />
+
+    <!-- HUD accents -->
+    <path
+        android:pathData="M50,2 L50,8 M98,50 L92,50 M50,98 L50,92 M2,50 L8,50"
+        android:strokeWidth="2"
+        android:strokeColor="#00E5FF" />
+
+</vector>
