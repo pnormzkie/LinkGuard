@@ -15,6 +15,7 @@ import com.linkguard.app.scanner.UrlExtractor
 import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.MonitorPreferences
 import com.linkguard.app.util.NotificationFilter
+import com.linkguard.app.util.ScanRateLimiter
 import com.linkguard.app.util.ThreatAlertHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,8 @@ class LinkNotificationService : NotificationListenerService() {
     private val orchestrator by lazy { ScannerProvider.orchestrator }
     private val repository by lazy { ScanRepository(applicationContext) }
     private val monitorPrefs by lazy { MonitorPreferences(applicationContext) }
+    // Flood guard for the automatic path: caps scans/window to protect provider quotas.
+    private val rateLimiter = ScanRateLimiter()
 
     override fun onCreate() {
         super.onCreate()
@@ -69,6 +72,12 @@ class LinkNotificationService : NotificationListenerService() {
         val sender = title.ifBlank { "Unknown" }
 
         urls.forEach { url ->
+            // Flood guard: skip when the per-window scan cap is hit (repeats of the same
+            // URL are already coalesced by the orchestrator's verdict cache).
+            if (!rateLimiter.tryAcquire()) {
+                if (BuildConfig.DEBUG) Log.w(TAG, "Rate limited, skipping scan for $url")
+                return@forEach
+            }
             serviceScope.launch {
                 try {
                     val domainResult = orchestrator.scan(url, messageText = fullMessageText)

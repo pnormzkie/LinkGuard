@@ -230,10 +230,21 @@ Phase 2 — user control + transparency (required to ship)  [DONE 2026-06-14]
       same notification scanned (HA HTTP 200, Signals Found). Confirms UI and service share
       the same SharedPreferences instance (no restart needed).
 
-Phase 3 — guardrails (anti-quota/abuse)
-- [ ] Service-layer per-window rate-limit / scanned-URL dedup (on top of orchestrator cache)
-      so a burst of UNIQUE urls can't blow a provider's daily quota.
-- [ ] Coalesce duplicate notification re-posts.
+Phase 3 — guardrails (anti-quota/abuse)  [DONE 2026-06-14]
+- [x] New `util/ScanRateLimiter.kt` — sliding-window limiter (default 15 scans / 60s,
+      injected clock, @Synchronized). Wired into LinkNotificationService: tryAcquire() per
+      URL before launching a scan; over-cap URLs are skipped (debug-logged). Scope: ONLY the
+      automatic notification path — tapped/manual scans don't go through it.
+- [x] Coalesce duplicate notification re-posts: already provided by ScanOrchestrator's
+      15-min verdict cache (same url+messageText = cache hit, no network). Documented in
+      ScanRateLimiter KDoc; not re-implemented (would duplicate the cache and change the
+      re-alert-on-repost behavior).
+- [x] Tests: app/src/test/.../util/ScanRateLimiterTest.kt (4 cases: cap, block-over-cap,
+      window-slide, partial-slide). Verify: :app:testDebugUnitTest = 149 tests, 0 failures
+      (was 145; +4). compileDebugKotlin green.
+- FUTURE (not done): a PERSISTENT daily cap (survives process restart, via SharedPreferences)
+      for tighter alignment with VirusTotal's ~500/day. Current limiter is in-memory per
+      process — guards acute floods, resets on restart.
 
 Affected files: `service/LinkNotificationService.kt`; NEW `util/NotificationFilter.kt`,
 `util/MonitorPreferences.kt`, `app/src/test/.../NotificationFilterTest.kt`;
