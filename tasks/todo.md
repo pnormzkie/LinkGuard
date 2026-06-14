@@ -225,6 +225,10 @@ Phase 2 — user control + transparency (required to ship)  [DONE 2026-06-14]
       (layout/ViewBinding/strings link clean).
 - NET EFFECT: default is back to seed-19 (privacy-safe). The "any app" coverage from
       Phase 1 is now opt-in via the toggle. Per-app overrides intentionally deferred.
+- [x] On-device verified (Pixel_7/API 34): toggle OFF (default) → non-seed com.android.shell
+      notification NOT scanned (0 scan lines); tapped the switch ON via uiautomator →
+      same notification scanned (HA HTTP 200, Signals Found). Confirms UI and service share
+      the same SharedPreferences instance (no restart needed).
 
 Phase 3 — guardrails (anti-quota/abuse)
 - [ ] Service-layer per-window rate-limit / scanned-URL dedup (on top of orchestrator cache)
