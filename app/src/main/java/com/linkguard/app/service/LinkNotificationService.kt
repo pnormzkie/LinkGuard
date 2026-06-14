@@ -13,6 +13,7 @@ import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.domain.mapper.toLegacy
 import com.linkguard.app.scanner.UrlExtractor
 import com.linkguard.app.util.AppConfig
+import com.linkguard.app.util.NotificationFilter
 import com.linkguard.app.util.ThreatAlertHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,28 +28,6 @@ class LinkNotificationService : NotificationListenerService() {
     private val orchestrator by lazy { ScannerProvider.orchestrator }
     private val repository by lazy { ScanRepository(applicationContext) }
 
-    private val MONITORED_PACKAGES = setOf(
-        "com.android.mms",
-        "com.google.android.apps.messaging",
-        "com.samsung.android.messaging",
-        "com.whatsapp",
-        "org.telegram.messenger",
-        "org.thunderdog.challegram",        // Telegram X
-        "com.facebook.orca",
-        "com.facebook.mlite",               // Messenger Lite
-        "com.instagram.android",
-        "com.viber.voip",
-        "com.snapchat.android",
-        "com.discord",
-        "org.thoughtcrime.securesms",       // Signal
-        "jp.naver.line.android",            // Line
-        "com.google.android.gm",            // Gmail
-        "com.tencent.mm",                   // WeChat
-        "com.kakao.talk",                   // KakaoTalk
-        "com.twitter.android",              // X (Twitter) DMs
-        "com.zhiliaoapp.musically"          // TikTok
-    )
-
     override fun onCreate() {
         super.onCreate()
         // Ensure high-priority channels are registered when service starts
@@ -61,7 +40,16 @@ class LinkNotificationService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName !in MONITORED_PACKAGES) return
+        // Scan links from any app except self/system surfaces (denylist model).
+        val isGroupSummary =
+            (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+        if (!NotificationFilter.shouldScan(
+                packageName = sbn.packageName,
+                ownPackage = packageName,
+                isOngoing = sbn.isOngoing,
+                isGroupSummary = isGroupSummary,
+            )
+        ) return
 
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE).orEmpty()

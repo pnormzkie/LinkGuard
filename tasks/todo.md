@@ -174,13 +174,18 @@ Existing safeguard to lean on: ScanOrchestrator has an LRU+TTL dedup cache
 (`ScanOrchestrator.kt:33-59`, 200 entries / 15 min) so repeated same-URL scans don't
 re-hit providers — but unique-URL floods still need Phase 3.
 
-Phase 1 — core coverage
-- [ ] Replace `if (sbn.packageName !in MONITORED_PACKAGES) return` (:64) with a denylist:
-      skip (a) LinkGuard's own package, (b) Android system/SystemUI/launcher, (c) optional
-      noisy-app set.
-- [ ] Extract the decision into pure `util/NotificationFilter.shouldScan(pkg, isSelf, flags)`
-      so it is JVM-unit-testable (the service itself is Android-bound).
-- [ ] Harden: skip ongoing, group-summary, and media notifications.
+Phase 1 — core coverage  [DONE 2026-06-14]
+- [x] Replaced the `MONITORED_PACKAGES` allowlist gate in LinkNotificationService with a
+      denylist via NotificationFilter; removed the 19-package set. getAppLabel mapping kept
+      (still has the else-fallback for unknown apps).
+- [x] New pure `util/NotificationFilter.shouldScan(packageName, ownPackage, isOngoing,
+      isGroupSummary)` — excludes self (loop guard), android/systemui/vending/gms; explicit
+      list (no broad com.android.* prefix) so com.android.mms SMS still scans.
+- [x] Harden: skip ongoing (sbn.isOngoing) and FLAG_GROUP_SUMMARY notifications.
+- [x] Tests: app/src/test/.../util/NotificationFilterTest.kt (8 cases). Verify:
+      :app:testDebugUnitTest = 141 tests, 0 failures/0 errors (was 133; +8). compileDebugKotlin green.
+- NOTE: Phase 1 makes the default behaviour scan-all-except-excluded. The (B) seed-19 default
+      + opt-in toggle is Phase 2 (MonitorPreferences/SetupActivity) and not yet wired.
 
 Phase 2 — user control + transparency (required to ship)
 - [ ] New `util/MonitorPreferences.kt` (SharedPreferences — none exists yet): master
