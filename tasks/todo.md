@@ -187,6 +187,27 @@ Phase 1 — core coverage  [DONE 2026-06-14]
 - NOTE: Phase 1 makes the default behaviour scan-all-except-excluded. The (B) seed-19 default
       + opt-in toggle is Phase 2 (MonitorPreferences/SetupActivity) and not yet wired.
 
+On-device smoke (2026-06-14, Pixel_7 / API 34 emulator, debug build, notification listener
+granted via `cmd notification allow_listener`):
+- [x] PASS — posted a notification from pkg=com.android.shell (a package NEVER in the old
+      19-app allowlist). LinkNotificationService scanned it end-to-end:
+      "ScanOrchestrator: HA Search (...): HTTP 200" → "Signals Found -> SB:0,DNS:0,VT:0,HA:0"
+      → non-SAFE verdict → ThreatAlertActivity launch attempted. Proves the denylist now
+      covers apps outside the old 19. No crash.
+- Test-harness gotcha (for on-device-smoke skill): `cmd notification post <tag> <text>`
+      TRUNCATES the body at the first space (android.text became "pakitingnan"/"nanalo"/
+      "verify"), so a URL in the body never reaches extras. Put the URL in the TITLE (-t,
+      no spaces) — confirmed via `dumpsys notification --noredact`. Earlier empty-log runs
+      were this, not a code defect.
+- Evidence screenshot: tasks/phase1-smoke.png.
+
+Unrelated observation (NOT Phase 1; do not fix here):
+- On API 34 the background startActivity for ThreatAlertActivity was BAL_BLOCK'd
+  ("Background activity launch blocked … ThreatAlertActivity"). The emergency full-screen
+  popup may not launch from the background service on Android 14; the high-priority
+  heads-up notification (USE_FULL_SCREEN_INTENT) is the sanctioned path. Worth a separate
+  look — affects all scan sources, not just the widened set.
+
 Phase 2 — user control + transparency (required to ship)
 - [ ] New `util/MonitorPreferences.kt` (SharedPreferences — none exists yet): master
       "scan all apps" toggle + optional per-app overrides.
