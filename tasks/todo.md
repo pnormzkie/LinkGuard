@@ -246,6 +246,26 @@ Phase 3 — guardrails (anti-quota/abuse)  [DONE 2026-06-14]
       for tighter alignment with VirusTotal's ~500/day. Current limiter is in-memory per
       process — guards acute floods, resets on restart.
 
+## 2026-06-14 — Release v1.9 (versionCode 10): any-app scanning + toggle + rate limit
+
+- [x] Bumped versionCode 9->10, versionName "1.8"->"1.9" (app/build.gradle). Pre-flight: live
+      latest was v1.8, no drift.
+- [x] Signed release build GREEN: :app:assembleRelease (R8 + shrinkResources + lintVitalRelease).
+- [x] APK validated: apksigner cert SHA-256 = ead80ea1...74227357 (same release keystore);
+      aapt versionCode=10 versionName=1.9 package com.linkguard.app. Local SHA-256 =
+      32a756357544b769a379ceecb1aa178b221146d81ec5841cc73a2c917c685dee, size 24446131.
+- [x] PUBLISHED to GitHub (release id=339131067, tag v1.9, asset LinkGuard-v1.9.apk).
+      Upload note: curl AND PowerShell HttpClient repeatedly reset on the 24MB body in this
+      session; small API calls fine. Set release to DRAFT during retries (no broken update
+      prompt to users), then a curl retry succeeded; un-drafted + make_latest=true.
+- [x] Live-verified: asset state=uploaded, server digest == local SHA-256; releases/latest=v1.9;
+      public latest/download re-downloaded (resumable, network truncated large GETs too) and
+      re-hashed IDENTICAL (24446131 bytes, 32a756...685dee). In-app updater will offer to v1.8.
+- [x] Staged signed APK at release-staging/LinkGuard-v1.9.apk (repo convention).
+- [ ] USER ACTION: REVOKE the GitHub PAT used to publish (pasted in chat — exposed). Do now.
+- Standing (unchanged): rotate/restrict the 3 embedded API keys; API 34 BAL_BLOCK on
+  background ThreatAlertActivity launch (separate issue).
+
 Affected files: `service/LinkNotificationService.kt`; NEW `util/NotificationFilter.kt`,
 `util/MonitorPreferences.kt`, `app/src/test/.../NotificationFilterTest.kt`;
 `ui/SetupActivity.kt` + `res/layout` + `res/values/strings.xml`; optional `getAppLabel`
