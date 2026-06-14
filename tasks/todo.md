@@ -155,3 +155,60 @@ User report: "parang di gumagana yung provider detection."
 - [x] Second bug found by live probe and fixed: bare NXDOMAIN (nonexistent domain) was flagged as "Blocked by NextDNS" — false positive; now requires EDE/sinkhole evidence.
 - [x] Verify: NextDNS suite 15/15; full suite 133/133; assembleRelease green; live probe — doubleclick.net→NEXTDNS_BLOCK, example.com→clean, nonexistent domain→no signal.
 - [x] Shipped in v1.8 (published 2026-06-13, tag v1.8)
+
+## 2026-06-14 — PLAN: expand auto-scan beyond the 19-app allowlist ("any messaging app")
+
+Status: PLAN ONLY (not started). Risk: HIGH — NotificationListenerService reads message
+content (PII), sensitive permission, third-party API quotas.
+
+Problem: `LinkNotificationService.kt:30,64` auto-scans notification links only from a
+hardcoded `MONITORED_PACKAGES` set of 19 apps; anything else returns early at :64. The
+tap path (`LinkInterceptActivity`, browser intent-filter) is already app-agnostic; only
+the AUTOMATIC notification path is limited.
+
+Chosen approach (recommended): denylist-by-default + user toggle. NOT a blind "scan
+everything" — that risks Google Play notification-access policy + VirusTotal free-tier
+quota (~4 req/min, ~500/day). Default state = (B) keep current 19 as seed, with an easy
+"enable all apps" opt-in (opt-in is easier to defend in Play review / for privacy).
+Existing safeguard to lean on: ScanOrchestrator has an LRU+TTL dedup cache
+(`ScanOrchestrator.kt:33-59`, 200 entries / 15 min) so repeated same-URL scans don't
+re-hit providers — but unique-URL floods still need Phase 3.
+
+Phase 1 — core coverage
+- [ ] Replace `if (sbn.packageName !in MONITORED_PACKAGES) return` (:64) with a denylist:
+      skip (a) LinkGuard's own package, (b) Android system/SystemUI/launcher, (c) optional
+      noisy-app set.
+- [ ] Extract the decision into pure `util/NotificationFilter.shouldScan(pkg, isSelf, flags)`
+      so it is JVM-unit-testable (the service itself is Android-bound).
+- [ ] Harden: skip ongoing, group-summary, and media notifications.
+
+Phase 2 — user control + transparency (required to ship)
+- [ ] New `util/MonitorPreferences.kt` (SharedPreferences — none exists yet): master
+      "scan all apps" toggle + optional per-app overrides.
+- [ ] UI in `SetupActivity` (currently an empty TODO placeholder) + layout/strings:
+      toggle + clear purpose statement for notification access (Play policy).
+- [ ] Wire the service to MonitorPreferences; default = (B) seed-19 + "enable all" opt-in.
+
+Phase 3 — guardrails (anti-quota/abuse)
+- [ ] Service-layer per-window rate-limit / scanned-URL dedup (on top of orchestrator cache)
+      so a burst of UNIQUE urls can't blow a provider's daily quota.
+- [ ] Coalesce duplicate notification re-posts.
+
+Affected files: `service/LinkNotificationService.kt`; NEW `util/NotificationFilter.kt`,
+`util/MonitorPreferences.kt`, `app/src/test/.../NotificationFilterTest.kt`;
+`ui/SetupActivity.kt` + `res/layout` + `res/values/strings.xml`; optional `getAppLabel`
+(:106) PackageManager label for unknown apps.
+
+Landmines (verified in code):
+- CRITICAL self-scan loop: LinkGuard's own threat-alert notifications contain the URL →
+  must exclude own package or it scans its own alerts forever.
+- PII: wider coverage = more URLs sent to VirusTotal/SafeBrowsing/HybridAnalysis. Keep
+  `messageText` LOCAL-only (orchestrator passes url/domain to network providers, not the
+  message body — `ScanOrchestrator.kt:72-75`).
+- Noise/battery: many non-messaging apps put URLs in notifications → denylist + ongoing-skip.
+
+Tests (match-to-risk): NotificationFilter unit (own ✗ / system ✗ / unknown messaging ✓ /
+ongoing ✗); dedup/rate-limit unit; on-device smoke (new on-device-smoke skill) sending a
+link from an app NOT in the old 19 (e.g. Slack/Teams) + confirm no self-loop.
+
+Rollback: gated behind toggle, change localized to the service → `git revert`.
