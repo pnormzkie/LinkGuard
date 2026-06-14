@@ -49,4 +49,38 @@ object NotificationFilter {
         if (isGroupSummary) return false                   // duplicates its child messages
         return true
     }
+
+    /**
+     * The messaging apps scanned by default when the user has NOT opted into scanning all
+     * apps. Mirrors the label map in LinkNotificationService.getAppLabel. Phase 2 keeps the
+     * broad "any app" capability opt-in (privacy / Play notification-access policy).
+     */
+    val DEFAULT_MESSAGING_PACKAGES = setOf(
+        "com.android.mms",
+        "com.google.android.apps.messaging",
+        "com.samsung.android.messaging",
+        "com.whatsapp",
+        "org.telegram.messenger",
+        "org.thunderdog.challegram",        // Telegram X
+        "com.facebook.orca",
+        "com.facebook.mlite",               // Messenger Lite
+        "com.instagram.android",
+        "com.viber.voip",
+        "com.snapchat.android",
+        "com.discord",
+        "org.thoughtcrime.securesms",       // Signal
+        "jp.naver.line.android",            // Line
+        "com.google.android.gm",            // Gmail
+        "com.tencent.mm",                   // WeChat
+        "com.kakao.talk",                   // KakaoTalk
+        "com.twitter.android",              // X (Twitter) DMs
+        "com.zhiliaoapp.musically",         // TikTok
+    )
+
+    /**
+     * Breadth policy applied on TOP of [shouldScan]: when the user has not enabled
+     * "scan all apps", restrict scanning to [DEFAULT_MESSAGING_PACKAGES].
+     */
+    fun isWithinScope(packageName: String, scanAllApps: Boolean): Boolean =
+        scanAllApps || packageName in DEFAULT_MESSAGING_PACKAGES
 }

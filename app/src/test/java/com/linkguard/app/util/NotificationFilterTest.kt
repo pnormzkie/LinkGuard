@@ -65,4 +65,27 @@ class NotificationFilterTest {
     fun `blank package is rejected`() {
         assertFalse(shouldScan(""))
     }
+
+    // --- Breadth scope (Phase 2: seed-19 default vs opt-in scan-all) ----------
+
+    @Test
+    fun `seed messaging app is in scope even when scan-all is off`() {
+        assertTrue(NotificationFilter.isWithinScope("com.whatsapp", scanAllApps = false))
+    }
+
+    @Test
+    fun `non-seed app is out of scope when scan-all is off (default)`() {
+        assertFalse(NotificationFilter.isWithinScope("com.Slack", scanAllApps = false))
+        assertFalse(NotificationFilter.isWithinScope("com.microsoft.teams", scanAllApps = false))
+    }
+
+    @Test
+    fun `non-seed app comes into scope when scan-all is on`() {
+        assertTrue(NotificationFilter.isWithinScope("com.Slack", scanAllApps = true))
+    }
+
+    @Test
+    fun `seed app stays in scope when scan-all is on`() {
+        assertTrue(NotificationFilter.isWithinScope("com.whatsapp", scanAllApps = true))
+    }
 }

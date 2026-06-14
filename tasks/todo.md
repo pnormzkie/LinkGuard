@@ -208,12 +208,23 @@ Unrelated observation (NOT Phase 1; do not fix here):
   heads-up notification (USE_FULL_SCREEN_INTENT) is the sanctioned path. Worth a separate
   look — affects all scan sources, not just the widened set.
 
-Phase 2 — user control + transparency (required to ship)
-- [ ] New `util/MonitorPreferences.kt` (SharedPreferences — none exists yet): master
-      "scan all apps" toggle + optional per-app overrides.
-- [ ] UI in `SetupActivity` (currently an empty TODO placeholder) + layout/strings:
-      toggle + clear purpose statement for notification access (Play policy).
-- [ ] Wire the service to MonitorPreferences; default = (B) seed-19 + "enable all" opt-in.
+Phase 2 — user control + transparency (required to ship)  [DONE 2026-06-14]
+- [x] New `util/MonitorPreferences.kt` (SharedPreferences "linkguard_monitor_prefs"):
+      `scanAllApps` boolean, default FALSE = seed-19 mode (recommendation B).
+- [x] NotificationFilter: added DEFAULT_MESSAGING_PACKAGES (the 19) + pure
+      `isWithinScope(packageName, scanAllApps)` = scanAllApps || pkg in seed.
+- [x] Service applies the scope gate AFTER the universal shouldScan exclusions
+      (LinkNotificationService reads MonitorPreferences.scanAllApps).
+- [x] UI: SwitchMaterial "Scan links from all apps" in the protection card
+      (activity_main.xml) wired in MainActivity (state set before listener so restore
+      doesn't fire snackbar); 4 new strings. NOTE: put the toggle on the main screen's
+      protection card (the real settings hub) rather than the empty SetupActivity
+      placeholder — matches the existing no-menu, card-based UI.
+- [x] Tests: +4 isWithinScope cases. Verify: :app:testDebugUnitTest = 145 tests,
+      0 failures (was 141; NotificationFilterTest 8->12). :app:assembleDebug green
+      (layout/ViewBinding/strings link clean).
+- NET EFFECT: default is back to seed-19 (privacy-safe). The "any app" coverage from
+      Phase 1 is now opt-in via the toggle. Per-app overrides intentionally deferred.
 
 Phase 3 — guardrails (anti-quota/abuse)
 - [ ] Service-layer per-window rate-limit / scanned-URL dedup (on top of orchestrator cache)

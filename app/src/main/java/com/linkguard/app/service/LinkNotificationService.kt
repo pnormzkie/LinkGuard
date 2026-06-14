@@ -13,6 +13,7 @@ import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.domain.mapper.toLegacy
 import com.linkguard.app.scanner.UrlExtractor
 import com.linkguard.app.util.AppConfig
+import com.linkguard.app.util.MonitorPreferences
 import com.linkguard.app.util.NotificationFilter
 import com.linkguard.app.util.ThreatAlertHelper
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +28,7 @@ class LinkNotificationService : NotificationListenerService() {
 
     private val orchestrator by lazy { ScannerProvider.orchestrator }
     private val repository by lazy { ScanRepository(applicationContext) }
+    private val monitorPrefs by lazy { MonitorPreferences(applicationContext) }
 
     override fun onCreate() {
         super.onCreate()
@@ -50,6 +52,9 @@ class LinkNotificationService : NotificationListenerService() {
                 isGroupSummary = isGroupSummary,
             )
         ) return
+        // Breadth gate: unless the user opted into scanning all apps, only the seed
+        // messaging apps are scanned (default = privacy-conservative).
+        if (!NotificationFilter.isWithinScope(sbn.packageName, monitorPrefs.scanAllApps)) return
 
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE).orEmpty()

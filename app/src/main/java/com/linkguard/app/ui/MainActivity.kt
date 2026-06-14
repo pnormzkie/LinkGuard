@@ -33,6 +33,7 @@ import com.linkguard.app.update.UpdateChecker
 import com.linkguard.app.update.UpdateInfo
 import com.linkguard.app.update.UpdateInstaller
 import com.linkguard.app.util.AppConfig
+import com.linkguard.app.util.MonitorPreferences
 import kotlinx.coroutines.launch
 import androidx.activity.result.contract.ActivityResultContracts
 import android.provider.Settings
@@ -53,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: ScanHistoryAdapter
+    private val monitorPrefs by lazy { MonitorPreferences(this) }
 
     // ─── Animations ───────────────────────────────────────────────────────────
 
@@ -169,6 +171,15 @@ class MainActivity : AppCompatActivity() {
 
         binding.tvProtectionStatus.setOnClickListener {
             if (!isNotificationServiceEnabled()) showNotificationAccessDialog()
+        }
+
+        // Set state before attaching the listener so restoring it doesn't fire the snackbar.
+        binding.switchScanAllApps.isChecked = monitorPrefs.scanAllApps
+        binding.switchScanAllApps.setOnCheckedChangeListener { _, checked ->
+            monitorPrefs.scanAllApps = checked
+            showSnackbar(
+                getString(if (checked) R.string.scan_all_apps_on else R.string.scan_all_apps_off)
+            )
         }
     }
 

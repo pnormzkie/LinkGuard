@@ -127,6 +127,25 @@
                     android:textColor="@color/cyan"
                     android:textSize="11sp"
                     android:alpha="0.8" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchScanAllApps"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/scan_all_apps"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/scan_all_apps_desc"
+                    android:textColor="@color/text_muted"
+                    android:textSize="9sp"
+                    android:gravity="center"
+                    android:layout_marginTop="2dp"
+                    android:alpha="0.8" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
