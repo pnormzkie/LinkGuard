@@ -284,3 +284,82 @@ ongoing ✗); dedup/rate-limit unit; on-device smoke (new on-device-smoke skill)
 link from an app NOT in the old 19 (e.g. Slack/Teams) + confirm no self-loop.
 
 Rollback: gated behind toggle, change localized to the service → `git revert`.
+
+## 2026-06-18 — v1.10: alert reliability + detection coverage + quota robustness
+
+Plan: C:\Users\bizbo\.claude\plans\question-ano-pa-ang-idempotent-sketch.md
+Scope (locked): safe-slice + network items. OUT: redirect/shortener resolution.
+
+Phase A — alert delivery reliability (Android 13/14+)  [CODE DONE 2026-06-18; on-device PENDING]
+- [x] A1. Request POST_NOTIFICATIONS at runtime (API 33+) from MainActivity. Root cause:
+      manifest declared it but it was NEVER requested (grep = 0 hits) → no alert at all on
+      13+ when denied. maybeRequestNotificationPermission() (onResume, once/process, only
+      when listener is on) + requestNotificationPermission() from the gap dialog.
+- [x] A2. canUseFullScreenIntent() on SDK>=34; if false, openFullScreenIntentSettings()
+      deep-links to Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT (falls back to app
+      notification settings).
+- [x] A3. New pure util/AlertCapabilities.kt (sdkInt, notificationsEnabled, canUseFsi) →
+      gaps; AlertCapabilitiesTest (6 cases) green.
+- [x] A4. Surface gaps via showAlertDeliveryDialog() when protection is on (tap status).
+      ThreatAlertHelper KDoc clarifies direct startActivity is best-effort; FSI notification
+      is the guaranteed path. No manifest change (both perms already declared).
+- [x] A-verify. ON-DEVICE Pixel_7 / API 34 (Android 14), debug APK, 2026-06-18:
+      * Baseline: POST_NOTIFICATIONS granted=false at install (confirms the root-cause gap);
+        USE_FULL_SCREEN_INTENT manifest-granted.
+      * Enabled listener → launched MainActivity → POST_NOTIFICATIONS runtime dialog appeared
+        ("Allow LinkGuard to send you notifications?"); tapped Allow → granted=true (appop allow).
+        Proves the request now fires (it never did before). Screenshot tasks/phaseA-perm-prompt.png.
+      * FSI gap: appops set USE_FULL_SCREEN_INTENT ignore → tapped Protection: ACTIVE →
+        gap dialog "Threat alerts may not reach you" + full-screen message + "Full-screen alerts"
+        action → deep-linked to com.android.settings/.AppManageFullScreenIntent. Screenshot
+        tasks/phaseA-fsi-gap-dialog.png. (With FSI allowed, no dialog — correct.)
+      * E2E: scanAllApps ON → posted notification title=http://gcash-verify.com/claim (pkg shell)
+        → LinkGuard scanned (heuristics → DANGER) → posted alert on channel linkguard_danger_v3
+        (importance HIGH, category=alarm, "⚠️ DANGEROUS LINK DETECTED") AND ThreatAlertActivity
+        full-screen Displayed (+514ms, dismiss-keyguard) — NOT BAL-blocked once POST_NOTIFICATIONS
+        is granted. In-app THREATS=1, "Last scan: 0 minutes ago". Screenshot tasks/phaseA-threat-alert.png.
+      NOTE: the v1.9-era BAL_BLOCK observation was without the notification permission; with the
+      Phase A grant flow the full-screen alert now launches on API 34. Phase A: VERIFIED.
+
+Phase B — detection coverage, local (UrlScanner.kt only)  [DONE 2026-06-18]
+- [x] B1. Rule 6b: xn-- punycode (+25, escalate +45 if java.net.IDN.toUnicode contains a
+      brand) + hasMixedScript() via Character.UnicodeScript (+45 for Latin+Cyrillic/Greek
+      in one label). All-one-script IDNs NOT flagged (avoids legit-IDN false positives).
+- [x] B2. SMISHING_PATTERNS +9: courier release/processing/customs/shipping fee + parcel
+      on-hold + bayad-padala; WFH/earn-daily/hiring; device-hacked/virus-detected/call-support.
+- [x] B3. HeuristicScannerTest +7 (punycode, Cyrillic homoglyph, ascii negative, courier,
+      WFH, tech-support, benign delivery negative). HeuristicScannerTest suite green.
+
+Phase C — detection coverage, network (RDAP domain age)  [DONE 2026-06-18]
+- [x] C1. DomainAgeProvider: rdap.org/domain/{registrable}; reads 'registration' event;
+      skip KnownDomains.isTrusted; <7d STRONG(45)/7-30d WEAK(20); 404=no signal; other
+      non-2xx + malformed JSON + network = fail loud; reuse SignalSource.DOMAIN_SIGNAL.
+      registrableDomain() reduces to eTLD+1 with a small second-level-TLD list (com.ph, co.uk…).
+- [x] C2. Wired 5th provider (daDeferred) into ScanOrchestrator (in awaitAll/coverage/log);
+      registered DomainAgeProvider(okHttpClient) in ScannerProvider.
+- [x] C3. DomainAgeProviderTest (9 cases, FakeHttp seam). Updated ScanOrchestratorTest
+      orchestrator() helper (+domainAge param) and all-fail test (domainAge=failing too,
+      since an empty domain-age result counts as coverage present). Both suites green.
+
+Phase D — robustness / quota  [DONE 2026-06-18]
+- [x] D1. DailyScanCounter (Store seam + injected clock; SharedPreferences via create();
+      DEFAULT_MAX_PER_DAY=400; UTC-midnight rollover). Gated in LinkNotificationService AFTER
+      the sliding window; automatic path only (manual/tapped never call it).
+- [x] D2. RetryInterceptor on okHttpClient (ScannerProvider): one retry on connection
+      IOException + 5xx; NEVER 4xx/429; injected sleeper for tests.
+- [x] D3. DailyScanCounterTest (3: cap, rollover, restart-persistence) +
+      RetryInterceptorTest (5: 5xx retried, 429 not, 4xx not, 200 not, IOException retried+propagates).
+
+VERIFY (2026-06-18): :app:testDebugUnitTest = 179 tests, 0 failures/0 errors (was 149; +30:
+AlertCapabilities 6, HeuristicScanner +7, DomainAgeProvider 9, DailyScanCounter 3,
+RetryInterceptor 5). :app:assembleDebug BUILD SUCCESSFUL (manifest/strings/resources link
+clean, APK packaged). Cached Gradle 8.9 + Adoptium JDK 17, unsandboxed.
+
+ON-DEVICE (2026-06-18): Phase A VERIFIED on Pixel_7 / API 34 (see A-verify above) — perm
+prompt, FSI gap dialog + deep-link, and full E2E DANGER alert (notification + full-screen)
+all confirmed. Restored emulator state (notifications granted, FSI appop=allow).
+
+RESIDUAL / NOT DONE:
+- Phase C live RDAP probe (fresh vs old domain; outage → coverage-missing not false-SAFE) not
+  run this session — covered by unit tests only.
+- No version bump / release this session (code + tests + Phase A device verification only).

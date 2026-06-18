@@ -13,6 +13,7 @@ import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.domain.mapper.toLegacy
 import com.linkguard.app.scanner.UrlExtractor
 import com.linkguard.app.util.AppConfig
+import com.linkguard.app.util.DailyScanCounter
 import com.linkguard.app.util.MonitorPreferences
 import com.linkguard.app.util.NotificationFilter
 import com.linkguard.app.util.ScanRateLimiter
@@ -32,6 +33,8 @@ class LinkNotificationService : NotificationListenerService() {
     private val monitorPrefs by lazy { MonitorPreferences(applicationContext) }
     // Flood guard for the automatic path: caps scans/window to protect provider quotas.
     private val rateLimiter = ScanRateLimiter()
+    // Persistent daily cap (survives restarts) aligned with provider daily quotas.
+    private val dailyCounter by lazy { DailyScanCounter.create(applicationContext) }
 
     override fun onCreate() {
         super.onCreate()
@@ -76,6 +79,12 @@ class LinkNotificationService : NotificationListenerService() {
             // URL are already coalesced by the orchestrator's verdict cache).
             if (!rateLimiter.tryAcquire()) {
                 if (BuildConfig.DEBUG) Log.w(TAG, "Rate limited, skipping scan for $url")
+                return@forEach
+            }
+            // Persistent daily cap (after the burst window) keeps us inside provider quotas
+            // across process restarts. Automatic path only — manual/tapped scans never hit this.
+            if (!dailyCounter.tryAcquire()) {
+                if (BuildConfig.DEBUG) Log.w(TAG, "Daily scan cap reached, skipping scan for $url")
                 return@forEach
             }
             serviceScope.launch {

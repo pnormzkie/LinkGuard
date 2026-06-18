@@ -21,6 +21,12 @@
     <string name="notification_permission_msg">To protect you in real-time, LinkGuard needs permission to scan links in notifications. Enable \'LinkGuard\' in the next screen.</string>
     <string name="settings">Settings</string>
     <string name="not_now">Not Now</string>
+    <string name="alert_delivery_title">Threat alerts may not reach you</string>
+    <string name="alert_gap_notifications">Notifications are turned off for LinkGuard, so threat alerts won\'t appear. Allow notifications to get warned about dangerous links.</string>
+    <string name="alert_gap_fullscreen">Full-screen alerts are blocked, so a dangerous-link warning may only show as a quiet notification. Allow full-screen alerts so the warning takes over the screen.</string>
+    <string name="enable_notifications">Allow notifications</string>
+    <string name="full_screen_settings">Full-screen alerts</string>
+    <string name="notifications_permission_needed">Notifications are off — threat alerts won\'t be shown</string>
     <string name="scan_all_apps">Scan links from all apps</string>
     <string name="scan_all_apps_desc">Off = trusted messaging apps only</string>
     <string name="scan_all_apps_on">Now scanning links from all apps</string>

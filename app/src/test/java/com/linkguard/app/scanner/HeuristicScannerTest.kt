@@ -105,6 +105,65 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `punycode domain is flagged as internationalized`() {
+        // xn-- label (a famous Cyrillic "apple" homoglyph encoding)
+        val result = HeuristicScanner.scanWithContext("https://xn--80ak6aa92e.com", null)
+        assertTrue(result.flags.any { it.contains("punycode", ignoreCase = true) })
+        assertTrue(result.riskScore >= 25)
+    }
+
+    @Test
+    fun `mixed-script homoglyph domain is flagged`() {
+        // "pаypal.com" — the 'а' is Cyrillic U+0430, not Latin 'a'
+        val result = HeuristicScanner.scanWithContext("https://pаypal.com", null)
+        assertTrue(result.flags.any { it.contains("homoglyph", ignoreCase = true) })
+        assertEquals(ThreatLevel.SUSPICIOUS, result.threatLevel)
+    }
+
+    @Test
+    fun `plain ascii domain is not flagged as homoglyph or punycode`() {
+        val flags = flagsOf("https://example.com")
+        assertFalse(flags.any { it.contains("homoglyph", ignoreCase = true) })
+        assertFalse(flags.any { it.contains("punycode", ignoreCase = true) })
+    }
+
+    @Test
+    fun `courier release-fee smishing is flagged`() {
+        val flags = flagsOf(
+            "https://example.com",
+            "Your parcel is on hold. Please pay the release fee to receive it."
+        )
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `work-from-home recruitment smishing is flagged`() {
+        val flags = flagsOf(
+            "https://example.com",
+            "Work from home and earn daily payout! Apply now."
+        )
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `tech-support scare smishing is flagged`() {
+        val flags = flagsOf(
+            "https://example.com",
+            "Warning: your device has been hacked. Call support now."
+        )
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `benign delivery message is not flagged as smishing`() {
+        val flags = flagsOf(
+            "https://example.com",
+            "I will send the package tomorrow, thanks!"
+        )
+        assertFalse(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
     fun `score thresholds map to threat levels`() {
         // ~85 points (http 30 + keyword 15 + spoof 40)
         val danger = HeuristicScanner.scanWithContext("http://gcash-verify.com", null)

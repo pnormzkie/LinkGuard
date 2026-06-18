@@ -1,7 +1,9 @@
 package com.linkguard.app
 
+import com.linkguard.app.data.provider.DomainAgeProvider
 import com.linkguard.app.data.provider.HybridAnalysisProvider
 import com.linkguard.app.data.provider.NextDnsDomainSignalProvider
+import com.linkguard.app.data.provider.RetryInterceptor
 import com.linkguard.app.data.provider.SafeBrowsingReputationProvider
 import com.linkguard.app.data.provider.VirusTotalEnrichmentProvider
 import com.linkguard.app.domain.orchestrator.ScanOrchestrator
@@ -20,6 +22,8 @@ object ScannerProvider {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
+            // One retry on transient 5xx / connection failures; never on 4xx (esp. 429 quota).
+            .addInterceptor(RetryInterceptor())
             .build()
     }
 
@@ -41,7 +45,8 @@ object ScannerProvider {
             hybridAnalysisProvider = HybridAnalysisProvider(
                 okHttpClient,
                 AppConfig.HYBRID_ANALYSIS_API_KEY
-            )
+            ),
+            domainAgeProvider = DomainAgeProvider(okHttpClient)
         )
     }
 }

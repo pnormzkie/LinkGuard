@@ -36,7 +36,11 @@ object ThreatAlertHelper {
         val popupIntent = ThreatAlertActivity.newIntent(context, result)
         popupIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 
-        // 2. Trigger popup for both DANGER and SUSPICIOUS
+        // 2. Best-effort direct popup. This works pre-Android-14 and when the app is in the
+        //    foreground, but a background launch is BAL_BLOCKED on API 34+. The full-screen
+        //    intent on the notification below (step 4) is the GUARANTEED delivery path; this
+        //    is only a fast path when allowed. POST_NOTIFICATIONS / canUseFullScreenIntent are
+        //    requested up front in MainActivity so that path isn't silently suppressed.
         try {
             context.startActivity(popupIntent)
         } catch (e: Exception) {

@@ -53,6 +53,7 @@ class ScanOrchestratorTest {
         domain: SignalProvider = FakeProvider { emptyList() },
         enrichment: SignalProvider = FakeProvider { emptyList() },
         hybrid: SignalProvider = FakeProvider { emptyList() },
+        domainAge: SignalProvider = FakeProvider { emptyList() },
         now: () -> Long = { 0L }
     ) = ScanOrchestrator(
         heuristicEngine = heuristic,
@@ -61,6 +62,7 @@ class ScanOrchestratorTest {
         enrichmentProvider = enrichment,
         scoringEngine = ScoringEngine(),
         hybridAnalysisProvider = hybrid,
+        domainAgeProvider = domainAge,
         now = now
     )
 
@@ -84,7 +86,8 @@ class ScanOrchestratorTest {
     fun `all providers failing yields low confidence unvetted verdict`() = runTest {
         val failing = FakeProvider { throw IOException("offline") }
         val orchestrator = orchestrator(
-            reputation = failing, domain = failing, enrichment = failing, hybrid = failing
+            reputation = failing, domain = failing, enrichment = failing,
+            hybrid = failing, domainAge = failing
         )
 
         val result = orchestrator.scan("https://example.com")

@@ -179,7 +179,19 @@ object HeuristicScanner {
         Regex("(pera|cash).{0,40}(padala|matatanggap|makukuha)", RegexOption.IGNORE_CASE),
         Regex("(ma-?expire|mag-?e-?expire).{0,30}(points?|load|account)", RegexOption.IGNORE_CASE),
         Regex("(i-?verify|verify).{0,20}(agad|ngayon|kaagad)", RegexOption.IGNORE_CASE),
-        Regex("huwag.{0,30}ibahagi.{0,30}otp|otp.{0,30}huwag", RegexOption.IGNORE_CASE)
+        Regex("huwag.{0,30}ibahagi.{0,30}otp|otp.{0,30}huwag", RegexOption.IGNORE_CASE),
+        // Courier / customs "fee to release" scams (English + Taglish)
+        Regex("(release|processing|customs|clearance|shipping)\\s+fee", RegexOption.IGNORE_CASE),
+        Regex("(parcel|package|padala).{0,30}(on hold|nakahold|naka-?hold|nakabinbin|detained)", RegexOption.IGNORE_CASE),
+        Regex("(bayad|bayaran).{0,30}(padala|parcel|package|koreo|delivery)", RegexOption.IGNORE_CASE),
+        // Job / work-from-home recruitment scams
+        Regex("(work\\s?from\\s?home|trabaho sa bahay).{0,40}(payout|kita|sweldo|daily|araw-?araw)", RegexOption.IGNORE_CASE),
+        Regex("(kumita|earn).{0,25}(daily|araw-?araw|agad|\\$\\d|php|₱)", RegexOption.IGNORE_CASE),
+        Regex("(hiring|nag-?hi?ahanap|nangangailangan).{0,40}(no experience|walang experience|apply now|mag-?apply)", RegexOption.IGNORE_CASE),
+        // Tech-support / account-compromise scare scams
+        Regex("(account|device|phone|computer).{0,20}(hacked|compromised|na-?hack|infected)", RegexOption.IGNORE_CASE),
+        Regex("virus.{0,20}detected|detected.{0,20}virus", RegexOption.IGNORE_CASE),
+        Regex("(call|tumawag|tawag).{0,15}(now|agad|immediately).{0,25}(support|technician|microsoft|apple)", RegexOption.IGNORE_CASE)
     )
 
     private val HOMOGRAPH_MAP = mapOf(
@@ -195,6 +207,25 @@ object HeuristicScanner {
 
     private val ALL_OFFICIAL_DOMAINS: Set<String> = buildSet {
         OFFICIAL_DOMAINS.values.forEach { addAll(it) }
+    }
+
+    /**
+     * True if any alphabetic label mixes Unicode scripts within a single label (e.g. Latin
+     * letters alongside Cyrillic/Greek lookalikes) — the hallmark of a homoglyph attack like
+     * "pаypal.com" (Cyrillic 'а'). COMMON/INHERITED code points (digits, hyphen) are ignored.
+     * All-one-script IDNs (e.g. a fully Cyrillic domain) are NOT flagged here, to avoid
+     * penalizing legitimate internationalized domains.
+     */
+    private fun hasMixedScript(domain: String): Boolean {
+        domain.split(".", "/", "@").forEach { label ->
+            val scripts = label
+                .filter { Character.isLetter(it) }
+                .map { Character.UnicodeScript.of(it.code) }
+                .filterNot { it == Character.UnicodeScript.COMMON || it == Character.UnicodeScript.INHERITED }
+                .toSet()
+            if (scripts.size > 1) return true
+        }
+        return false
     }
 
     private fun levenshtein(a: String, b: String): Int {
@@ -286,6 +317,25 @@ object HeuristicScanner {
                         score += 45
                     }
                 }
+            }
+        }
+
+        // 6b. IDN / homoglyph — punycode (xn--) or mixed-script labels impersonate real sites.
+        //     ASCII digit-substitution is rule #6; this catches Unicode lookalikes that bypass it.
+        if (!isOfficialDomain) {
+            val labels = domain.split(".")
+            if (labels.any { it.startsWith("xn--") }) {
+                flags.add("Internationalized (punycode) domain — can disguise the real name")
+                score += 25
+                val decoded = runCatching { java.net.IDN.toUnicode(domain) }.getOrDefault(domain)
+                if (ALL_BRANDS.any { decoded.contains(it, ignoreCase = true) }) {
+                    flags.add("Lookalike domain — punycode mimics a known brand")
+                    score += 45
+                }
+            }
+            if (hasMixedScript(domain)) {
+                flags.add("Domain mixes character sets — possible homoglyph spoofing")
+                score += 45
             }
         }
 

@@ -3,10 +3,13 @@ package com.linkguard.app.ui
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
+import android.Manifest
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.View
@@ -14,6 +17,7 @@ import android.view.animation.LinearInterpolator
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
@@ -32,6 +36,7 @@ import com.linkguard.app.scanner.QrTypeDetector
 import com.linkguard.app.update.UpdateChecker
 import com.linkguard.app.update.UpdateInfo
 import com.linkguard.app.update.UpdateInstaller
+import com.linkguard.app.util.AlertCapabilities
 import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.MonitorPreferences
 import kotlinx.coroutines.launch
@@ -47,7 +52,16 @@ class MainActivity : AppCompatActivity() {
     companion object {
         // Process-wide so foreground returns don't re-check more often than the configured interval
         private var lastUpdateCheckMs = 0L
+        // Ask for the notification permission at most once per process so we don't nag on every resume.
+        private var notificationPermissionAsked = false
     }
+
+    // ─── Notification permission (POST_NOTIFICATIONS, API 33+) ─────────────────
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) showSnackbar(getString(R.string.notifications_permission_needed))
+        }
 
     private var updateDialog: AlertDialog? = null
 
@@ -100,6 +114,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         viewModel.loadData()
         updateProtectionStatus()
+        maybeRequestNotificationPermission()
         startAnimations()
         checkForUpdates()
     }
@@ -170,7 +185,13 @@ class MainActivity : AppCompatActivity() {
         binding.cardSafe.setOnClickListener { openHistory(ThreatLevel.SAFE.name) }
 
         binding.tvProtectionStatus.setOnClickListener {
-            if (!isNotificationServiceEnabled()) showNotificationAccessDialog()
+            if (!isNotificationServiceEnabled()) {
+                showNotificationAccessDialog()
+            } else {
+                // Protection is on; make sure alerts can actually reach the user.
+                val gaps = alertDeliveryGaps()
+                if (gaps.isNotEmpty()) showAlertDeliveryDialog(gaps)
+            }
         }
 
         // Set state before attaching the listener so restoring it doesn't fire the snackbar.
@@ -421,6 +442,82 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.not_now, null)
             .show()
+    }
+
+    // ─── Alert delivery (POST_NOTIFICATIONS + full-screen intent) ───────────────
+
+    /**
+     * Threat alerts are delivered as a high-priority full-screen-intent notification
+     * (see ThreatAlertHelper). On API 33+ that requires POST_NOTIFICATIONS, and on API 34+
+     * the full-screen popup requires the user to allow full-screen intents. Surface and
+     * help fix whichever is missing so alerts aren't silently suppressed.
+     */
+    private fun alertDeliveryGaps(): List<AlertCapabilities.Gap> = AlertCapabilities.missing(
+        sdkInt = Build.VERSION.SDK_INT,
+        notificationsEnabled = NotificationManagerCompat.from(this).areNotificationsEnabled(),
+        canUseFullScreenIntent = canUseFullScreenIntent(),
+    )
+
+    private fun canUseFullScreenIntent(): Boolean {
+        if (Build.VERSION.SDK_INT < AlertCapabilities.SDK_UPSIDE_DOWN_CAKE) return true
+        val nm = getSystemService(NotificationManager::class.java) ?: return false
+        return nm.canUseFullScreenIntent()
+    }
+
+    private fun maybeRequestNotificationPermission() {
+        if (notificationPermissionAsked) return
+        if (Build.VERSION.SDK_INT < AlertCapabilities.SDK_TIRAMISU) return
+        // Only prompt once protection is on — that's the only path that posts alerts.
+        if (!isNotificationServiceEnabled()) return
+        if (NotificationManagerCompat.from(this).areNotificationsEnabled()) return
+        notificationPermissionAsked = true
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun showAlertDeliveryDialog(gaps: List<AlertCapabilities.Gap>) {
+        val message = buildString {
+            if (AlertCapabilities.Gap.NOTIFICATIONS_DISABLED in gaps) {
+                append(getString(R.string.alert_gap_notifications))
+            }
+            if (AlertCapabilities.Gap.FULL_SCREEN_INTENT_BLOCKED in gaps) {
+                if (isNotEmpty()) append("\n\n")
+                append(getString(R.string.alert_gap_fullscreen))
+            }
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.alert_delivery_title)
+            .setMessage(message)
+            .setNegativeButton(R.string.not_now, null)
+        if (AlertCapabilities.Gap.NOTIFICATIONS_DISABLED in gaps) {
+            builder.setPositiveButton(R.string.enable_notifications) { _, _ ->
+                requestNotificationPermission()
+            }
+        }
+        if (AlertCapabilities.Gap.FULL_SCREEN_INTENT_BLOCKED in gaps) {
+            builder.setNeutralButton(R.string.full_screen_settings) { _, _ ->
+                openFullScreenIntentSettings()
+            }
+        }
+        builder.show()
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= AlertCapabilities.SDK_TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun openFullScreenIntentSettings() {
+        if (Build.VERSION.SDK_INT < AlertCapabilities.SDK_UPSIDE_DOWN_CAKE) return
+        val fsiSettings = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+            .setData("package:$packageName".toUri())
+        runCatching { startActivity(fsiSettings) }.onFailure {
+            // Fall back to the app's notification settings if the OEM lacks the FSI screen.
+            startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            )
+        }
     }
 
     private fun updateProtectionStatus() {
