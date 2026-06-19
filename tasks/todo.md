@@ -506,3 +506,23 @@ Plan — DONE 2026-06-19 (user: "Go, make no mistake"; auto-expand-when-single a
 - NET: history scans stay flat (no category persisted) as agreed; fresh scans (block + detail)
       group by category, default-collapsed except a lone group. No scoring/verdict/provider/DB
       change. Tap target = whole header row; expand state is session-only (not persisted).
+
+## 2026-06-19 — Release v1.11 (versionCode 12): SHIPPED + PUBLISHED
+
+- [x] Bumped versionCode 11→12, versionName "1.10"→"1.11". Pre-flight: live latest was v1.10,
+      no drift. isNewerVersion part-wise: [1,11] > [1,10] ✓.
+- [x] Signed release GREEN: :app:assembleRelease (R8 + shrinkResources + lintVitalRelease).
+- [x] APK verified: aapt versionCode=12 versionName=1.11; apksigner V2 cert SHA-256
+      ead80ea1…74227357 (SAME release keystore → existing users update in place); size 24466356,
+      SHA-256 4daa63fda86a0f5eb2ce25c033a70f8a61fe546b8e373f16c60b9b14cd46eef0.
+- [x] Release SMOKE on Pixel_7/API34 (R8-minified, signed): installed v12, launched MainActivity,
+      drove link-tap block screen → DANGER 100% with grouped Heuristic(4) collapsible flags +
+      confirm-gated override. Proves R8 keeps Parcelable FlagGroup/ViewBinding/scoring. (rel-block.png)
+- [x] Committed 64810da; staged release-staging/LinkGuard-v1.11.apk + RELEASE-NOTES-v1.11.md.
+- [x] PUBLISHED to GitHub pnormzkie/LinkGuard: draft (id 341945358) → uploaded asset
+      (state=uploaded, size match) → un-drafted + make_latest. tag v1.11.
+- [x] Verified: releases/latest=v1.11; public asset re-downloaded byte-identical (24466356 bytes,
+      4daa63fd…46eef0). In-app updater will offer v1.11 to v1.10 users.
+      https://github.com/pnormzkie/LinkGuard/releases/tag/v1.11
+- [ ] USER ACTION: REVOKE the GitHub PAT pasted in chat (github.com/settings/tokens) — exposed.
+- Standing (unchanged): rotate/restrict the 3 embedded API keys; off-machine keystore backup.
