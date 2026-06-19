@@ -23,6 +23,55 @@ object UpdateInstaller {
     private const val TAG = "UpdateInstaller"
     private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
 
+    /** Returned when a download could not be started (untrusted URL or enqueue failure). */
+    const val NO_DOWNLOAD = -1L
+
+    /**
+     * UI-facing snapshot of an in-progress update download. Derived purely from the
+     * DownloadManager cursor columns (see [mapStatus]) so it can be unit-tested without
+     * any Android framework objects. This drives the progress dialog only — it has no
+     * bearing on the security-verified install path.
+     */
+    sealed interface DownloadStatus {
+        /** Queued but no bytes yet (total unknown). */
+        object Pending : DownloadStatus
+        /** Actively downloading. [percent] is 0 when the total size isn't known yet. */
+        data class Running(val percent: Int, val soFar: Long, val total: Long) : DownloadStatus
+        /** Paused by the system, typically waiting for connectivity. */
+        data class Paused(val percent: Int, val soFar: Long, val total: Long) : DownloadStatus
+        /** Finished successfully — the verified install path takes over from here. */
+        object Succeeded : DownloadStatus
+        /** Failed, or the row no longer exists (e.g. cancelled). */
+        object Failed : DownloadStatus
+    }
+
+    /**
+     * Integer 0..100 completion. Returns 0 when [total] is unknown (<= 0) so the UI shows
+     * an honest "starting" state rather than a misleading number.
+     */
+    fun percentOf(soFar: Long, total: Long): Int {
+        if (total <= 0L) return 0
+        val pct = (soFar * 100L / total).toInt()
+        return pct.coerceIn(0, 100)
+    }
+
+    /**
+     * Pure mapping from the raw DownloadManager status/reason/byte columns to a
+     * [DownloadStatus]. Kept free of any DownloadManager instance so it is unit-testable;
+     * [queryStatus] does the cursor read and delegates here. [reason] is part of the column
+     * contract (and reserved for surfacing a specific pause/failure cause) but not used yet.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun mapStatus(status: Int, reason: Int, soFar: Long, total: Long): DownloadStatus =
+        when (status) {
+            DownloadManager.STATUS_SUCCESSFUL -> DownloadStatus.Succeeded
+            DownloadManager.STATUS_FAILED -> DownloadStatus.Failed
+            DownloadManager.STATUS_PAUSED -> DownloadStatus.Paused(percentOf(soFar, total), soFar, total)
+            DownloadManager.STATUS_PENDING -> DownloadStatus.Pending
+            DownloadManager.STATUS_RUNNING -> DownloadStatus.Running(percentOf(soFar, total), soFar, total)
+            else -> DownloadStatus.Failed
+        }
+
     /**
      * Hosts permitted to serve update APKs. The URL must be HTTPS and its host must
      * be one of these exactly, or a subdomain of one. A substring/`contains` check is
@@ -47,12 +96,19 @@ object UpdateInstaller {
         return ALLOWED_HOSTS.any { allowed -> host == allowed || host.endsWith(".$allowed") }
     }
 
-    fun downloadAndInstall(context: Context, apkUrl: String, fileName: String) {
+    /**
+     * Starts the update download and arranges the verified install on completion.
+     * Returns the DownloadManager id so the caller can poll progress via [queryStatus],
+     * or [NO_DOWNLOAD] when the URL is untrusted. The install itself still happens inside
+     * the completion receiver below, gated on [signatureMatchesInstalledApp] — polling
+     * never installs anything.
+     */
+    fun downloadAndInstall(context: Context, apkUrl: String, fileName: String): Long {
         val appContext = context.applicationContext
 
         if (!isTrustedUpdateUrl(apkUrl)) {
             Log.e(TAG, "Refusing update from untrusted URL")
-            return
+            return NO_DOWNLOAD
         }
 
         val downloadManager = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -110,6 +166,52 @@ object UpdateInstaller {
             .setDestinationInExternalFilesDir(appContext, Environment.DIRECTORY_DOWNLOADS, fileName)
 
         downloadId = downloadManager.enqueue(request)
+        return downloadId
+    }
+
+    /**
+     * Reads the current [DownloadStatus] for [downloadId] from DownloadManager. A missing
+     * row (e.g. the user cancelled, or the id is stale) maps to [DownloadStatus.Failed].
+     * Pure status math lives in [mapStatus]; this only does the cursor read.
+     */
+    fun queryStatus(context: Context, downloadId: Long): DownloadStatus {
+        if (downloadId == NO_DOWNLOAD) return DownloadStatus.Failed
+        val dm = context.applicationContext
+            .getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val query = DownloadManager.Query().setFilterById(downloadId)
+        return try {
+            dm.query(query)?.use { cursor ->
+                if (!cursor.moveToFirst()) return DownloadStatus.Failed
+                val status = cursor.getIntOrZero(DownloadManager.COLUMN_STATUS)
+                val reason = cursor.getIntOrZero(DownloadManager.COLUMN_REASON)
+                val soFar = cursor.getLongOrZero(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                val total = cursor.getLongOrZero(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                mapStatus(status, reason, soFar, total)
+            } ?: DownloadStatus.Failed
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not query download status: ${e.message}")
+            DownloadStatus.Failed
+        }
+    }
+
+    /** Cancels and removes an in-progress download (Cancel button). Safe to call with a stale id. */
+    fun cancel(context: Context, downloadId: Long) {
+        if (downloadId == NO_DOWNLOAD) return
+        runCatching {
+            val dm = context.applicationContext
+                .getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            dm.remove(downloadId)
+        }
+    }
+
+    private fun android.database.Cursor.getIntOrZero(column: String): Int {
+        val idx = getColumnIndex(column)
+        return if (idx < 0) 0 else getInt(idx)
+    }
+
+    private fun android.database.Cursor.getLongOrZero(column: String): Long {
+        val idx = getColumnIndex(column)
+        return if (idx < 0) 0L else getLong(idx)
     }
 
     /**

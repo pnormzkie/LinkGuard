@@ -11,6 +11,7 @@
 
     <!-- ═══ Text ═══ -->
     <color name="text_primary">#F0F4FF</color>
+    <color name="text_secondary">#8896B5</color>
     <color name="text_muted">#556080</color>
 
     <!-- ═══ Accent Colors ═══ -->

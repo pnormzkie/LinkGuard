@@ -51,7 +51,7 @@
     <string name="no_recent_activity">No recent activity yet</string>
 
     <!-- App Updates -->
-    <string name="update_available_title">Update Available</string>
+    <string name="update_available_title">Update available</string>
     <string name="update_available_msg">LinkGuard %1$s is available (you have %2$s).</string>
     <string name="update_download">Download</string>
     <string name="update_later">Later</string>
@@ -59,6 +59,22 @@
     <string name="version_footer">Version %1$s • Tap to check for updates</string>
     <string name="update_up_to_date">You\'re on the latest version (%1$s)</string>
     <string name="update_check_failed">Could not check for updates. Please check your connection.</string>
+    <!-- Hero update card -->
+    <string name="update_now">Update now</string>
+    <string name="update_version_label">Version %1$s</string>
+    <string name="update_current_label">You\'re on %1$s</string>
+    <!-- Download progress dialog -->
+    <string name="update_progress_title">Downloading update</string>
+    <string name="update_paused_title">Update paused</string>
+    <string name="update_percent">%1$d%%</string>
+    <string name="update_bytes">%1$s / %2$s</string>
+    <string name="update_status_downloading">Downloading…</string>
+    <string name="update_status_waiting">Waiting for connection…</string>
+    <string name="update_failed_title">Download failed</string>
+    <string name="update_failed_msg">Couldn\'t finish the download.\nCheck your connection and try again.</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_cancel">Cancel</string>
+    <string name="update_dismiss">Dismiss</string>
 
     <!-- Link interception -->
     <string name="link_scanning">Checking link safety…</string>

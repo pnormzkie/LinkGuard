@@ -564,3 +564,77 @@ SPECIFIC vendors when tapped; and make History grouped too. User approved a samp
       public download re-hashed IDENTICAL (24470456 bytes, fd1d7649...db244).
       https://github.com/pnormzkie/LinkGuard/releases/tag/v1.12
 - [ ] USER ACTION: REVOKE the v1.12 PAT pasted in chat (and confirm the v1.11 one is revoked).
+
+## 2026-06-19 — In-app update UX: live progress % + offline resilience + hero notes card
+
+User request (Taglish): during update show a pop-up with download PERCENTAGE; stay safe if
+the internet drops mid-download; and make the "update available" notes pop-up a simple-but-
+beautiful UI. User chose: Hero notes card design + mockup-first (approved mockup
+lg_update_mockup.png — hero card + 3 progress states). Risk: MEDIUM (touches the update
+download path, which is security-sensitive — signature verify before install MUST stay).
+
+Design constraint: do NOT change the security-critical install path in UpdateInstaller
+(trusted-host allow-list + signatureMatchesInstalledApp before ACTION_VIEW). Progress
+polling is ADDITIVE for the UI only; the existing BroadcastReceiver still triggers the
+verified install on completion.
+
+Plan — DONE 2026-06-19:
+- [x] 1. UpdateInstaller: pure `DownloadStatus` sealed type + pure `mapStatus(status, reason,
+      soFar, total)` + `percentOf` (0 when total unknown, clamped 0..100). downloadAndInstall
+      now RETURNS the downloadId (NO_DOWNLOAD=-1 on untrusted/refused). Added `queryStatus(ctx,
+      id)` (DownloadManager cursor → mapStatus; missing row → Failed) and `cancel(ctx, id)`.
+      Security-critical install path (allow-list + signatureMatchesInstalledApp) UNTOUCHED —
+      polling is UI-only.
+- [x] 2. Hero notes dialog: dialog_update_available.xml (download icon, "Update available",
+      version + "You're on X", divider, notes container, full-width cyan Update now, Later),
+      wrapped in ScrollView so the button is never clipped. Pure `formatReleaseNotes(raw)` in
+      new ReleaseNotesFormat.kt → header/bullet NoteLines (strips #, **bold**, `code`, links,
+      checksum footer, rules; capped at 15).
+- [x] 3. Progress dialog: dialog_update_progress.xml — one card, progressGroup (title, big %,
+      bytes, LinearProgressIndicator, status row, Cancel) morphs to amber Paused ("Waiting for
+      connection…") and failedGroup (red circle icon + message + Retry + Dismiss).
+- [x] 4. MainActivity: showUpdateDialog → hero layout (notes via populateNotes); startUpdateDownload
+      → progress dialog + lifecycleScope poll loop (350ms, queryStatus on Dispatchers.IO);
+      renderProgress maps Running/Paused/Pending to cyan/amber UI; Cancel/Retry/Dismiss wired;
+      stops on Succeeded (dismiss; verified install prompt takes over) / Failed (showFailedState).
+      Poll cancelled on dialog dismiss + onDestroy. htmlUrl fallback kept (no-asset + refused-URL).
+- [x] 5. Drawables: bg_btn_outline_cyan, ic_download, ic_cloud_off, bg_circle_red_dim; +1 color
+      text_secondary; ~14 new strings; item_update_note.xml row.
+- [x] 6. Tests: UpdateDownloadStatusTest (9: percent edge cases + mapStatus per state) +
+      ReleaseNotesFormatTest (9: headers, bullets, emphasis/link strip, noise drop, cap).
+      Full suite 210 tests, 0 failures (was 192; +18). :app:assembleDebug GREEN.
+- [x] 7. On-device Pixel_7/API34 — built a throwaway debug stamped versionName 1.11 (reverted
+      immediately) so the live checker offered v1.12, installed fresh, drove the REAL flow:
+      * Hero card renders with real v1.12 notes parsed to bold headers + cyan-dot bullets,
+        scrolls, Update now + Later reachable (tasks/update-hero-card.png).
+      * Update now → progress dialog live: 0% / "69 KB / 23.3 MB" / Downloading… / Cancel
+        (tasks/update-downloading.png). Real 23.3 MB GitHub asset.
+      * Cut wifi mid-flight → amber "Update paused / Waiting for connection…" (tasks/update-paused.png);
+        restored wifi → auto-resumed back to cyan Downloading (tasks/update-resumed.png).
+      * On completion the dialog auto-dismisses and the signature gate REFUSED the install
+        (logcat "Refusing to install update: signature verification failed") because the
+        downloaded release-signed v1.12 ≠ debug-signed test build — proves the security path
+        is intact and the new UI didn't bypass it.
+      * Restored emulator to release v1.12; build.gradle reverted to versionName "1.12" (no diff).
+- Residual: Failed/Retry UI not driven live (hard to force STATUS_FAILED on emulator) — covered
+      by unit test (mapStatus→Failed, missing-row→Failed) + the layout compiles/links. Now-dead
+      strings: update_download, update_available_msg, update_downloading (old AlertDialog path).
+
+## 2026-06-20 — Release v1.13 (versionCode 14): update UX (progress % + offline resilience)
+
+- [x] Bumped versionCode 13→14, versionName "1.12"→"1.13". Pre-flight: live latest was v1.12,
+      no drift. isNewerVersion part-wise: [1,13] > [1,12] ✓.
+- [x] Full unit suite + signed release GREEN: :app:testDebugUnitTest (210 tests, 0 fail) +
+      :app:assembleRelease (R8 + shrinkResources + lintVitalRelease).
+- [x] APK verified: aapt versionCode=14 versionName=1.13; apksigner V2 cert SHA-256
+      ead80ea1…74227357 (SAME release key → existing users update in place); size 24487113,
+      SHA-256 7fd72e5c3ff29dc176ae7c5a111835197718032a4adae7bbb27883487dcd2416.
+- [x] Release SMOKE on Pixel_7/API34 (R8-minified, signed): installed v1.13 in-place OVER
+      release v1.12 (adb install -r, same key) → versionCode=14 confirmed; MainActivity renders
+      fully, no crash (tasks/rel13_smoke via emulator). Proves R8 keeps the new dialogs/
+      ViewBinding/coroutine poll. (Update dialog itself can't be driven on the latest build —
+      already verified on the debug 1.11 run above.)
+- [x] Staged release-staging/LinkGuard-v1.13.apk (hash matches) + RELEASE-NOTES-v1.13.md.
+- [ ] PUBLISH to GitHub pnormzkie/LinkGuard (awaiting user PAT): draft → upload asset →
+      un-draft + make_latest → verify releases/latest=v1.13 + re-download byte-identical.
+- [ ] USER ACTION: REVOKE the PAT after publish (and confirm prior PATs revoked).

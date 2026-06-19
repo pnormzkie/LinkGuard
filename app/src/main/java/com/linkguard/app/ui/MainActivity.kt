@@ -9,10 +9,15 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.View
+import android.widget.LinearLayout
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
@@ -30,16 +35,26 @@ import com.linkguard.app.ScannerProvider
 import com.linkguard.app.data.ScanResult
 import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.databinding.ActivityMainBinding
+import com.linkguard.app.databinding.DialogUpdateAvailableBinding
+import com.linkguard.app.databinding.DialogUpdateProgressBinding
+import com.linkguard.app.databinding.ItemUpdateNoteBinding
 import com.linkguard.app.scanner.PaymentQrValidator
 import com.linkguard.app.scanner.QrType
 import com.linkguard.app.scanner.QrTypeDetector
 import com.linkguard.app.update.UpdateChecker
 import com.linkguard.app.update.UpdateInfo
 import com.linkguard.app.update.UpdateInstaller
+import com.linkguard.app.update.formatReleaseNotes
 import com.linkguard.app.util.AlertCapabilities
 import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.MonitorPreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
 import androidx.activity.result.contract.ActivityResultContracts
 import android.provider.Settings
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -54,6 +69,8 @@ class MainActivity : AppCompatActivity() {
         private var lastUpdateCheckMs = 0L
         // Ask for the notification permission at most once per process so we don't nag on every resume.
         private var notificationPermissionAsked = false
+        // How often the download progress dialog polls DownloadManager for bytes/state.
+        private const val POLL_INTERVAL_MS = 350L
     }
 
     // ─── Notification permission (POST_NOTIFICATIONS, API 33+) ─────────────────
@@ -64,6 +81,10 @@ class MainActivity : AppCompatActivity() {
         }
 
     private var updateDialog: AlertDialog? = null
+    private var progressDialog: AlertDialog? = null
+    private var progressBinding: DialogUpdateProgressBinding? = null
+    private var downloadId: Long = UpdateInstaller.NO_DOWNLOAD
+    private var pollJob: Job? = null
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var viewModel: MainViewModel
@@ -128,6 +149,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         runCatching { unregisterReceiver(scanUpdateReceiver) }
         updateDialog?.dismiss()
+        stopPolling()
+        progressDialog?.dismiss()
     }
 
     // ─── Animations ───────────────────────────────────────────────────────────
@@ -395,34 +418,169 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showUpdateDialog(update: UpdateInfo) {
-        val message = buildString {
-            append(getString(R.string.update_available_msg, update.versionName, BuildConfig.VERSION_NAME))
-            if (update.releaseNotes.isNotBlank()) {
-                append("\n\n")
-                append(update.releaseNotes.take(300))
-            }
+        val view = DialogUpdateAvailableBinding.inflate(layoutInflater)
+        view.tvUpdateVersion.text = getString(R.string.update_version_label, update.versionName)
+        view.tvUpdateCurrent.text = getString(R.string.update_current_label, BuildConfig.VERSION_NAME)
+        populateNotes(view.notesContainer, update.releaseNotes)
+
+        val dialog = AlertDialog.Builder(this).setView(view.root).create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        view.btnUpdateNow.setOnClickListener {
+            dialog.dismiss()
+            startUpdateDownload(update)
         }
-        updateDialog = AlertDialog.Builder(this)
-            .setTitle(R.string.update_available_title)
-            .setMessage(message)
-            .setPositiveButton(R.string.update_download) { _, _ -> startUpdateDownload(update) }
-            .setNegativeButton(R.string.update_later, null)
-            .show()
+        view.tvUpdateLater.setOnClickListener { dialog.dismiss() }
+        updateDialog = dialog
+        dialog.show()
+    }
+
+    /** Renders the GitHub release notes as a clean bullet/header list in the hero card. */
+    private fun populateNotes(container: LinearLayout, raw: String) {
+        container.removeAllViews()
+        val lines = formatReleaseNotes(raw)
+        if (lines.isEmpty()) {
+            container.visibility = View.GONE
+            return
+        }
+        container.visibility = View.VISIBLE
+        lines.forEach { line ->
+            val row = ItemUpdateNoteBinding.inflate(layoutInflater, container, false)
+            row.tvNote.text = line.text
+            if (line.isHeader) {
+                row.noteDot.visibility = View.GONE
+                row.tvNote.setTextColor(getColor(R.color.text_primary))
+                row.tvNote.setTypeface(row.tvNote.typeface, Typeface.BOLD)
+            }
+            container.addView(row.root)
+        }
     }
 
     private fun startUpdateDownload(update: UpdateInfo) {
         val apkUrl = update.apkUrl
-        if (apkUrl != null) {
-            UpdateInstaller.downloadAndInstall(
-                this,
-                apkUrl,
-                update.apkName ?: "LinkGuard-${update.versionName}.apk"
-            )
-            showSnackbar(getString(R.string.update_downloading))
-        } else {
-            // Release has no APK attached — open the release page instead
+        if (apkUrl == null) {
+            // Release has no APK attached — open the release page instead.
             startActivity(Intent(Intent.ACTION_VIEW, update.htmlUrl.toUri()))
+            return
         }
+        val fileName = update.apkName ?: "LinkGuard-${update.versionName}.apk"
+        downloadId = UpdateInstaller.downloadAndInstall(this, apkUrl, fileName)
+        if (downloadId == UpdateInstaller.NO_DOWNLOAD) {
+            // URL was refused by the allow-list — fall back to the release page.
+            startActivity(Intent(Intent.ACTION_VIEW, update.htmlUrl.toUri()))
+            return
+        }
+        showProgressDialog(update)
+        startPolling()
+    }
+
+    private fun showProgressDialog(update: UpdateInfo) {
+        val view = DialogUpdateProgressBinding.inflate(layoutInflater)
+        progressBinding = view
+        val dialog = AlertDialog.Builder(this)
+            .setView(view.root)
+            .setCancelable(false)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        view.tvCancel.setOnClickListener {
+            UpdateInstaller.cancel(this, downloadId)
+            stopPolling()
+            dialog.dismiss()
+        }
+        view.btnRetry.setOnClickListener {
+            dialog.dismiss()
+            startUpdateDownload(update)
+        }
+        view.tvDismiss.setOnClickListener {
+            stopPolling()
+            dialog.dismiss()
+        }
+        progressDialog = dialog
+        dialog.show()
+    }
+
+    /** Polls DownloadManager so the dialog shows a live percentage and reacts to pause/fail. */
+    private fun startPolling() {
+        stopPolling()
+        pollJob = lifecycleScope.launch {
+            while (isActive) {
+                val status = withContext(Dispatchers.IO) {
+                    UpdateInstaller.queryStatus(this@MainActivity, downloadId)
+                }
+                renderProgress(status)
+                when (status) {
+                    is UpdateInstaller.DownloadStatus.Succeeded -> {
+                        // The verified install prompt (UpdateInstaller's receiver) takes over.
+                        progressDialog?.dismiss()
+                        return@launch
+                    }
+                    is UpdateInstaller.DownloadStatus.Failed -> {
+                        showFailedState()
+                        return@launch
+                    }
+                    else -> delay(POLL_INTERVAL_MS)
+                }
+            }
+        }
+    }
+
+    private fun stopPolling() {
+        pollJob?.cancel()
+        pollJob = null
+    }
+
+    private fun renderProgress(status: UpdateInstaller.DownloadStatus) {
+        val b = progressBinding ?: return
+        when (status) {
+            is UpdateInstaller.DownloadStatus.Running ->
+                updateProgressUi(b, status.percent, status.soFar, status.total,
+                    R.string.update_progress_title, R.string.update_status_downloading,
+                    R.drawable.ic_download, getColor(R.color.cyan))
+            is UpdateInstaller.DownloadStatus.Paused ->
+                updateProgressUi(b, status.percent, status.soFar, status.total,
+                    R.string.update_paused_title, R.string.update_status_waiting,
+                    R.drawable.ic_cloud_off, getColor(R.color.yellow))
+            is UpdateInstaller.DownloadStatus.Pending ->
+                updateProgressUi(b, 0, 0L, 0L,
+                    R.string.update_progress_title, R.string.update_status_downloading,
+                    R.drawable.ic_download, getColor(R.color.cyan))
+            else -> Unit // Succeeded / Failed handled by the caller
+        }
+    }
+
+    private fun updateProgressUi(
+        b: DialogUpdateProgressBinding, percent: Int, soFar: Long, total: Long,
+        titleRes: Int, statusRes: Int, statusIcon: Int, color: Int
+    ) {
+        b.progressGroup.visibility = View.VISIBLE
+        b.failedGroup.visibility = View.GONE
+        b.tvProgressTitle.setText(titleRes)
+        b.tvPercent.text = getString(R.string.update_percent, percent)
+        b.tvPercent.setTextColor(color)
+        if (total > 0L) {
+            b.tvBytes.visibility = View.VISIBLE
+            b.tvBytes.text = getString(R.string.update_bytes, formatBytes(soFar), formatBytes(total))
+        } else {
+            b.tvBytes.visibility = View.GONE
+        }
+        b.progressBar.setIndicatorColor(color)
+        b.progressBar.setProgressCompat(percent, true)
+        b.ivStatus.setImageResource(statusIcon)
+        b.ivStatus.imageTintList = ColorStateList.valueOf(color)
+        b.tvStatus.setText(statusRes)
+        b.tvStatus.setTextColor(color)
+    }
+
+    private fun showFailedState() {
+        val b = progressBinding ?: return
+        b.progressGroup.visibility = View.GONE
+        b.failedGroup.visibility = View.VISIBLE
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 1024L) return "$bytes B"
+        val kb = bytes / 1024.0
+        if (kb < 1024.0) return String.format(Locale.US, "%.0f KB", kb)
+        return String.format(Locale.US, "%.1f MB", kb / 1024.0)
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
