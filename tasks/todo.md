@@ -362,4 +362,147 @@ all confirmed. Restored emulator state (notifications granted, FSI appop=allow).
 RESIDUAL / NOT DONE:
 - Phase C live RDAP probe (fresh vs old domain; outage → coverage-missing not false-SAFE) not
   run this session — covered by unit tests only.
-- No version bump / release this session (code + tests + Phase A device verification only).
+
+## 2026-06-18 — Release v1.10 (versionCode 11): SHIPPED + PUBLISHED
+
+- [x] Bumped versionCode 10→11, versionName "1.9"→"1.10" (app/build.gradle). Pre-flight:
+      live latest was v1.9, no drift. isNewerVersion is part-wise int compare → [1,10]>[1,9] ✓.
+- [x] Signed release GREEN: :app:assembleRelease (R8 + shrinkResources + lintVitalRelease).
+- [x] APK verified: aapt versionCode=11 versionName=1.10; apksigner V2 cert SHA-256
+      ead80ea1…74227357 (SAME release keystore as v1.9 → existing users can update);
+      size 24453063, SHA-256 3039F844775D4397BA39CC0AAC3FEC068AD9FF9871135E9AA6B2A0CABEF6E13C.
+- [x] Staged release-staging/LinkGuard-v1.10.apk + RELEASE-NOTES-v1.10.md. Committed (5f4eb8f).
+- [x] PUBLISHED to GitHub pnormzkie/LinkGuard: created draft → uploaded asset (state=uploaded)
+      → un-drafted + make_latest. release id=341387174, tag v1.10.
+- [x] Verified: releases/latest=v1.10; public download re-hashed IDENTICAL (24453063 bytes,
+      3039F844…E13C). In-app updater will offer v1.10 to v1.9 users.
+      https://github.com/pnormzkie/LinkGuard/releases/tag/v1.10
+- [ ] USER ACTION: REVOKE the GitHub PAT pasted in chat (github.com/settings/tokens) — exposed.
+- Standing (unchanged): rotate/restrict the 3 embedded API keys; off-machine keystore backup.
+
+## 2026-06-19 — Block-screen redesign (level-aware) + Scan Detail flag consistency
+
+Approved direction (memory: block-screen-redesign-pending). User answers (2026-06-19):
+implement the redesign; apply level-aware flag rows to BOTH the block screen AND Scan Detail.
+Risk: LOW (UI-only). Scope: do NOT touch scan pipeline, ScoringEngine, providers, mapper,
+repository, or button behavior. Mockup: tasks/mockup-block-screen-v2.png.
+
+- [x] 1. Redesigned activity_link_intercept.xml to the Scan Detail visual language: status
+      badge [icon + label] → score ring (% + RISK) → URL chip (TAPPED LINK, mono) → WHY THIS
+      WAS FLAGGED + up to 3 flag rows → unchanged buttons. Kept scanning state (progress + url
+      + Cancel) and unchecked state (badge + chip + reason).
+- [x] 2. Shared ui/FlagStyle.kt: styleFlagRow(ItemFlagBinding, color) tints icon, text, and
+      the bg_flag_item glow (fill+stroke) to the verdict color via the runtime GradientDrawable
+      (no new drawables; covers red/yellow/green).
+- [x] 3. LinkInterceptActivity: showBlockScreen() level-aware (yellow SUSPICIOUS / red DANGER);
+      showUncheckedScreen() reuses the new layout (badge + chip + reason, no ring/flags).
+      Reuses status_suspicious_link / status_dangerous_link. hideScanningState() helper.
+- [x] 4. ScanDetailActivity.setupFlags() now calls styleFlagRow → flag ICON + background are
+      level-aware too (text was already level-colored; icon/bg were hardcoded red).
+- [x] 5. New strings: link_tapped_label, risk_label, why_flagged_header.
+- [x] 5b. BUG FOUND & FIXED during on-device verify (S2): the taller DANGER verdict (3 flags)
+      overflowed the wrap_content dialog window and pushed DON'T OPEN / OPEN ANYWAY off-screen
+      (unreachable — no scroll). Wrapped the layout in a ScrollView so decision buttons are
+      always reachable. Re-verified: buttons reachable after a short scroll.
+- [x] 5c. Button label fit (user-reported S4): the two weighted buttons truncated/wrapped
+      ("OPEN ANYWAY" → "OPEN", or 2-line wrap). Fixed by trimming default insets + 4dp padding
+      and autosizing text (maxLines=1, autoSize 11–14sp uniform) so both labels render full on
+      one line, no truncation, density-safe. Verified on-device (suspicious + danger).
+- [x] 6. Verify: :app:assembleDebug GREEN; :app:testDebugUnitTest GREEN (no logic change).
+      On-device Pixel_7/API34 (debug): block SUSPICIOUS (yellow, tasks/block-screen-suspicious.png),
+      block DANGER (red + buttons reachable, tasks/block-screen-danger.png), Scan Detail
+      SUSPICIOUS (yellow flag row, tasks/scandetail-suspicious.png), Scan Detail DANGER
+      (red flags, no regression, tasks/scandetail-danger.png).
+- Residual: unused strings link_blocked_title / link_suspicious_title / link_risk_format are
+      now dead (kept to stay surgical; shrinkResources strips them on release). Unchecked
+      (scan-failed) screen not driven at runtime — orchestrator is hardened against throwing;
+      it reuses the same verified badge/chip layout.
+
+## 2026-06-19 — Block-screen button model: verdict-aware actions (user UX decisions)
+
+User design decisions: (1) SAFE → show a green verdict card with Open Link / Close instead
+of silent auto-open, so an accidental tap can be backed out of; (2) DANGER → no co-equal
+"Open Anyway" — demote it to a confirm-gated low-emphasis link. Risk: MEDIUM (changes the
+default-browser SAFE auto-forward behavior; security-sensitive trust boundary). UI/flow only.
+
+- [x] Buttons reworked to role-based btnPrimary (cyan, recommended action) / btnSecondary
+      (outlined, alternative), wired per-verdict instead of fixed Don't Open/Open Anyway.
+- [x] SAFE: showSafeScreen() — green badge (ic_stat_safe) + green ring + chip + "passed
+      safety checks" / "local checks only" note; Open Link (cyan) + Close (neutral text_muted).
+      NO auto-open anymore. Removed the SAFE Toast + openInBrowser auto-forward in scanAndDecide.
+- [x] DANGER: btnSecondary hidden; new tvDangerOverride link ("I understand the risk — open
+      anyway", text_muted) → AlertDialog confirm (danger_confirm_title/message, Cancel /
+      Open Anyway) before opening. SUSPICIOUS + unchecked keep co-equal Don't Open / Open
+      anyway (red), no confirm.
+- [x] Trust-boundary KDoc updated: activity now NEVER auto-opens; every verdict (incl. SAFE)
+      requires an explicit tap. Strengthens the no-silent-forward invariant.
+- [x] New strings: btn_open_link, btn_close, link_safe_verified, link_safe_local_only,
+      link_danger_override, danger_confirm_title, danger_confirm_message. Now-dead:
+      link_safe_toast, link_unverified_toast (SAFE no longer toasts).
+- [x] Verify: :app:assembleDebug GREEN; :app:testDebugUnitTest GREEN. On-device Pixel_7/API34:
+      SAFE (google.com) green card Open Link/Close, no auto-open (tasks/screen-safe.png);
+      SUSPICIOUS two co-equal buttons (tasks/screen-suspicious.png); DANGER dominant Don't Open
+      + demoted override (tasks/screen-danger.png) → confirm dialog (tasks/screen-danger-confirm.png).
+- DEFERRED (optional, not requested to build now): "Auto-open safe links" preference for
+      browser-mode users who want zero friction on safe taps.
+
+- [x] FOLLOW-UP (user-reported): (a) SAFE buttons were clipped ("putol") at the bottom and
+      (b) SUSPICIOUS buttons looked uneven. Root causes: (a) the floating
+      Theme.AppCompat.DayNight.Dialog window caps content height and clips the last row at
+      rest; (b) per-button autosize gave the two labels different text sizes. Fix:
+      * New Theme.LinkGuard.Intercept (full-screen, translucent, NON-floating) + manifest
+        switch for LinkInterceptActivity only (ThreatAlertActivity untouched).
+      * Layout = FrameLayout scrim (#CC000000) → centered rounded ScrollView card
+        (new drawable bg_intercept_card) → content. Short verdicts center fully; tall ones
+        scroll. No more clipping.
+      * Buttons restructured to a VERTICAL stack, full-width (match_parent), fixed 15sp,
+        removed autosize/insets/maxLines hacks → always equal, full labels, no truncation.
+      Verified on-device: SAFE (screen-safe.png), SUSPICIOUS (screen-suspicious.png),
+      DANGER (screen-danger.png) — all centered, buttons equal and fully visible.
+      :app:assembleDebug + :app:testDebugUnitTest GREEN.
+
+## 2026-06-19 — PLAN: grouped + collapsible flags by category (block + Scan Detail)
+
+User idea (image): group flags by category ("Heuristic", "Vendors flagged") with a count;
+default collapsed; tap a group → expand its detail flags. User chose: plan + mockup first
+(mockup rendered → tasks/mockup-grouped-flags.png / .html), scope = block screen + Scan Detail,
+HISTORY STAYS FLAT (no DB migration). Risk: MEDIUM-low (additive mapper/model + UI; NO change
+to scoring/verdict/providers/DB schema).
+
+Data finding (verified): per-flag category already exists upstream — domain/model/ScanSignal.kt
+has `source: SignalSource` (LOCAL_HEURISTIC / EXTERNAL_REPUTATION / ENRICHMENT / DOMAIN_SIGNAL).
+ScoringEngine keeps full `signals` in ScanVerdict, BUT ScanMapper.toLegacy() (line 22) FLATTENS
+to `flags: List<String>` (secondaryReasons = signal titles), dropping the source. The legacy
+data/ScanData.kt ScanResult + Room entity only store flat strings. So grouping needs the source
+carried through the mapper to the UI (it is lost today).
+
+Category mapping (proposed): LOCAL_HEURISTIC → "Heuristic"; EXTERNAL_REPUTATION + ENRICHMENT →
+"Vendors flagged"; DOMAIN_SIGNAL → "Domain checks"; the EXTERNAL_CHECKS_UNAVAILABLE note → its
+own muted line (not a group).
+
+Plan — DONE 2026-06-19 (user: "Go, make no mistake"; auto-expand-when-single approved):
+- [x] 1. Model: FlagGroup(category, items) (@Parcelize) + optional flagGroups: List<FlagGroup>
+      = emptyList() on data/ScanResult. NOT persisted (toEntity/toDomain untouched) → no DB
+      migration. (data/ScanData.kt)
+- [x] 2. Mapper: toLegacy() builds flagGroups from verdict.signals grouped by source→label
+      (LOCAL_HEURISTIC→Heuristic; EXTERNAL_REPUTATION+ENRICHMENT→Vendors flagged;
+      DOMAIN_SIGNAL→Domain checks), items = distinct titles, order [Heuristic, Vendors flagged,
+      Domain checks]. Flat `flags` (secondaryReasons) unchanged. (domain/mapper/ScanMapper.kt)
+- [x] 3. UI shared: item_flag_group.xml (header: icon + category + count pill + chevron) +
+      item_flag_group_line.xml + ic_chevron + bg_count_pill drawables. addFlagGroup() /
+      addFlagNote() in ui/FlagStyle.kt — level-tinted, tap toggles items + rotates chevron.
+- [x] 4. LinkInterceptActivity.populateFlags(result) + ScanDetailActivity.setupFlags(flags,
+      groups): groups non-empty → collapsible groups (lone group auto-expands; 2+ start
+      collapsed) + ungrouped flat flags shown as muted notes; else → flat list (history).
+      ScanDetailActivity.newIntent now passes Extras.FLAG_GROUPS (parcelable list);
+      AppConfig.Extras.FLAG_GROUPS added.
+- [x] 5. Tests: ScanMapperTest (6 cases: heuristic-only, vendor merge, mixed-order, empty,
+      dedupe, flat-flags-unchanged). Full suite 185 tests, 0 fail (was 179; +6).
+- [x] 6. Verify: assembleDebug + testDebugUnitTest GREEN. On-device Pixel_7/API34:
+      block DANGER → Heuristic(4) group auto-expanded (grp-block-collapsed.png); tapped a
+      vendors group → COLLAPSED, chevron ▸ (grp-vendors-collapsed.png); fresh manual scan →
+      Scan Detail grouped (grp-detail.png); DB history item → FLAT fallback, no crash
+      (hist-detail.png). Summary: grouped-flags-states.png.
+- NET: history scans stay flat (no category persisted) as agreed; fresh scans (block + detail)
+      group by category, default-collapsed except a lone group. No scoring/verdict/provider/DB
+      change. Tap target = whole header row; expand state is session-only (not persisted).

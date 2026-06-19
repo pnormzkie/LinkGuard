@@ -1,86 +1,256 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Full-screen scrim (the activity uses a translucent, non-floating theme) with a centered
+     rounded card. The card is a ScrollView so a tall verdict (DANGER + several flags) scrolls
+     instead of pushing the decision buttons off-screen, while a short verdict (SAFE) stays
+     fully visible and centered — neither case clips the buttons. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@color/surface"
-    android:padding="24dp">
+    android:layout_height="match_parent"
+    android:background="#CC000000">
 
-    <ProgressBar
-        android:id="@+id/scanProgress"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="16dp" />
-
-    <TextView
-        android:id="@+id/tvStatus"
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:text="@string/link_scanning"
-        android:textColor="@color/text_primary"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        android:layout_gravity="center"
+        android:layout_margin="20dp"
+        android:background="@drawable/bg_intercept_card">
 
-    <TextView
-        android:id="@+id/tvUrl"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:gravity="center"
-        android:maxLines="3"
-        android:ellipsize="end"
-        android:textColor="@color/text_muted"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/tvReason"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:textColor="@color/text_primary"
-        android:textSize="14sp"
-        android:visibility="gone" />
-
-    <!-- Visible only while scanning: cancels the in-flight scan and closes without opening. -->
-    <Button
-        android:id="@+id/btnCancelScan"
-        style="?attr/materialButtonOutlinedStyle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="20dp"
-        android:textColor="@color/text_muted"
-        android:text="@string/btn_cancel_scan" />
-
-    <LinearLayout
-        android:id="@+id/buttonRow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:orientation="horizontal"
-        android:visibility="gone">
-
-        <Button
-            android:id="@+id/btnDontOpen"
-            style="?attr/materialButtonStyle"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            android:backgroundTint="@color/cyan"
-            android:textColor="@color/black"
-            android:text="@string/btn_dont_open" />
+            android:orientation="vertical"
+            android:padding="24dp">
 
-        <Button
-            android:id="@+id/btnOpenAnyway"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:textColor="@color/red"
-            android:text="@string/btn_open_anyway" />
-    </LinearLayout>
-</LinearLayout>
+            <!-- ═══ SCANNING STATE (hidden once a verdict UI shows) ═══ -->
+            <ProgressBar
+                android:id="@+id/scanProgress"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:id="@+id/tvScanning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/link_scanning"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvScanningUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:textColor="@color/text_muted"
+                android:textSize="13sp" />
+
+            <!-- Visible only while scanning: cancels the in-flight scan and closes without opening. -->
+            <Button
+                android:id="@+id/btnCancelScan"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="20dp"
+                android:textColor="@color/text_muted"
+                android:text="@string/btn_cancel_scan" />
+
+            <!-- ═══ VERDICT STATE (all gone until a verdict UI shows) ═══ -->
+
+            <!-- Status badge: [icon] SUSPICIOUS / DANGEROUS LINK — tinted by verdict in code. -->
+            <LinearLayout
+                android:id="@+id/statusBadgeContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:background="@drawable/bg_status_badge_dim"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/ivStatusIcon"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_stat_suspicious"
+                    app:tint="@color/yellow"
+                    android:layout_marginEnd="10dp"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/status_suspicious_link"
+                    android:textColor="@color/yellow"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.04" />
+            </LinearLayout>
+
+            <!-- Score ring: % + RISK. Ring stroke + score text tinted by verdict in code. -->
+            <FrameLayout
+                android:id="@+id/scoreFrame"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/bg_score_badge"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvScoreLarge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0%"
+                        android:textColor="@color/yellow"
+                        android:textSize="30sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/risk_label"
+                        android:textColor="@color/text_muted"
+                        android:textSize="10sp"
+                        android:letterSpacing="0.1"
+                        android:textStyle="bold"
+                        android:textAllCaps="true" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Tapped-link chip -->
+            <LinearLayout
+                android:id="@+id/urlChip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_url_input"
+                android:padding="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/link_tapped_label"
+                    android:textColor="@color/text_muted"
+                    android:textSize="10sp"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.12"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/tvUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:maxLines="4"
+                    android:ellipsize="end"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:lineSpacingMultiplier="1.3" />
+            </LinearLayout>
+
+            <!-- Shown only on the unchecked (scan-failed) screen, in place of the ring/flags. -->
+            <TextView
+                android:id="@+id/tvReason"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:lineSpacingMultiplier="1.3"
+                android:visibility="gone" />
+
+            <!-- Flags section -->
+            <TextView
+                android:id="@+id/flagsHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="12dp"
+                android:text="@string/why_flagged_header"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp"
+                android:textAllCaps="true"
+                android:letterSpacing="0.12"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- Flag rows are added programmatically here. -->
+            <LinearLayout
+                android:id="@+id/flagsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone" />
+
+            <!-- Decision buttons: stacked full-width so they are always equal and the full
+                 labels fit at a consistent size (no autosizing / truncation). Primary (the
+                 recommended action) on top. On DANGER the secondary is hidden and the override
+                 moves to tvDangerOverride below (confirm-gated). -->
+            <LinearLayout
+                android:id="@+id/buttonRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnPrimary"
+                    style="?attr/materialButtonStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="15sp"
+                    android:backgroundTint="@color/cyan"
+                    android:textColor="@color/black"
+                    android:text="@string/btn_dont_open" />
+
+                <Button
+                    android:id="@+id/btnSecondary"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textSize="15sp"
+                    android:textColor="@color/red"
+                    android:text="@string/btn_open_anyway" />
+            </LinearLayout>
+
+            <!-- DANGER-only override: deliberately low-emphasis and confirm-gated so it can't be
+                 tapped by reflex. Hidden for every other verdict. -->
+            <TextView
+                android:id="@+id/tvDangerOverride"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center"
+                android:padding="8dp"
+                android:text="@string/link_danger_override"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

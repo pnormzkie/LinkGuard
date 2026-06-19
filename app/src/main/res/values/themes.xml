@@ -31,6 +31,18 @@
         <item name="windowNoTitle">true</item>
     </style>
 
+    <!-- Link-intercept verdict: full-screen translucent (NOT a floating dialog) so the
+         centered card can scroll and never clips its decision buttons. The scrim comes from
+         the layout's FrameLayout background. -->
+    <style name="Theme.LinkGuard.Intercept" parent="Theme.LinkGuard">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
+
     <!-- Splash / no-animation theme -->
     <style name="Theme.LinkGuard.NoActionBar">
         <item name="windowActionBar">false</item>

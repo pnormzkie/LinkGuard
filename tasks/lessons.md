@@ -31,3 +31,15 @@
 **Context:** UI-layer review of LinkGuard; reported during the android-ui-reviewer pass.
 **Rule:** Severity claims that depend on "X is unreferenced/unused" (dead-resource stripping, dead code, unused export) require a repo-wide reference check (grep R.drawable.<name> / the symbol) BEFORE assigning severity. Related to the audit-verification lesson above — second occurrence of stating a finding without checking the surrounding evidence.
 **Status:** active
+
+## 2026-06-19 — A taller dialog redesign can push action buttons off-screen
+**Mistake:** Redesigned the LinkInterceptActivity block screen (a wrap_content, dialog-themed window) to be much taller — badge + 120dp score ring + URL chip + up to 3 flag-row cards — without a scroll container. On the DANGER verdict (3 flags) the content exceeded the screen height, so the DON'T OPEN / OPEN ANYWAY decision buttons were clipped off-screen and unreachable. Caught only by on-device screenshot, not by the build (it compiles fine) or by the shorter SUSPICIOUS case (which fit).
+**Context:** Block-screen redesign on Pixel_7/API34. The original compact layout (single tvReason line) fit; the redesign did not, and a floating/dialog window clips rather than scrolls.
+**Rule:** When a layout's height grows and it lives in a wrap_content / dialog / non-scrolling window — especially a decision dialog whose buttons are the only safe exit — wrap it in a ScrollView (or pin the action row) so the primary actions can never be pushed off-screen. Verify the WORST-CASE content size on-device (most flags / longest text), not just the happy/short case.
+**Status:** active
+
+## 2026-06-19 — Floating Dialog theme clips at rest; per-button autosize looks uneven
+**Mistake:** Used Theme.AppCompat.DayNight.Dialog for the link-intercept verdict UI and tried to fit two side-by-side decision buttons with per-button autosize. Result: (1) the floating dialog window caps content height and CLIPS the last row at rest (the buttons showed half-cut even when scrollable — a ScrollView alone did not prevent the clipped resting position); (2) `app:autoSizeTextType="uniform"` sizes each button independently, so a longer label ("OPEN ANYWAY") shrank below a shorter one ("DON'T OPEN") and the pair looked uneven.
+**Context:** LinkInterceptActivity block-screen redesign, caught by user on Pixel_7/API34 screenshots.
+**Rule:** For a custom card/verdict activity that must scroll AND keep action buttons fully visible, use a NON-floating full-screen translucent theme (own FrameLayout scrim + centered ScrollView card), not a floating *.Dialog theme — floating windows clip rather than reserve space. For paired buttons that must read as equal, do NOT rely on autosize (it is per-view); give them the same fixed text size and equal width, or stack them full-width. Verify the worst-case label on-device.
+**Status:** active

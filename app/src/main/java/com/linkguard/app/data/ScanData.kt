@@ -11,6 +11,18 @@ import kotlinx.parcelize.Parcelize
 
 enum class ThreatLevel { SAFE, SUSPICIOUS, DANGER }
 
+/**
+ * Flags grouped by the signal source/category ("Heuristic", "Vendors flagged", …) for the
+ * collapsible verdict UI. Derived in [com.linkguard.app.domain.mapper.toLegacy] for fresh
+ * scans only — intentionally NOT persisted to Room, so history-loaded results have it empty
+ * and the UI falls back to the flat [ScanResult.flags] list.
+ */
+@Parcelize
+data class FlagGroup(
+    val category: String,
+    val items: List<String>
+) : Parcelable
+
 @Parcelize
 data class ScanResult(
     val id: Int = 0,
@@ -21,7 +33,8 @@ data class ScanResult(
     val flags: List<String>,
     val sourceApp: String,
     val senderInfo: String,
-    val scannedAt: Long = System.currentTimeMillis()
+    val scannedAt: Long = System.currentTimeMillis(),
+    val flagGroups: List<FlagGroup> = emptyList()
 ) : Parcelable
 
 data class ScanStats(

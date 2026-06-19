@@ -39,7 +39,7 @@
             android:name=".ui.LinkInterceptActivity"
             android:exported="true"
             android:excludeFromRecents="true"
-            android:theme="@style/Theme.AppCompat.DayNight.Dialog">
+            android:theme="@style/Theme.LinkGuard.Intercept">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One detail flag inside an expanded group. Text colour is tinted per level in code. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tvLine"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="12dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:textColor="@color/red"
+    android:textSize="12sp"
+    android:lineSpacingMultiplier="1.2" />

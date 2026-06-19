@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One collapsible flag group: tappable header (icon + category + count + chevron) over a
+     hidden items container. Colours are tinted per verdict level in code (see addFlagGroup). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/groupRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_flag_item"
+    android:padding="12dp"
+    android:layout_marginBottom="9dp">
+
+    <LinearLayout
+        android:id="@+id/groupHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:id="@+id/ivGroupIcon"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_flag_red"
+            android:layout_marginEnd="11dp"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/tvGroupName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Heuristic"
+            android:textColor="@color/red"
+            android:textStyle="bold"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvGroupCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="22dp"
+            android:gravity="center"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:background="@drawable/bg_count_pill"
+            android:text="0"
+            android:textColor="@color/red"
+            android:textStyle="bold"
+            android:textSize="11sp" />
+
+        <ImageView
+            android:id="@+id/ivChevron"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginStart="10dp"
+            android:src="@drawable/ic_chevron"
+            android:importantForAccessibility="no" />
+    </LinearLayout>
+
+    <!-- Detail lines are added programmatically; hidden until the header is tapped. -->
+    <LinearLayout
+        android:id="@+id/groupItems"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="6dp"
+        android:paddingStart="4dp"
+        android:visibility="gone" />
+</LinearLayout>

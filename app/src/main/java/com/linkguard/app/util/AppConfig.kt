@@ -38,5 +38,6 @@ object AppConfig {
         const val SENDER = "sender"
         const val APP = "app"
         const val THREAT_LEVEL = "threat_level"
+        const val FLAG_GROUPS = "flag_groups"
     }
 }
