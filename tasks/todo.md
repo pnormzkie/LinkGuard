@@ -560,4 +560,7 @@ SPECIFIC vendors when tapped; and make History grouped too. User approved a samp
       versionCode=13 versionName=1.12; apksigner V2 cert ead80ea1…74227357 (same key); size
       24470456, SHA-256 fd1d7649bd9dba4fa174954792a25c86ca1375d1abccdbf380b596da224db244.
       Staged release-staging/LinkGuard-v1.12.apk + RELEASE-NOTES-v1.12.md.
-- [ ] PENDING: publish to GitHub (needs a fresh PAT — the v1.11 token should be revoked).
+- [x] PUBLISHED to GitHub (release id 342004410, tag v1.12, make_latest). releases/latest=v1.12;
+      public download re-hashed IDENTICAL (24470456 bytes, fd1d7649...db244).
+      https://github.com/pnormzkie/LinkGuard/releases/tag/v1.12
+- [ ] USER ACTION: REVOKE the v1.12 PAT pasted in chat (and confirm the v1.11 one is revoked).
