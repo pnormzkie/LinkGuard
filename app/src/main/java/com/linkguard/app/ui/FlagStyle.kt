@@ -49,7 +49,7 @@ fun addFlagGroup(
 ) {
     val b = ItemFlagGroupBinding.inflate(inflater, parent, false)
     b.tvGroupName.text = group.category
-    b.tvGroupCount.text = group.items.size.toString()
+    b.tvGroupCount.text = group.count.toString()
     b.tvGroupName.setTextColor(color)
     b.tvGroupCount.setTextColor(color)
     b.ivGroupIcon.imageTintList = ColorStateList.valueOf(color)

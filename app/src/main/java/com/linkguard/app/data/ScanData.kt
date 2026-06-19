@@ -3,6 +3,8 @@ package com.linkguard.app.data
 import android.content.Context
 import android.os.Parcelable
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.parcelize.Parcelize
@@ -20,7 +22,10 @@ enum class ThreatLevel { SAFE, SUSPICIOUS, DANGER }
 @Parcelize
 data class FlagGroup(
     val category: String,
-    val items: List<String>
+    val items: List<String>,
+    /** True total of detections in this group. May exceed items.size when the displayed
+     *  list is capped (the last item is then a "+N more" line), so the header count stays honest. */
+    val count: Int = items.size
 ) : Parcelable
 
 @Parcelize
@@ -55,7 +60,10 @@ data class ScanHistoryEntity(
     val flags: String,          // JSON array stored as TEXT
     val sourceApp: String,
     val senderInfo: String,
-    val scannedAt: Long
+    val scannedAt: Long,
+    // JSON of List<FlagGroup> for the collapsible UI. Nullable so the v1→v2 migration can add it
+    // without a SQL default; pre-migration rows read back as null → flat fallback.
+    val flagGroups: String? = null
 )
 
 // ─── DAO ──────────────────────────────────────────────────────────────────────
@@ -91,7 +99,7 @@ interface ScanDao {
 
 @Database(
     entities = [ScanHistoryEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true          // Set to true for production — keeps migration audit trail
 )
 abstract class LinkGuardDatabase : RoomDatabase() {
@@ -100,6 +108,14 @@ abstract class LinkGuardDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: LinkGuardDatabase? = null
+
+        /** v2 adds the nullable flagGroups column (collapsible flag categories). Non-destructive
+         *  ADD COLUMN; existing rows keep all data and read back null → flat flag fallback. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE scan_history ADD COLUMN flagGroups TEXT")
+            }
+        }
 
         fun getInstance(context: Context): LinkGuardDatabase =
             INSTANCE ?: synchronized(this) {
@@ -114,8 +130,7 @@ abstract class LinkGuardDatabase : RoomDatabase() {
             )
                 // DO NOT use fallbackToDestructiveMigration() in production —
                 // it silently wipes user scan history on schema changes.
-                // Add explicit Migration objects here as the schema evolves:
-                // .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2)
                 .build()
     }
 }
@@ -124,10 +139,17 @@ abstract class LinkGuardDatabase : RoomDatabase() {
 
 private val gson = Gson()
 private val flagListType = object : TypeToken<List<String>>() {}.type
+private val flagGroupListType = object : TypeToken<List<FlagGroup>>() {}.type
 
 fun ScanHistoryEntity.toDomain(): ScanResult {
     val flagList: List<String> = try {
         gson.fromJson(flags, flagListType) ?: emptyList()
+    } catch (_: Exception) {
+        emptyList()
+    }
+    // Null for pre-v2 rows (and any parse error) → empty → UI falls back to the flat list.
+    val groups: List<FlagGroup> = try {
+        flagGroups?.let { gson.fromJson(it, flagGroupListType) } ?: emptyList()
     } catch (_: Exception) {
         emptyList()
     }
@@ -144,7 +166,8 @@ fun ScanHistoryEntity.toDomain(): ScanResult {
         flags = flagList,
         sourceApp = sourceApp,
         senderInfo = senderInfo,
-        scannedAt = scannedAt
+        scannedAt = scannedAt,
+        flagGroups = groups
     )
 }
 
@@ -157,5 +180,6 @@ fun ScanResult.toEntity(): ScanHistoryEntity = ScanHistoryEntity(
     flags = gson.toJson(flags),
     sourceApp = sourceApp,
     senderInfo = senderInfo,
-    scannedAt = scannedAt
+    scannedAt = scannedAt,
+    flagGroups = if (flagGroups.isEmpty()) null else gson.toJson(flagGroups)
 )

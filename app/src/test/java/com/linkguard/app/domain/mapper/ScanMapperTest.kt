@@ -19,14 +19,16 @@ class ScanMapperTest {
         title: String,
         source: SignalSource,
         score: Int = 20,
-        strength: SignalStrength = SignalStrength.WEAK
+        strength: SignalStrength = SignalStrength.WEAK,
+        metadata: Map<String, String> = emptyMap()
     ) = ScanSignal(
         ruleId = "RULE",
         title = title,
         description = "desc",
         strength = strength,
         source = source,
-        score = score
+        score = score,
+        metadata = metadata
     )
 
     private fun legacyOf(signals: List<ScanSignal>) =
@@ -84,6 +86,33 @@ class ScanMapperTest {
         assertEquals(listOf("Suspicious keyword"), legacy.flagGroups[0].items)
         assertEquals(listOf("Detected by vendors"), legacy.flagGroups[1].items)
         assertEquals(listOf("Blocked by NextDNS"), legacy.flagGroups[2].items)
+    }
+
+    @Test
+    fun `vendor_names metadata expands into named items with honest count`() {
+        val legacy = legacyOf(
+            listOf(
+                signal(
+                    "2 Vendors Flagged", SignalSource.ENRICHMENT,
+                    metadata = mapOf("vendor_names" to "Google Safebrowsing||Phishtank")
+                )
+            )
+        )
+        val g = legacy.flagGroups.single { it.category == "Vendors flagged" }
+        assertEquals(listOf("Google Safebrowsing", "Phishtank"), g.items)
+        assertEquals(2, g.count)
+    }
+
+    @Test
+    fun `over-cap group collapses extras into a plus-N-more line and keeps the true count`() {
+        val names = (1..10).joinToString("||") { "Engine$it" }
+        val legacy = legacyOf(
+            listOf(signal("10 Vendors Flagged", SignalSource.ENRICHMENT, metadata = mapOf("vendor_names" to names)))
+        )
+        val g = legacy.flagGroups.single()
+        assertEquals(10, g.count)              // header stays honest
+        assertEquals(9, g.items.size)          // 8 names + 1 summary line
+        assertEquals("+2 more", g.items.last())
     }
 
     @Test

@@ -56,14 +56,26 @@ class VirusTotalEnrichmentProvider(
                 }
                 if (responseBody.trim().isEmpty()) return@withContext emptyList()
 
-                val stats = gson.fromJson(responseBody, JsonObject::class.java)
+                val attributes = gson.fromJson(responseBody, JsonObject::class.java)
                     ?.getAsJsonObject("data")
                     ?.getAsJsonObject("attributes")
-                    ?.getAsJsonObject("last_analysis_stats")
+                    ?: return@withContext emptyList()
+
+                val stats = attributes.getAsJsonObject("last_analysis_stats")
                     ?: return@withContext emptyList()
 
                 val malicious = stats.get("malicious")?.asInt ?: 0
                 if (malicious == 0) return@withContext emptyList()
+
+                // Names of the specific engines that flagged it (VT lists these per result).
+                // Shown to the user so "N vendors" isn't an opaque number.
+                val vendorNames = attributes.getAsJsonObject("last_analysis_results")
+                    ?.entrySet()
+                    ?.mapNotNull { (engine, value) ->
+                        val category = runCatching { value.asJsonObject.get("category")?.asString }.getOrNull()
+                        if (category == "malicious") engine else null
+                    }
+                    .orEmpty()
 
                 // Security-First Scoring: 
                 // - 1-2 flags: 25 points (Minimum Suspicious threshold)
@@ -88,7 +100,12 @@ class VirusTotalEnrichmentProvider(
                         source = SignalSource.ENRICHMENT,
                         score = finalScore,
                         matchedValue = input,
-                        metadata = mapOf("malicious_count" to malicious.toString())
+                        metadata = buildMap {
+                            put("malicious_count", malicious.toString())
+                            if (vendorNames.isNotEmpty()) {
+                                put("vendor_names", vendorNames.joinToString("||"))
+                            }
+                        }
                     )
                 )
             }

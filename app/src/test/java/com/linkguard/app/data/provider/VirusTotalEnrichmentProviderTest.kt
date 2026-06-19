@@ -69,6 +69,31 @@ class VirusTotalEnrichmentProviderTest {
     }
 
     @Test
+    fun `engine names from last_analysis_results are captured (malicious only)`() = runTest {
+        val body = """
+            {"data":{"attributes":{
+              "last_analysis_stats":{"malicious":2,"harmless":60},
+              "last_analysis_results":{
+                "Google Safebrowsing":{"category":"malicious","result":"phishing"},
+                "Phishtank":{"category":"malicious","result":"phishing"},
+                "Kaspersky":{"category":"harmless","result":"clean"}
+              }}}}
+        """.trimIndent()
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+        assertEquals(1, signals.size)
+        // Only the malicious engines, in response order; harmless ones excluded.
+        assertEquals("Google Safebrowsing||Phishtank", signals[0].metadata["vendor_names"])
+    }
+
+    @Test
+    fun `missing last_analysis_results leaves vendor_names absent`() = runTest {
+        val body = """{"data":{"attributes":{"last_analysis_stats":{"malicious":1}}}}"""
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+        assertEquals(null, signals[0].metadata["vendor_names"])
+        assertEquals("1", signals[0].metadata["malicious_count"])
+    }
+
+    @Test
     fun `zero malicious vendors yields no signal`() = runTest {
         val body = """{"data":{"attributes":{"last_analysis_stats":{"malicious":0,"harmless":70}}}}"""
         assertTrue(provider(clientReturning(200, body)).fetchSignals(url).isEmpty())

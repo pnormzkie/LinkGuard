@@ -526,3 +526,38 @@ Plan — DONE 2026-06-19 (user: "Go, make no mistake"; auto-expand-when-single a
       https://github.com/pnormzkie/LinkGuard/releases/tag/v1.11
 - [ ] USER ACTION: REVOKE the GitHub PAT pasted in chat (github.com/settings/tokens) — exposed.
 - Standing (unchanged): rotate/restrict the 3 embedded API keys; off-machine keystore backup.
+
+## 2026-06-19 — v1.12: specific vendor names + history grouping (DB migration)
+
+User feedback on v1.11: "Vendors flagged 1" vs "2 Vendors Flagged" is confusing — show the
+SPECIFIC vendors when tapped; and make History grouped too. User approved a sample mockup
+(tasks/mockup-vendor-names.png) + safe DB migration.
+
+- [x] Vendor names: VirusTotalEnrichmentProvider now parses last_analysis_results, collects the
+      engine names with category=="malicious" → metadata["vendor_names"] (joined "||"). Title
+      summary kept as fallback. No scoring change (still one VT signal).
+- [x] Mapper: FlagGroup gained a true `count` (header stays honest when the list is capped).
+      toFlagGroups expands a signal's vendor_names into named items; GROUP_ITEM_CAP=8 then a
+      "+N more" line. Heuristic/Domain signals still contribute their title.
+- [x] Bug caught on-device + fixed: the VT title ("2 Vendors Flagged") was showing as a
+      redundant orphan note below the group (group items are now engine names, so the title
+      wasn't "covered"). Changed both screens to surface ONLY the
+      EXTERNAL_CHECKS_UNAVAILABLE_REASON meta-note outside groups.
+- [x] History grouping via SAFE DB migration: ScanHistoryEntity gained nullable `flagGroups`
+      TEXT; DB version 1→2 with MIGRATION_1_2 = `ALTER TABLE scan_history ADD COLUMN flagGroups
+      TEXT` (non-destructive). toEntity serializes (null when empty), toDomain deserializes
+      (null/parse-error → empty → flat fallback). Nullable column matches Room's expected schema
+      so migration validation passes.
+- [x] Tests: +7 → 192 total, 0 failures. VirusTotalEnrichmentProviderTest (engine-name capture,
+      missing-results), ScanMapperTest (vendor expansion, +N-more cap), new ScanDataMapperTest
+      (round-trip, empty→null, pre-v2 null→empty).
+- [x] ON-DEVICE (Pixel_7/API34) on the REAL upgrade path — installed release v1.12 OVER release
+      v1.11 (same key, in-place): MIGRATION_1_2 ran, THREATS count preserved (1→1), no crash.
+      gov-ltms block screen → "Vendors flagged (2)" → Bfore.Ai PreCrime / Seclookup (live VT),
+      no redundant note (vendor-block2.png). New scan grouped in History detail (hist-grouped.png).
+      Old pre-v2 gcash row → flat fallback, no crash (hist-flat.png).
+- [x] Release v1.12 (versionCode 13): assembleRelease GREEN (R8+shrink+lintVital); aapt
+      versionCode=13 versionName=1.12; apksigner V2 cert ead80ea1…74227357 (same key); size
+      24470456, SHA-256 fd1d7649bd9dba4fa174954792a25c86ca1375d1abccdbf380b596da224db244.
+      Staged release-staging/LinkGuard-v1.12.apk + RELEASE-NOTES-v1.12.md.
+- [ ] PENDING: publish to GitHub (needs a fresh PAT — the v1.11 token should be revoked).

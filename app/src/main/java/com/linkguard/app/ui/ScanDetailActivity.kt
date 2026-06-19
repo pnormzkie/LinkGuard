@@ -16,6 +16,7 @@ import com.linkguard.app.data.FlagGroup
 import com.linkguard.app.data.ScanResult
 import com.linkguard.app.databinding.ActivityScanDetailBinding
 import com.linkguard.app.databinding.ItemFlagBinding
+import com.linkguard.app.domain.scoring.ScoringEngine
 import com.linkguard.app.util.AppConfig.Extras
 
 class ScanDetailActivity : AppCompatActivity() {
@@ -108,8 +109,8 @@ class ScanDetailActivity : AppCompatActivity() {
             // Fresh scan: collapsible groups. A lone group auto-expands.
             val autoExpand = groups.size == 1
             groups.forEach { addFlagGroup(inflater, binding.flagsContainer, it, color, autoExpand) }
-            val grouped = groups.flatMapTo(HashSet()) { it.items }
-            flags.filter { it !in grouped }
+            // Only the "external checks unavailable" meta-note lives outside the groups.
+            flags.filter { it == ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON }
                 .forEach { addFlagNote(inflater, binding.flagsContainer, it) }
         } else {
             // History (no category data persisted): the flat list, as before.

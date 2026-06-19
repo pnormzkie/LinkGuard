@@ -231,9 +231,9 @@ class LinkInterceptActivity : AppCompatActivity() {
             // A lone group auto-expands (no extra tap); with 2+ groups everything starts collapsed.
             val autoExpand = groups.size == 1
             groups.forEach { addFlagGroup(layoutInflater, binding.flagsContainer, it, color, autoExpand) }
-            // Any flat flag outside the groups (e.g. the external-checks-unavailable note).
-            val grouped = groups.flatMapTo(HashSet()) { it.items }
-            result.flags.filter { it !in grouped }
+            // The only non-signal flat flag is the "external checks unavailable" meta-note;
+            // surface it under the groups. (Signal titles are already represented by the groups.)
+            result.flags.filter { it == ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON }
                 .forEach { addFlagNote(layoutInflater, binding.flagsContainer, it) }
         } else {
             // Fallback when there is no category data: the flat list, as before.
