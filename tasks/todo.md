@@ -635,6 +635,9 @@ Plan — DONE 2026-06-19:
       ViewBinding/coroutine poll. (Update dialog itself can't be driven on the latest build —
       already verified on the debug 1.11 run above.)
 - [x] Staged release-staging/LinkGuard-v1.13.apk (hash matches) + RELEASE-NOTES-v1.13.md.
-- [ ] PUBLISH to GitHub pnormzkie/LinkGuard (awaiting user PAT): draft → upload asset →
-      un-draft + make_latest → verify releases/latest=v1.13 + re-download byte-identical.
-- [ ] USER ACTION: REVOKE the PAT after publish (and confirm prior PATs revoked).
+- [x] PUBLISHED to GitHub pnormzkie/LinkGuard (release id 342033291, tag v1.13): created draft
+      → uploaded asset (state=uploaded, size 24487113) → un-drafted + make_latest. releases/latest
+      =v1.13; public download re-hashed IDENTICAL (24487113 bytes, 7fd72e5c…2416). In-app updater
+      will offer v1.13 to v1.12 users. https://github.com/pnormzkie/LinkGuard/releases/tag/v1.13
+- [ ] USER ACTION: REVOKE the v1.13 PAT pasted in chat (github.com/settings/tokens) — exposed.
+- Standing (unchanged): rotate/restrict the 3 embedded API keys; off-machine keystore backup.
