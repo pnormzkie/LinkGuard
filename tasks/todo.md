@@ -715,4 +715,24 @@ Approach: RE-SKIN existing layouts (keep ALL view IDs + logic), replacing Option
 - Removed Option A artefacts superseded by E: bg_deep_glow already gone; A neon drawables/colors
       (grid_tile, bg_grid_glow, bg_hero_gradient, bg_stat_grad_*, bg_scan_btn_gradient, bg_accent_bar,
       neon_border_* colors) are now UNUSED — left in tree (shrinkResources strips on release); can delete.
-- Not committed. Other surfaces still original: QR scanner overlay, update dialogs, SetupActivity.
+- COMMITTED to master (local, no push): ade4337 (Option E redesign, 32 files).
+
+UPDATE 2026-06-20 (B then A) — post-redesign polish + coverage, per user "B muna tapos A":
+- [x] B4 externalize: 13 new strings (home_protected, security_tools, scan_report, risk_score,
+      scanned_url, copy_url_btn, details_label, detail_category, detail_source, risk_flags,
+      no_risk_flags, threat_alert_view_report, threat_alert_dismiss) referenced from Home/ScanDetail/Alert.
+- [x] B7 theme: windowBackground/colorBackground/status+nav bar -> e_bg; colorPrimary -> e_blue (themes.xml).
+- [x] B5 tests: :app:testDebugUnitTest GREEN (no logic change). B6: :app:assembleRelease GREEN
+      (lintVitalRelease + shrinkResources pass — no blocking lint). Home re-verified on device.
+- [x] COMMIT 129729d (B: externalize + theme, 5 files).
+- [x] A1 QR: overlay corners + laser #00E676 -> #0089FF (QrScannerOverlayView); gallery button
+      surface/cyan -> e_card/e_blue (QrScannerActivity). Verified blue on device (tasks/E-qr.png).
+- [x] A2 update dialogs: available + progress + note row cyan -> e_blue, surfaces/text -> E;
+      MainActivity.renderProgress Running/Pending e_blue, Paused e_amber. (build-verified; not live-driven)
+- [x] A3 block "TAPPED LINK" box: bg_url_input (teal border) -> bg_e_inner.
+- [x] Fixed: dialog_update_available used app:tint without xmlns:app -> switched to android:tint.
+- [x] A1-A3 build GREEN (assembleDebug + assembleRelease). COMMIT 28fb3c8 (A, 7 files).
+- Commits on master: ade4337 (E) -> 129729d (B) -> 28fb3c8 (A). No push.
+- Still original (low priority): SetupActivity (empty placeholder); dead old drawables remain
+      (shrinkResources strips on release). Update dialogs not live-screenshot-verified (need a
+      newer published version to trigger) but are a pure colour re-skin of the working v1.13 dialogs.
