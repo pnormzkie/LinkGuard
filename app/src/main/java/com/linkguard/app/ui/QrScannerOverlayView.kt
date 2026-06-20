@@ -23,14 +23,14 @@ class QrScannerOverlayView @JvmOverloads constructor(
     }
 
     private val cornerPaint = Paint().apply {
-        color = Color.parseColor("#00E676") // Green color
+        color = Color.parseColor("#0089FF") // Option E blue accent
         style = Paint.Style.STROKE
         strokeWidth = 8f
         strokeCap = Paint.Cap.ROUND
     }
 
     private val laserPaint = Paint().apply {
-        color = Color.parseColor("#00E676")
+        color = Color.parseColor("#0089FF")
         alpha = 160
         strokeWidth = 4f
     }

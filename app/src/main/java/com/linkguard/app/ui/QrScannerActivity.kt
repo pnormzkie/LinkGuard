@@ -108,9 +108,9 @@ class QrScannerActivity : AppCompatActivity() {
         // 3. Add Upload Button Overlay
         val uploadBtn = MaterialButton(this).apply {
             text = getString(R.string.qr_upload_from_gallery)
-            setBackgroundColor(getColor(R.color.surface))
-            setTextColor(getColor(R.color.cyan))
-            setStrokeColorResource(R.color.cyan)
+            setBackgroundColor(getColor(R.color.e_card))
+            setTextColor(getColor(R.color.e_blue))
+            setStrokeColorResource(R.color.e_blue)
             strokeWidth = 2
             cornerRadius = 30
             val params = FrameLayout.LayoutParams(

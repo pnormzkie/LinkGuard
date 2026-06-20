@@ -24,13 +24,14 @@
             android:layout_width="72dp"
             android:layout_height="72dp"
             android:layout_gravity="center_horizontal"
-            android:background="@drawable/bg_icon_cyan">
+            android:background="@drawable/bg_e_icon_badge_blue">
 
             <ImageView
                 android:layout_width="38dp"
                 android:layout_height="38dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_download"
+                android:tint="@color/e_blue"
                 android:contentDescription="@null" />
         </FrameLayout>
 
@@ -41,7 +42,7 @@
             android:layout_marginTop="16dp"
             android:gravity="center"
             android:text="@string/update_available_title"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/e_text"
             android:textSize="23sp"
             android:textStyle="bold" />
 
@@ -51,7 +52,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:gravity="center"
-            android:textColor="@color/cyan"
+            android:textColor="@color/e_blue"
             android:textSize="16sp"
             android:textStyle="bold"
             tools:text="Version 1.13" />
@@ -62,7 +63,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="3dp"
             android:gravity="center"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/e_muted"
             android:textSize="13sp"
             tools:text="You're on 1.12" />
 
@@ -85,9 +86,9 @@
             android:layout_height="54dp"
             android:layout_marginTop="22dp"
             android:gravity="center"
-            android:background="@drawable/bg_btn_cyan"
+            android:background="@drawable/bg_e_btn_blue"
             android:text="@string/update_now"
-            android:textColor="@color/bg_deep"
+            android:textColor="@color/e_text"
             android:textSize="17sp"
             android:textStyle="bold"
             android:clickable="true"
@@ -101,7 +102,7 @@
             android:padding="12dp"
             android:gravity="center"
             android:text="@string/update_later"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/e_muted"
             android:textSize="15sp"
             android:textStyle="bold"
             android:clickable="true"

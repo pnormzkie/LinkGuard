@@ -522,15 +522,15 @@ class MainActivity : AppCompatActivity() {
             is UpdateInstaller.DownloadStatus.Running ->
                 updateProgressUi(b, status.percent, status.soFar, status.total,
                     R.string.update_progress_title, R.string.update_status_downloading,
-                    R.drawable.ic_download, getColor(R.color.cyan))
+                    R.drawable.ic_download, getColor(R.color.e_blue))
             is UpdateInstaller.DownloadStatus.Paused ->
                 updateProgressUi(b, status.percent, status.soFar, status.total,
                     R.string.update_paused_title, R.string.update_status_waiting,
-                    R.drawable.ic_cloud_off, getColor(R.color.yellow))
+                    R.drawable.ic_cloud_off, getColor(R.color.e_amber))
             is UpdateInstaller.DownloadStatus.Pending ->
                 updateProgressUi(b, 0, 0L, 0L,
                     R.string.update_progress_title, R.string.update_status_downloading,
-                    R.drawable.ic_download, getColor(R.color.cyan))
+                    R.drawable.ic_download, getColor(R.color.e_blue))
             else -> Unit // Succeeded / Failed handled by the caller
         }
     }
