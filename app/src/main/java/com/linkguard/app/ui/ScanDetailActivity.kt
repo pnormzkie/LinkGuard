@@ -60,26 +60,27 @@ class ScanDetailActivity : AppCompatActivity() {
         flags: Array<String>, flagGroups: List<FlagGroup>,
         sender: String, app: String, threatLevel: String
     ) {
-        // Status + color + icon
+        // Status + color + icon (Option E uses a solid verdict-coloured block with white foreground)
         val (statusText, colorRes, iconRes) = when (threatLevel) {
-            "DANGER"     -> Triple(getString(R.string.status_dangerous_link), R.color.red, R.drawable.ic_stat_threat)
-            "SUSPICIOUS" -> Triple(getString(R.string.status_suspicious_link), R.color.yellow, R.drawable.ic_stat_suspicious)
-            else         -> Triple(getString(R.string.status_safe_link), R.color.green, R.drawable.ic_stat_safe)
+            "DANGER"     -> Triple(getString(R.string.status_dangerous_link), R.color.e_red, R.drawable.ic_stat_threat)
+            "SUSPICIOUS" -> Triple(getString(R.string.status_suspicious_link), R.color.e_amber, R.drawable.ic_stat_suspicious)
+            else         -> Triple(getString(R.string.status_safe_link), R.color.e_green, R.drawable.ic_stat_safe)
         }
         val color = getColor(colorRes)
+        val white = getColor(R.color.e_text)
 
-        // Score ring & Center text
-        binding.scoreRing.setIndicatorColor(color)
+        // Verdict block: solid colour card, white ring + white score
+        binding.statusCard.setCardBackgroundColor(color)
+        binding.scoreRing.setIndicatorColor(white)
         binding.scoreRing.progress = score
         binding.tvScoreLarge.text = "$score%"
-        binding.tvScoreLarge.setTextColor(color)
+        binding.tvScoreLarge.setTextColor(white)
 
-        // Status badge
+        // Status badge: white pill (from layout) with white icon + text
         binding.tvStatus.text = statusText
-        binding.tvStatus.setTextColor(color)
+        binding.tvStatus.setTextColor(white)
         binding.ivStatusIcon.setImageResource(iconRes)
-        binding.ivStatusIcon.imageTintList = ColorStateList.valueOf(color)
-        binding.statusBadgeContainer.backgroundTintList = ColorStateList.valueOf(color).withAlpha(30)
+        binding.ivStatusIcon.imageTintList = ColorStateList.valueOf(white)
 
         // Other fields
         binding.tvUrl.text      = url

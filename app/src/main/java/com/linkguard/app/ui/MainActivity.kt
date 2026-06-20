@@ -93,8 +93,7 @@ class MainActivity : AppCompatActivity() {
 
     // ─── Animations ───────────────────────────────────────────────────────────
 
-    private var rotationAnimator: ObjectAnimator? = null
-    private var pulseAnimator: ObjectAnimator? = null
+    private var dotPulseAnimator: ObjectAnimator? = null
 
     // ─── QR Scanner Launcher ──────────────────────────────────────────────────
 
@@ -156,31 +155,20 @@ class MainActivity : AppCompatActivity() {
     // ─── Animations ───────────────────────────────────────────────────────────
 
     private fun setupAnimations() {
-        rotationAnimator = ObjectAnimator.ofFloat(binding.ivShieldPulse, View.ROTATION, 0f, 360f).apply {
-            duration = 4000
-            interpolator = LinearInterpolator()
-            repeatCount = ValueAnimator.INFINITE
-        }
-
-        pulseAnimator = ObjectAnimator.ofPropertyValuesHolder(
-            binding.ivMainIcon,
-            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.15f, 1f),
-            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.15f, 1f)
-        ).apply {
-            duration = 2000
+        // Live "heartbeat" on the status dot so the badge reads as actively monitoring.
+        dotPulseAnimator = ObjectAnimator.ofFloat(binding.statusDot, View.ALPHA, 1f, 0.25f, 1f).apply {
+            duration = 1400
             interpolator = AccelerateDecelerateInterpolator()
             repeatCount = ValueAnimator.INFINITE
         }
     }
 
     private fun startAnimations() {
-        rotationAnimator?.start()
-        pulseAnimator?.start()
+        dotPulseAnimator?.start()
     }
 
     private fun stopAnimations() {
-        rotationAnimator?.cancel()
-        pulseAnimator?.cancel()
+        dotPulseAnimator?.cancel()
     }
 
     // ─── Setup ────────────────────────────────────────────────────────────────
@@ -681,11 +669,10 @@ class MainActivity : AppCompatActivity() {
     private fun updateProtectionStatus() {
         val enabled = isNotificationServiceEnabled()
         binding.tvProtectionStatus.text = if (enabled) getString(R.string.protection_active) else getString(R.string.protection_inactive)
-        binding.tvProtectionStatus.setTextColor(
-            ContextCompat.getColor(this, if (enabled) R.color.green else R.color.red)
-        )
-        binding.ivShieldPulse.setColorFilter(
-            ContextCompat.getColor(this, if (enabled) R.color.green else R.color.red)
+        // Option E hero pill: text stays white for contrast on the gradient; the dot carries the state colour.
+        binding.tvProtectionStatus.setTextColor(ContextCompat.getColor(this, R.color.e_text))
+        binding.statusDot.backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, if (enabled) R.color.e_green_soft else R.color.e_red_soft)
         )
     }
 

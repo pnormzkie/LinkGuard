@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Translucent white status pill on the gradient hero (Option E). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/e_white_22" />
+    <corners android:radius="999dp" />
+</shape>

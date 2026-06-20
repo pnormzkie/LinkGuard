@@ -43,3 +43,9 @@
 **Context:** LinkInterceptActivity block-screen redesign, caught by user on Pixel_7/API34 screenshots.
 **Rule:** For a custom card/verdict activity that must scroll AND keep action buttons fully visible, use a NON-floating full-screen translucent theme (own FrameLayout scrim + centered ScrollView card), not a floating *.Dialog theme — floating windows clip rather than reserve space. For paired buttons that must read as equal, do NOT rely on autosize (it is per-view); give them the same fixed text size and equal width, or stack them full-width. Verify the worst-case label on-device.
 **Status:** active
+
+## 2026-06-20 — Mockup + explicit approval BEFORE editing UI; don't treat a scope question as sign-off
+**Mistake:** For a "make the UI more futuristic" request I asked a scope/intensity question (AskUserQuestion), then went straight to editing layout + Kotlin and only showed the result after building. The user had approved no plan and had seen no preview image. This repo's established UI workflow is mockup-first: prior UI changes (grouped flags, vendor names, block-screen redesign) each produced a rendered mockup PNG and got explicit approval BEFORE any code edit.
+**Context:** Futuristic refresh of activity_main.xml (home screen). User: "wala pa akong inapproved na plan diretso ka agad nag-edit... wala ka ngang pinakita muna na output image kung ano hitsura."
+**Rule:** For any UI visual change, produce a visual preview (rendered HTML→PNG mockup, or annotated before/after) and get EXPLICIT approval of the plan before editing any file. A scope/intensity question is requirements-gathering, NOT sign-off. Show the picture, wait for "go," then implement. Applies even when the change looks low-risk/surgical.
+**Status:** active

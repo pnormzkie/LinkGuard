@@ -119,7 +119,7 @@ class LinkInterceptActivity : AppCompatActivity() {
     /** SAFE verdict: green card. No silent auto-open — the user explicitly chooses
      *  "Open Link" or "Close", so an accidental tap can still be backed out of. */
     private fun showSafeScreen(result: ScanResult) {
-        val color = ContextCompat.getColor(this, R.color.green)
+        val color = ContextCompat.getColor(this, R.color.e_green)
         hideScanningState()
 
         setBadge(color, R.drawable.ic_stat_safe, getString(R.string.status_safe_link))
@@ -132,19 +132,19 @@ class LinkInterceptActivity : AppCompatActivity() {
         binding.tvReason.text = getString(
             if (unvetted) R.string.link_safe_local_only else R.string.link_safe_verified
         )
-        binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+        binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.e_muted))
         binding.tvReason.visibility = View.VISIBLE
 
         // Recommended action for a safe link is to open it.
         configurePrimary(R.string.btn_open_link) { openInBrowser(result.url); finish() }
-        configureSecondary(R.string.btn_close, R.color.text_muted) { finish() }
+        configureSecondary(R.string.btn_close, R.color.e_muted) { finish() }
         binding.tvDangerOverride.visibility = View.GONE
         binding.buttonRow.visibility = View.VISIBLE
     }
 
     private fun showBlockScreen(result: ScanResult) {
         val isDanger = result.threatLevel == ThreatLevel.DANGER
-        val color = ContextCompat.getColor(this, if (isDanger) R.color.red else R.color.yellow)
+        val color = ContextCompat.getColor(this, if (isDanger) R.color.e_red else R.color.e_amber)
         hideScanningState()
 
         setBadge(
@@ -176,14 +176,14 @@ class LinkInterceptActivity : AppCompatActivity() {
      *  rather than silently forwarding an unchecked link. Treated like SUSPICIOUS:
      *  "Don't Open" recommended, "Open anyway" available without a confirm step. */
     private fun showUncheckedScreen() {
-        val color = ContextCompat.getColor(this, R.color.yellow)
+        val color = ContextCompat.getColor(this, R.color.e_amber)
         hideScanningState()
 
         setBadge(color, R.drawable.ic_stat_suspicious, getString(R.string.link_unchecked_title))
         binding.tvUrl.text = targetUrl
         binding.urlChip.visibility = View.VISIBLE
         binding.tvReason.text = getString(R.string.link_unchecked_reason)
-        binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+        binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.e_text2))
         binding.tvReason.visibility = View.VISIBLE
 
         configurePrimary(R.string.btn_dont_open) { finish() }
@@ -254,7 +254,7 @@ class LinkInterceptActivity : AppCompatActivity() {
         binding.btnPrimary.setOnClickListener { onClick() }
     }
 
-    private fun configureSecondary(textRes: Int, textColorRes: Int = R.color.red, onClick: () -> Unit) {
+    private fun configureSecondary(textRes: Int, textColorRes: Int = R.color.e_red_soft, onClick: () -> Unit) {
         binding.btnSecondary.visibility = View.VISIBLE
         binding.btnSecondary.text = getString(textRes)
         binding.btnSecondary.setTextColor(ContextCompat.getColor(this, textColorRes))

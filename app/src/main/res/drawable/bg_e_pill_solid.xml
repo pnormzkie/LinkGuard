@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solid status pill (history row) — white base, tinted to the verdict color at runtime. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/e_text" />
+    <corners android:radius="7dp" />
+</shape>

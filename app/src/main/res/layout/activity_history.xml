@@ -3,11 +3,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_deep"
+    android:background="@color/e_bg"
     android:orientation="vertical"
     android:paddingTop="16dp"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
     android:paddingBottom="16dp">
 
     <!-- Header -->
@@ -16,24 +16,27 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="20dp"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp">
+        android:layout_marginBottom="18dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBack"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
             android:padding="0dp"
+            android:insetLeft="0dp"
+            android:insetTop="0dp"
+            android:insetRight="0dp"
+            android:insetBottom="0dp"
             app:icon="@drawable/ic_back"
             app:iconSize="20dp"
             app:iconGravity="textStart"
-            app:iconTint="@color/text_primary"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp"
+            app:iconPadding="0dp"
+            app:iconTint="@color/e_text"
+            app:backgroundTint="@color/e_card"
             app:cornerRadius="12dp"
-            android:layout_marginEnd="16dp" />
+            android:layout_marginEnd="14dp" />
 
         <TextView
             android:id="@+id/tvTitle"
@@ -41,7 +44,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/full_history"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/e_text"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -50,13 +53,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/clear_all"
-            android:textColor="@color/red"
+            android:textColor="@color/e_red_soft"
             android:textSize="12sp"
             android:textStyle="bold"
             android:padding="8dp" />
     </LinearLayout>
 
-    <!-- Filter Tabs (Fixed & Single Line) -->
+    <!-- Filter Tabs -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -69,15 +72,15 @@
             android:layout_height="wrap_content"
             android:layout_weight="0.7"
             android:text="@string/all"
-            android:textColor="@color/cyan"
+            android:textColor="@color/e_text"
             android:textSize="9sp"
             android:textStyle="bold"
             android:gravity="center"
             android:maxLines="1"
-            android:background="@drawable/bg_filter_active"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:layout_marginEnd="4dp" />
+            android:background="@drawable/bg_e_tab_active"
+            android:paddingTop="11dp"
+            android:paddingBottom="11dp"
+            android:layout_marginEnd="6dp" />
 
         <TextView
             android:id="@+id/tabDanger"
@@ -85,15 +88,15 @@
             android:layout_height="wrap_content"
             android:layout_weight="1.0"
             android:text="@string/danger"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/e_muted"
             android:textSize="9sp"
             android:textStyle="bold"
             android:gravity="center"
             android:maxLines="1"
-            android:background="@drawable/bg_icon_box"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:layout_marginEnd="4dp" />
+            android:background="@drawable/bg_e_tab"
+            android:paddingTop="11dp"
+            android:paddingBottom="11dp"
+            android:layout_marginEnd="6dp" />
 
         <TextView
             android:id="@+id/tabSuspicious"
@@ -101,15 +104,15 @@
             android:layout_height="wrap_content"
             android:layout_weight="1.4"
             android:text="@string/filter_suspicious"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/e_muted"
             android:textSize="9sp"
             android:textStyle="bold"
             android:gravity="center"
             android:maxLines="1"
-            android:background="@drawable/bg_icon_box"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:layout_marginEnd="4dp" />
+            android:background="@drawable/bg_e_tab"
+            android:paddingTop="11dp"
+            android:paddingBottom="11dp"
+            android:layout_marginEnd="6dp" />
 
         <TextView
             android:id="@+id/tabSafe"
@@ -117,26 +120,24 @@
             android:layout_height="wrap_content"
             android:layout_weight="1.1"
             android:text="@string/filter_safe"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/e_muted"
             android:textSize="9sp"
             android:textStyle="bold"
             android:gravity="center"
             android:maxLines="1"
-            android:background="@drawable/bg_icon_box"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp" />
+            android:background="@drawable/bg_e_tab"
+            android:paddingTop="11dp"
+            android:paddingBottom="11dp" />
     </LinearLayout>
 
     <!-- Summary Bar -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
-        app:cardBackgroundColor="@color/surface"
-        app:cardCornerRadius="24dp"
-        app:strokeColor="@color/surface2"
-        app:strokeWidth="1dp"
-        app:cardElevation="0dp">
+        android:layout_marginBottom="22dp"
+        app:cardBackgroundColor="@color/e_card"
+        app:cardCornerRadius="22dp"
+        app:cardElevation="6dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -145,7 +146,6 @@
             android:paddingTop="16dp"
             android:paddingBottom="16dp">
 
-            <!-- THREATS -->
             <LinearLayout
                 android:id="@+id/containerDanger"
                 android:layout_width="0dp"
@@ -157,15 +157,14 @@
                 android:focusable="true"
                 android:background="?attr/selectableItemBackground">
                 <TextView android:id="@+id/tvThreatCount" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="0" android:textColor="@color/red" android:textSize="26sp" android:textStyle="bold" />
+                    android:text="0" android:textColor="@color/e_red_soft" android:textSize="26sp" android:textStyle="bold" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="@string/threats_label" android:textColor="@color/text_muted" android:textSize="9sp"
+                    android:text="@string/threats_label" android:textColor="@color/e_muted" android:textSize="9sp"
                     android:letterSpacing="0.1" android:layout_marginTop="2dp" />
             </LinearLayout>
 
-            <View android:layout_width="1dp" android:layout_height="30dp" android:layout_gravity="center_vertical" android:background="@color/surface2" />
+            <View android:layout_width="1dp" android:layout_height="30dp" android:layout_gravity="center_vertical" android:background="#20242E" />
 
-            <!-- SUSPICIOUS -->
             <LinearLayout
                 android:id="@+id/containerSuspicious"
                 android:layout_width="0dp"
@@ -177,15 +176,14 @@
                 android:focusable="true"
                 android:background="?attr/selectableItemBackground">
                 <TextView android:id="@+id/tvSuspiciousCount" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="0" android:textColor="@color/yellow" android:textSize="26sp" android:textStyle="bold" />
+                    android:text="0" android:textColor="@color/e_amber_soft" android:textSize="26sp" android:textStyle="bold" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="@string/suspicious_items_label" android:textColor="@color/text_muted" android:textSize="9sp"
+                    android:text="@string/suspicious_items_label" android:textColor="@color/e_muted" android:textSize="9sp"
                     android:letterSpacing="0.1" android:layout_marginTop="2dp" />
             </LinearLayout>
 
-            <View android:layout_width="1dp" android:layout_height="30dp" android:layout_gravity="center_vertical" android:background="@color/surface2" />
+            <View android:layout_width="1dp" android:layout_height="30dp" android:layout_gravity="center_vertical" android:background="#20242E" />
 
-            <!-- SAFE -->
             <LinearLayout
                 android:id="@+id/containerSafe"
                 android:layout_width="0dp"
@@ -197,9 +195,9 @@
                 android:focusable="true"
                 android:background="?attr/selectableItemBackground">
                 <TextView android:id="@+id/tvSafeCount" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="0" android:textColor="@color/green" android:textSize="26sp" android:textStyle="bold" />
+                    android:text="0" android:textColor="@color/e_green_soft" android:textSize="26sp" android:textStyle="bold" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="@string/safe_items_label" android:textColor="@color/text_muted" android:textSize="9sp"
+                    android:text="@string/safe_items_label" android:textColor="@color/e_muted" android:textSize="9sp"
                     android:letterSpacing="0.1" android:layout_marginTop="2dp" />
             </LinearLayout>
         </LinearLayout>
@@ -224,7 +222,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:text="@string/no_history_found"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/e_muted"
             android:textSize="15sp"
             android:visibility="gone" />
     </FrameLayout>

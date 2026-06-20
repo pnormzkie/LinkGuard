@@ -1,5 +1,6 @@
 package com.linkguard.app.ui
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -87,16 +88,18 @@ class ScanHistoryAdapter(
             binding.tvCategory.text = scan.category
 
             val (label, colorRes) = when (scan.threatLevel) {
-                ThreatLevel.DANGER     -> ctx.getString(R.string.status_badge_danger)     to R.color.red
-                ThreatLevel.SUSPICIOUS -> ctx.getString(R.string.status_badge_suspicious) to R.color.yellow
-                ThreatLevel.SAFE       -> ctx.getString(R.string.status_badge_safe)       to R.color.green
+                ThreatLevel.DANGER     -> ctx.getString(R.string.status_badge_danger)     to R.color.e_red
+                ThreatLevel.SUSPICIOUS -> ctx.getString(R.string.status_badge_suspicious) to R.color.e_amber
+                ThreatLevel.SAFE       -> ctx.getString(R.string.status_badge_safe)       to R.color.e_green
             }
 
             val color = ContextCompat.getColor(ctx, colorRes)
+            val tint = ColorStateList.valueOf(color)
             binding.tvStatus.text = label
-            binding.tvStatus.setTextColor(color)
-            binding.tvScore.setTextColor(color)
-            binding.threatIndicator.setBackgroundColor(color)
+            // Option E: solid colour pill + score badge with white text; the bar carries the colour.
+            binding.tvStatus.backgroundTintList = tint
+            binding.tvScore.backgroundTintList = tint
+            binding.threatIndicator.backgroundTintList = tint
 
             binding.card.setOnClickListener { onClick(scan) }
             binding.card.setOnLongClickListener {

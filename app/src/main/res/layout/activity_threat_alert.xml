@@ -4,28 +4,31 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="center"
-    android:layout_margin="24dp"
-    android:background="@drawable/bg_emergency_alert"
-    android:padding="24dp">
+    android:layout_margin="22dp"
+    android:background="@drawable/bg_e_alert"
+    android:padding="28dp">
 
     <ImageView
         android:id="@+id/alertIcon"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:background="@drawable/bg_e_icon_badge_round"
+        android:padding="16dp"
         android:src="@android:drawable/ic_dialog_alert"
+        app:tint="@color/e_text"
+        android:importantForAccessibility="no"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="#FFD700" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/alertTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="16dp"
         android:text="Threat Alert"
-        android:textColor="#FFFFFF"
-        android:textSize="22sp"
+        android:textColor="@color/e_text"
+        android:textSize="23sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -35,11 +38,12 @@
         android:id="@+id/alertMessage"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
         android:gravity="center"
+        android:lineSpacingMultiplier="1.45"
         android:text="Dangerous Link Detected! This could be a phishing attempt. Protect yourself."
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textColor="#F2FFFFFF"
+        android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/alertTitle" />
@@ -47,12 +51,13 @@
     <Button
         android:id="@+id/btnViewReport"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="52dp"
         android:layout_marginTop="24dp"
-        android:backgroundTint="#FFFFFF"
+        android:background="@drawable/bg_e_btn_white"
         android:text="VIEW FULL REPORT"
-        android:textColor="#000000"
+        android:textColor="@color/e_red"
         android:textStyle="bold"
+        android:stateListAnimator="@null"
         app:layout_constraintTop_toBottomOf="@id/alertMessage" />
 
     <Button
@@ -62,7 +67,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:text="DISMISS"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/e_text"
         android:textSize="14sp"
         app:layout_constraintTop_toBottomOf="@id/btnViewReport" />
 

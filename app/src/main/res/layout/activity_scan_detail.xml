@@ -3,14 +3,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_deep"
+    android:background="@color/e_bg"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="16dp">
 
         <!-- ═══ HEADER ═══ -->
         <LinearLayout
@@ -18,12 +18,12 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="24dp">
+            android:layout_marginBottom="20dp">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnBack"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
                 android:padding="0dp"
                 android:insetLeft="0dp"
                 android:insetTop="0dp"
@@ -33,57 +33,54 @@
                 app:iconSize="20dp"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:iconTint="@color/text_primary"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                app:strokeColor="@color/border"
-                app:cornerRadius="14dp"
-                android:layout_marginEnd="16dp" />
+                app:iconTint="@color/e_text"
+                app:backgroundTint="@color/e_card"
+                app:cornerRadius="12dp"
+                android:layout_marginEnd="14dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Scan Report"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
+                android:textColor="@color/e_text"
+                android:textSize="19sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- ═══ STATUS CARD (REDESIGNED) ═══ -->
+        <!-- ═══ VERDICT BLOCK (solid colour, set in code) ═══ -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/statusCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardBackgroundColor="@color/surface_hero"
+            android:layout_marginBottom="14dp"
+            app:cardBackgroundColor="@color/e_green"
             app:cardCornerRadius="24dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+            app:cardElevation="6dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:gravity="center"
-                android:padding="32dp">
+                android:padding="28dp">
 
-                <!-- Progress Ring with Score inside -->
                 <FrameLayout
-                    android:layout_width="140dp"
-                    android:layout_height="140dp"
-                    android:layout_marginBottom="24dp">
+                    android:layout_width="136dp"
+                    android:layout_height="136dp"
+                    android:layout_marginBottom="20dp">
 
                     <com.google.android.material.progressindicator.CircularProgressIndicator
                         android:id="@+id/scoreRing"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_gravity="center"
-                        app:indicatorSize="140dp"
-                        app:trackThickness="10dp"
-                        app:trackColor="@color/surface2"
+                        app:indicatorSize="136dp"
+                        app:trackThickness="9dp"
+                        app:trackColor="#40FFFFFF"
                         app:trackCornerRadius="5dp"
-                        app:indicatorColor="@color/yellow"
+                        app:indicatorColor="@color/e_text"
                         android:progress="0" />
 
-                    <!-- Score Text in Middle -->
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -96,7 +93,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0%"
-                            android:textColor="@color/text_primary"
+                            android:textColor="@color/e_text"
                             android:textSize="32sp"
                             android:textStyle="bold" />
 
@@ -104,7 +101,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="RISK SCORE"
-                            android:textColor="@color/text_muted"
+                            android:textColor="#CCFFFFFF"
                             android:textSize="10sp"
                             android:letterSpacing="0.1"
                             android:textStyle="bold"
@@ -112,7 +109,6 @@
                     </LinearLayout>
                 </FrameLayout>
 
-                <!-- Status Label with Icon -->
                 <LinearLayout
                     android:id="@+id/statusBadgeContainer"
                     android:layout_width="wrap_content"
@@ -123,22 +119,23 @@
                     android:paddingEnd="16dp"
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"
-                    android:background="@drawable/bg_status_badge_dim">
+                    android:background="@drawable/bg_e_pill_white">
 
                     <ImageView
                         android:id="@+id/ivStatusIcon"
                         android:layout_width="20dp"
                         android:layout_height="20dp"
                         android:src="@drawable/ic_stat_suspicious"
-                        app:tint="@color/yellow"
-                        android:layout_marginEnd="10dp" />
+                        app:tint="@color/e_text"
+                        android:layout_marginEnd="10dp"
+                        android:importantForAccessibility="no" />
 
                     <TextView
                         android:id="@+id/tvStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="SUSPICIOUS LINK"
-                        android:textColor="@color/yellow"
+                        android:textColor="@color/e_text"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.04" />
@@ -150,11 +147,10 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="14dp"
-            app:cardBackgroundColor="@color/surface"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/e_card"
             app:cardCornerRadius="18dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+            app:cardElevation="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -166,7 +162,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="SCANNED URL"
-                    android:textColor="@color/text_muted"
+                    android:textColor="@color/e_muted"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:letterSpacing="0.12"
@@ -178,8 +174,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="https://example.com"
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/e_text2"
                     android:textSize="13sp"
+                    android:fontFamily="monospace"
                     android:lineSpacingMultiplier="1.4"
                     android:layout_marginBottom="14dp" />
 
@@ -194,9 +191,9 @@
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"
                     style="@style/Widget.Material3.Button.OutlinedButton"
-                    app:strokeColor="@color/border"
+                    app:strokeColor="#26FFFFFF"
                     app:cornerRadius="9dp"
-                    android:textColor="@color/text_muted" />
+                    android:textColor="@color/e_muted" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -204,11 +201,10 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="14dp"
-            app:cardBackgroundColor="@color/surface"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/e_card"
             app:cardCornerRadius="18dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+            app:cardElevation="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -220,14 +216,13 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="DETAILS"
-                    android:textColor="@color/text_muted"
+                    android:textColor="@color/e_muted"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:letterSpacing="0.12"
                     android:textStyle="bold"
                     android:layout_marginBottom="14dp" />
 
-                <!-- Category row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -241,7 +236,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Category"
-                        android:textColor="@color/text_muted"
+                        android:textColor="@color/e_muted"
                         android:textSize="13sp" />
 
                     <TextView
@@ -249,7 +244,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="—"
-                        android:textColor="@color/text_primary"
+                        android:textColor="@color/e_text"
                         android:textSize="13sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -257,10 +252,9 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:background="@color/border"
+                    android:background="#20242E"
                     android:layout_marginBottom="12dp" />
 
-                <!-- Source row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -272,7 +266,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Source"
-                        android:textColor="@color/text_muted"
+                        android:textColor="@color/e_muted"
                         android:textSize="13sp" />
 
                     <TextView
@@ -280,7 +274,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Manual Scan"
-                        android:textColor="@color/text_primary"
+                        android:textColor="@color/e_text"
                         android:textSize="13sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -291,10 +285,9 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="@color/surface"
+            app:cardBackgroundColor="@color/e_card"
             app:cardCornerRadius="18dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+            app:cardElevation="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -306,7 +299,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="RISK FLAGS"
-                    android:textColor="@color/text_muted"
+                    android:textColor="@color/e_muted"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:letterSpacing="0.12"
@@ -318,11 +311,10 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="No risk flags detected ✓"
-                    android:textColor="@color/green"
+                    android:textColor="@color/e_green_soft"
                     android:textSize="13sp"
                     android:visibility="gone" />
 
-                <!-- Flags are added programmatically here -->
                 <LinearLayout
                     android:id="@+id/flagsContainer"
                     android:layout_width="match_parent"

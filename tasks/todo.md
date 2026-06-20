@@ -641,3 +641,78 @@ Plan — DONE 2026-06-19:
       will offer v1.13 to v1.12 users. https://github.com/pnormzkie/LinkGuard/releases/tag/v1.13
 - [ ] USER ACTION: REVOKE the v1.13 PAT pasted in chat (github.com/settings/tokens) — exposed.
 - Standing (unchanged): rotate/restrict the 3 embedded API keys; off-machine keystore backup.
+
+## 2026-06-20 — Futuristic UI refresh: MainActivity home screen (subtle/refined)
+
+User (Taglish, with screenshot): "Ano kailangan e improve sa UI na ito? Gusto ko mas
+futuristic design." Chose: full scope (all 3 phases), intensity = subtle/refined.
+Risk: LOW (UI layer only — drawables, activity_main.xml, MainActivity animation/tint wiring).
+Scope: do NOT touch MainViewModel, scanner, scoring, providers, navigation, data.
+
+CORRECTION logged: the hero rotating ring (ivShieldPulse) + icon pulse (ivMainIcon) are
+ALREADY animated in MainActivity.setupAnimations() (lines 158-184). The XML
+"<!-- Rotating/Pulse ring placeholder -->" comment is STALE. Phase 1 redirected to the
+genuinely-missing element: a live pulsing status dot beside "Protection: ACTIVE".
+
+- [x] Phase 1: pulsing status dot (statusDot View + dotPulseAnimator alpha pulse; color
+      tracks green/red in updateProtectionStatus via backgroundTintList).
+- [x] Phase 2: hero card gradient interior (bg_hero_gradient); stat-card gradient fills
+      (bg_stat_grad_danger/warn/safe, clipped by card corners); scan-button cyan→green
+      gradient (bg_scan_btn_gradient + app:backgroundTint="@null").
+- [x] Phase 3: stat numbers → monospace + letterSpacing (24→26sp); subtle top cyan glow
+      (bg_deep_glow on ScrollView); cyan accent bars (bg_accent_bar) before SECURITY TOOLS
+      / RECENT ACTIVITY.
+- [x] Verify: :app:assembleDebug BUILD SUCCESSFUL (1m58s) — resources link + compileDebugKotlin
+      clean; only pre-existing warnings. No logic change → unit suite unaffected.
+- [ ] PENDING on-device screenshot QA: render check (esp. MaterialButton gradient + card-corner
+      clipping of gradients), protection ON vs OFF dot color, dark mode, font scale 200%.
+- New files: bg_deep_glow, bg_hero_gradient, bg_stat_grad_{danger,warn,safe},
+      bg_scan_btn_gradient, bg_accent_bar. Edited: activity_main.xml, MainActivity.kt.
+- Minor: protection-badge tap target is now the text glyphs (was the full pill); onClick still
+      on tvProtectionStatus, behavior preserved.
+
+UPDATE 2026-06-20 — user reviewed mockups (rendered HTML→PNG: Options A/B/C, hybrids AC/BC,
+Modern1/2) and chose **Option A (Neon HUD) + History redesign**. Built on top of the subtle base:
+- [x] Home Option A: bg_grid_glow (tiled grid_tile.png + top cyan glow) background; neon cyan
+      borders on hero + all tool cards (@color/neon_border_cyan); per-level neon borders on the
+      3 stat cards (stat_border_red/yellow/green); existing radar ring + gradient button + mono
+      numbers + accent bars + status dot retained. Removed superseded bg_deep_glow.xml.
+- [x] History redesign: bg_grid_glow background; neon summary-card border; item_scan mono URL +
+      mono score; ScanHistoryAdapter sets per-item card strokeColor = level color @ 0x66 alpha
+      (ColorUtils) — green SAFE / red DANGER neon row borders.
+- [x] VERIFY: :app:assembleDebug BUILD SUCCESSFUL (28s). ON-DEVICE Pixel_7/API34 (debug):
+      Home renders Option A (tasks/optionA-home.png); ran 2 real manual scans
+      (gcash-verify.com→DANGER 100%, google.com→SAFE 0%) → History shows grid bg, glowing
+      summary, mono rows with per-level neon borders (tasks/optionA-history.png).
+- New files: res/drawable-nodpi/grid_tile.png, drawable/bg_grid_glow.xml; +4 colors.
+      Edited: activity_main.xml, activity_history.xml, item_scan.xml, ScanHistoryAdapter.kt, colors.xml.
+- NOT yet done (other screens): Scan Detail, Block, Threat Alert, QR, dialogs still original style.
+- Residual: protection-badge tap target minor note (above) still applies. Not committed.
+
+UPDATE 2026-06-20 (later) — user reviewed MANY rendered mockups and chose **Option E (Bold
+Blocks)** for the WHOLE app ("buo muna. Go"). Mockups approved: tasks/mockup-E-blocks-v2.png
+(Home, centered tiles, distinct icons, white Suspicious text), tasks/mockup-E-fullapp.png
+(Home/History/Scan Report/Block), tasks/mockup-E-alert.png (Threat Alert).
+Design language E: screen bg #0B0D12; cards #141821 rounded; hero = blue→teal linear gradient;
+primary = #0089FF; verdict solids red #E5384F / amber #D9870A / green #13A766; white text;
+neutral elevation (NOT colored glow); stat tiles = solid color, centered icon badge + number + label.
+Approach: RE-SKIN existing layouts (keep ALL view IDs + logic), replacing Option A neon styling.
+- [x] E tokens: 16 colors (e_bg/e_card/e_blue/e_teal/e_red/e_amber/e_green/…) + ~20 drawables
+      (bg_e_hero gradient, bg_e_icon_badge[_round/_blue/_green], bg_e_field, bg_e_btn_blue/_white,
+      bg_e_pill_white/_solid, bg_e_card/_inner, bg_e_alert, bg_e_tab[_active], bg_e_bar/_score/_verdict).
+- [x] Home (activity_main.xml rewritten) + MainActivity: removed ivShieldPulse/ivMainIcon + rotation/
+      pulse animators (kept dotPulseAnimator); pill text forced white, dot carries state colour.
+- [x] History (activity_history.xml + item_scan.xml + ScanHistoryAdapter: white text on tinted
+      pill/score/bar, e_red/e_amber/e_green) + HistoryActivity.updateTabStyles → E tabs.
+- [x] Scan Detail (activity_scan_detail.xml + ScanDetailActivity: solid verdict card, white ring/badge).
+- [x] Block (activity_link_intercept.xml + LinkInterceptActivity: colour refs → E palette, blue
+      primary; ALL IDs preserved, no logic change).
+- [x] Threat Alert (activity_threat_alert.xml → solid red card, white icon badge, white VIEW FULL
+      REPORT on red text; ThreatAlertActivity untouched).
+- [x] VERIFY: :app:assembleDebug BUILD SUCCESSFUL. ON-DEVICE Pixel_7/API34 — all 5 screens captured:
+      tasks/E-home.png, E-history.png, E-scandetail.png, E-block.png, E-alert.png; combined
+      tasks/E-fullapp-real.png. (Block via VIEW intent; Threat Alert via shell notification + scanAllApps ON.)
+- Removed Option A artefacts superseded by E: bg_deep_glow already gone; A neon drawables/colors
+      (grid_tile, bg_grid_glow, bg_hero_gradient, bg_stat_grad_*, bg_scan_btn_gradient, bg_accent_bar,
+      neon_border_* colors) are now UNUSED — left in tree (shrinkResources strips on release); can delete.
+- Not committed. Other surfaces still original: QR scanner overlay, update dialogs, SetupActivity.

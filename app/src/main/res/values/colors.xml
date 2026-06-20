@@ -27,6 +27,24 @@
     <color name="green">#00E676</color>
     <color name="green_dim">#1A00E676</color>  <!-- 10% opacity -->
 
+    <!-- ═══ Option E (Bold Blocks) palette ═══ -->
+    <color name="e_bg">#0B0D12</color>
+    <color name="e_card">#141821</color>
+    <color name="e_field">#0B0D12</color>
+    <color name="e_blue">#0089FF</color>
+    <color name="e_teal">#00C2A8</color>
+    <color name="e_red">#E5384F</color>
+    <color name="e_amber">#D9870A</color>
+    <color name="e_green">#13A766</color>
+    <color name="e_text">#FFFFFF</color>
+    <color name="e_text2">#DFE5EF</color>
+    <color name="e_muted">#8B92A0</color>
+    <color name="e_white_22">#38FFFFFF</color>
+    <color name="e_white_15">#26FFFFFF</color>
+    <color name="e_red_soft">#FF6376</color>
+    <color name="e_amber_soft">#FFB020</color>
+    <color name="e_green_soft">#2BD183</color>
+
     <!-- ═══ Material theme required ═══ -->
     <color name="purple_200">#00E5FF</color>
     <color name="purple_500">#00B2CC</color>

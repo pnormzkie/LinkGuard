@@ -88,11 +88,11 @@ class HistoryActivity : AppCompatActivity() {
         fun updateTabStyles(selected: View) {
             tabs.forEach { (tab, _) ->
                 if (tab == selected) {
-                    (tab as TextView).setTextColor(ContextCompat.getColor(this, R.color.cyan))
-                    tab.setBackgroundResource(R.drawable.bg_filter_active)
+                    (tab as TextView).setTextColor(ContextCompat.getColor(this, R.color.e_text))
+                    tab.setBackgroundResource(R.drawable.bg_e_tab_active)
                 } else {
-                    (tab as TextView).setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-                    tab.setBackgroundResource(R.drawable.bg_icon_box)
+                    (tab as TextView).setTextColor(ContextCompat.getColor(this, R.color.e_muted))
+                    tab.setBackgroundResource(R.drawable.bg_e_tab)
                 }
             }
         }
