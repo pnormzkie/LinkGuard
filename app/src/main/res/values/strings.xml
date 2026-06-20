@@ -50,6 +50,21 @@
     <string name="recent_activity">RECENT ACTIVITY</string>
     <string name="no_recent_activity">No recent activity yet</string>
 
+    <!-- Option E static labels -->
+    <string name="home_protected">You\'re protected</string>
+    <string name="security_tools">Security tools</string>
+    <string name="scan_report">Scan Report</string>
+    <string name="risk_score">RISK SCORE</string>
+    <string name="scanned_url">SCANNED URL</string>
+    <string name="copy_url_btn">Copy URL</string>
+    <string name="details_label">DETAILS</string>
+    <string name="detail_category">Category</string>
+    <string name="detail_source">Source</string>
+    <string name="risk_flags">RISK FLAGS</string>
+    <string name="no_risk_flags">No risk flags detected ✓</string>
+    <string name="threat_alert_view_report">VIEW FULL REPORT</string>
+    <string name="threat_alert_dismiss">DISMISS</string>
+
     <!-- App Updates -->
     <string name="update_available_title">Update available</string>
     <string name="update_available_msg">LinkGuard %1$s is available (you have %2$s).</string>

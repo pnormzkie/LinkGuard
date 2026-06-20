@@ -3,12 +3,12 @@
 
     <style name="Theme.LinkGuard" parent="Theme.Material3.Dark">
         <!-- App background -->
-        <item name="android:windowBackground">@color/bg_deep</item>
-        <item name="android:colorBackground">@color/bg_deep</item>
+        <item name="android:windowBackground">@color/e_bg</item>
+        <item name="android:colorBackground">@color/e_bg</item>
 
-        <!-- Primary = cyan accent -->
-        <item name="colorPrimary">@color/cyan</item>
-        <item name="colorOnPrimary">@color/bg_deep</item>
+        <!-- Primary = blue accent (Option E) -->
+        <item name="colorPrimary">@color/e_blue</item>
+        <item name="colorOnPrimary">@color/e_text</item>
         <item name="colorPrimaryContainer">@color/surface</item>
         <item name="colorOnPrimaryContainer">@color/text_primary</item>
 
@@ -22,8 +22,8 @@
         <item name="colorOutline">@color/border</item>
 
         <!-- Status bar -->
-        <item name="android:statusBarColor">@color/bg_deep</item>
-        <item name="android:navigationBarColor">@color/bg_deep</item>
+        <item name="android:statusBarColor">@color/e_bg</item>
+        <item name="android:navigationBarColor">@color/e_bg</item>
         <item name="android:windowLightStatusBar">false</item>
 
         <!-- No action bar — we use custom header -->

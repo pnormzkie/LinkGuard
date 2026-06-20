@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Scan Report"
+                android:text="@string/scan_report"
                 android:textColor="@color/e_text"
                 android:textSize="19sp"
                 android:textStyle="bold" />
@@ -100,7 +100,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="RISK SCORE"
+                            android:text="@string/risk_score"
                             android:textColor="#CCFFFFFF"
                             android:textSize="10sp"
                             android:letterSpacing="0.1"
@@ -161,7 +161,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="SCANNED URL"
+                    android:text="@string/scanned_url"
                     android:textColor="@color/e_muted"
                     android:textSize="10sp"
                     android:textAllCaps="true"
@@ -184,7 +184,7 @@
                     android:id="@+id/btnCopy"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Copy URL"
+                    android:text="@string/copy_url_btn"
                     android:textSize="12sp"
                     android:paddingStart="14dp"
                     android:paddingEnd="14dp"
@@ -215,7 +215,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="DETAILS"
+                    android:text="@string/details_label"
                     android:textColor="@color/e_muted"
                     android:textSize="10sp"
                     android:textAllCaps="true"
@@ -235,7 +235,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Category"
+                        android:text="@string/detail_category"
                         android:textColor="@color/e_muted"
                         android:textSize="13sp" />
 
@@ -265,7 +265,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Source"
+                        android:text="@string/detail_source"
                         android:textColor="@color/e_muted"
                         android:textSize="13sp" />
 
@@ -298,7 +298,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="RISK FLAGS"
+                    android:text="@string/risk_flags"
                     android:textColor="@color/e_muted"
                     android:textSize="10sp"
                     android:textAllCaps="true"
@@ -310,7 +310,7 @@
                     android:id="@+id/tvNoFlags"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="No risk flags detected ✓"
+                    android:text="@string/no_risk_flags"
                     android:textColor="@color/e_green_soft"
                     android:textSize="13sp"
                     android:visibility="gone" />

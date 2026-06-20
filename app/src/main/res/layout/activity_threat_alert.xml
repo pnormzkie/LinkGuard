@@ -54,7 +54,7 @@
         android:layout_height="52dp"
         android:layout_marginTop="24dp"
         android:background="@drawable/bg_e_btn_white"
-        android:text="VIEW FULL REPORT"
+        android:text="@string/threat_alert_view_report"
         android:textColor="@color/e_red"
         android:textStyle="bold"
         android:stateListAnimator="@null"
@@ -66,7 +66,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="DISMISS"
+        android:text="@string/threat_alert_dismiss"
         android:textColor="@color/e_text"
         android:textSize="14sp"
         app:layout_constraintTop_toBottomOf="@id/btnViewReport" />
