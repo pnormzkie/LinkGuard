@@ -736,3 +736,23 @@ UPDATE 2026-06-20 (B then A) — post-redesign polish + coverage, per user "B mu
 - Still original (low priority): SetupActivity (empty placeholder); dead old drawables remain
       (shrinkResources strips on release). Update dialogs not live-screenshot-verified (need a
       newer published version to trigger) but are a pure colour re-skin of the working v1.13 dialogs.
+
+## 2026-06-20 — Release v1.14 (versionCode 15): Bold Blocks UI redesign — SHIPPED + PUBLISHED
+
+- [x] #1 fix: hero headline reflects protection state (home_protected / home_unprotected),
+      not a static "You're protected". Commit 8d22873.
+- [x] #2 release-signed smoke test (Pixel_7/API34, R8-minified): Home renders + headline shows
+      "Protection is off" on fresh install; block screen DANGER 100% with grouped Parcelable
+      flags + dark TAPPED LINK box. ViewBinding/scoring/Parcelable survive R8.
+- [x] Bumped versionCode 14→15, versionName 1.13→1.14 (pre-flight: live latest was v1.13, no drift).
+- [x] Signed assembleRelease GREEN (clean build, R8+shrink+lintVital). APK: aapt versionCode=15
+      versionName=1.14; apksigner V2 cert ead80ea1…74227357 (SAME key → in-place update);
+      size 24498752, SHA-256 703E871E1AB345FF00C0AA7D43FE42FA0344F678C37B808D52F41819437C0BBD.
+- [x] Committed a6b012a; staged release-staging/LinkGuard-v1.14.apk + RELEASE-NOTES-v1.14.md.
+- [x] PUBLISHED to GitHub pnormzkie/LinkGuard: draft (id 342358058) → uploaded asset
+      (state=uploaded, size match) → un-drafted + make_latest. tag v1.14.
+- [x] Verified: releases/latest=v1.14; public download re-hashed byte-identical (24498752 bytes,
+      703E871E…0BBD). In-app updater will offer v1.14 to v1.13 users.
+      https://github.com/pnormzkie/LinkGuard/releases/tag/v1.14
+- [ ] USER ACTION: REVOKE the GitHub PAT pasted in chat (github.com/settings/tokens) — exposed.
+- Standing (unchanged): rotate/restrict the 3 embedded API keys; off-machine keystore backup.
