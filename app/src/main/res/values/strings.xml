@@ -52,6 +52,7 @@
 
     <!-- Option E static labels -->
     <string name="home_protected">You\'re protected</string>
+    <string name="home_unprotected">Protection is off</string>
     <string name="security_tools">Security tools</string>
     <string name="scan_report">Scan Report</string>
     <string name="risk_score">RISK SCORE</string>

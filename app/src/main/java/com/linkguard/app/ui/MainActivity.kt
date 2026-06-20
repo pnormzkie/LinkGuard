@@ -668,6 +668,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateProtectionStatus() {
         val enabled = isNotificationServiceEnabled()
+        binding.tvHeroHeadline.setText(if (enabled) R.string.home_protected else R.string.home_unprotected)
         binding.tvProtectionStatus.text = if (enabled) getString(R.string.protection_active) else getString(R.string.protection_inactive)
         // Option E hero pill: text stays white for contrast on the gradient; the dot carries the state colour.
         binding.tvProtectionStatus.setTextColor(ContextCompat.getColor(this, R.color.e_text))
