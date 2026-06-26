@@ -801,3 +801,67 @@ adding battle.net to OFFICIAL_DOMAINS; typosquat/CDN/threshold tuning (#6–#9).
     225 tests, 0 failures (HeuristicScannerTest 36). compileDebugKotlin clean.
   - Residual (accepted): brand glued to a NON-affix gibberish word (e.g. "paypalxyz.com") relies on
     other layers (TLD/reputation); open-redirect on a whitelisted domain's own URL not re-scanned.
+
+## 2026-06-26 — Release v1.15 (versionCode 16): SHIPPED + PUBLISHED
+
+Bundles: heuristic FP fixes (#1–#6 + affix-aware brand-spoof + battle.net/major-brand whitelist)
+AND redirect/shortener resolution (RedirectResolver + orchestrator + block/Scan-Detail "Goes to" UI).
+
+- [x] Pre-flight: live latest was v1.14, source 15/1.14 — no drift. Bumped versionCode 15→16,
+      versionName 1.14→1.15. isNewerVersion("1.15","1.14")=true → v1.14 users get the prompt.
+- [x] Signed assembleRelease GREEN (R8 + shrinkResources + lintVital). apksigner V2 cert SHA-256
+      ead80ea1…74227357 (SAME key → in-place update). aapt versionCode=16 versionName=1.15.
+      APK SHA-256 BFACDF70F2C7BE5708120A1DA8C3BF8D889C3071C0466652CB0E61A7335D57EE, size 24503476.
+- [x] On-device smoke (Pixel_7/API34, headless): redirect resolution end-to-end (tapped nghttp2
+      redirect → resolved example.com, scored at destination, "Goes to" row) + 4-way fail-safe.
+      Test-only timeout bump used for the success capture, REVERTED (3000/1500); suite re-run green.
+- [x] Committed 36bb4d0 (master); staged release-staging/LinkGuard-v1.15.apk + RELEASE-NOTES-v1.15.md.
+- [x] PUBLISHED to GitHub pnormzkie/LinkGuard: release id=345378974, tag v1.15, make_latest=true.
+      Asset LinkGuard-v1.15.apk state=uploaded, digest matches local.
+- [x] Live-verified: releases/latest=v1.15; public download re-hashed byte-identical
+      (24503476 bytes, bfacdf70…d57ee). In-app updater (versionName compare, first *.apk asset)
+      will offer v1.15 to v1.14 users. https://github.com/pnormzkie/LinkGuard/releases/tag/v1.15
+- [ ] USER ACTION: REVOKE the GitHub PAT pasted in chat (github.com/settings/tokens) — exposed. Do now.
+- Note: no git remote configured locally — the source COMMIT (36bb4d0) is local only; the RELEASE
+      (APK) is what reaches users. Push source separately if desired.
+- Standing (unchanged): rotate/restrict the 3 embedded API keys; off-machine keystore backup.
+
+## 2026-06-27 — Roadmap #2: add URLhaus (abuse.ch) as a 6th provider
+
+Honest scoping: VirusTotal already aggregates ~70 engines (incl. PhishTank/OpenPhish), so most
+"extra feeds" are redundant. Only URLhaus has clear marginal value (fresh malware-distribution
+hosts, lightweight per-host lookup). PhishTank/OpenPhish/Google Web Risk skipped (redundant or
+paid/registration with low marginal gain). User provided a free abuse.ch Auth-Key.
+
+- [x] New `data/provider/UrlHausDomainProvider.kt` (SignalProvider): POST /v1/host/ with
+      `host=<domain>` + Auth-Key header. query_status "ok" + online URL → CRITICAL/100; ok + all
+      offline → STRONG/50; "no_results"/"invalid_host" → clean empty; blank key → no-op; trusted
+      domain → skip; non-2xx + auth-error status + network → fail loud (rethrow). Mirrors DomainAge.
+- [x] Key wiring: `URLHAUS_AUTH_KEY` in local.properties (gitignored) → build.gradle buildConfigField
+      → AppConfig.URLHAUS_AUTH_KEY. Same pattern as the other keys.
+- [x] Wired as 6th provider in ScanOrchestrator (async + awaitAll + "UH:" log) + ScannerProvider.
+- [x] Tests: UrlHausDomainProviderTest (8) + ScanOrchestratorTest helper/all-fail updated for the
+      6th provider. VERIFY: 249 tests, 0 failures.
+- [x] Live probe: key VALID — POST host/ example.com → HTTP 200, query_status no_results.
+- [x] RELEASED as v1.16 (versionCode 17) — see block below.
+- CONSIDERATION (surface to user): the Auth-Key ships in the APK via BuildConfig (extractable, like
+  the other 3 keys) and is tied to ONE abuse.ch account — all installs share its quota and abuse.ch
+  could revoke it. Same client-side-key tradeoff as VT/SB/HA; durable fix = backend proxy.
+
+## 2026-06-27 — Release v1.16 (versionCode 17): URLhaus feed — BUILT + SIGNED, publish pending
+
+Ships roadmap #2 (URLhaus 6th provider). User-facing: one more live malware-distribution feed.
+
+- [x] Pre-flight: source was 16/1.15 (== published v1.15). Bumped versionCode 16→17,
+      versionName 1.15→1.16. isNewerVersion("1.16","1.15")=true → v1.15 users get the prompt.
+      (Live-latest re-check deferred: unauthenticated API rate-limited; will confirm with PAT.)
+- [x] Full unit suite GREEN: 249 tests, 0 failures, 0 errors (testDebugUnitTest).
+- [x] Signed assembleRelease GREEN (R8 + shrinkResources + lintVital). apksigner V2 cert SHA-256
+      ead80ea1…74227357 (SAME key → in-place update). aapt versionCode=17 versionName=1.16.
+      APK SHA-256 1ac68eb0b0249f8f99bab3ddf34483177210c85810a65bd4914a9b6029a3f5ff, size 24503476.
+- [x] Staged release-staging/LinkGuard-v1.16.apk (hash matches build) + RELEASE-NOTES-v1.16.md;
+      wrote release/version.json (BOM-free ASCII, parses to code 17/name 1.16).
+- [ ] PUBLISH to GitHub pnormzkie/LinkGuard (tag v1.16, make_latest=true, upload app-release.apk
+      via curl) — BLOCKED on a fresh fine-grained PAT (Contents: read/write). Prior PAT must be revoked.
+- [ ] Live-verify: releases/latest=v1.16; re-download app-release.apk SHA-256 == local 1ac68eb0…a3f5ff.
+- [ ] USER ACTION: REVOKE the v1.15 GitHub PAT if not already done; revoke the new one after publish.

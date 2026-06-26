@@ -10,6 +10,7 @@ object AppConfig {
     val VIRUSTOTAL_API_KEY: String get() = com.linkguard.app.BuildConfig.VIRUSTOTAL_API_KEY
     val SAFE_BROWSING_API_KEY: String get() = com.linkguard.app.BuildConfig.SAFE_BROWSING_API_KEY
     val HYBRID_ANALYSIS_API_KEY: String get() = com.linkguard.app.BuildConfig.HYBRID_ANALYSIS_API_KEY
+    val URLHAUS_AUTH_KEY: String get() = com.linkguard.app.BuildConfig.URLHAUS_AUTH_KEY
 
     const val DB_NAME = "linkguard_db"
     const val SCAN_HISTORY_LIMIT = 50

@@ -29,6 +29,7 @@ class ScanOrchestrator(
     private val scoringEngine: ScoringEngine,
     private val hybridAnalysisProvider: SignalProvider,
     private val domainAgeProvider: SignalProvider,
+    private val urlHausProvider: SignalProvider,
     // Injected so cache-expiry behaviour is testable without real time passing.
     private val now: () -> Long = System::currentTimeMillis,
     // Optional: when present, the tapped URL is followed to its true destination before scoring.
@@ -93,8 +94,9 @@ class ScanOrchestrator(
         val vtDeferred = async { guarded("VirusTotal", scanUrl, enrichmentProvider) }
         val haDeferred = async { guarded("HybridAnalysis", scanUrl, hybridAnalysisProvider) }
         val daDeferred = async { guarded("DomainAge", domain, domainAgeProvider) }
+        val uhDeferred = async { guarded("URLhaus", domain, urlHausProvider) }
 
-        val results = listOf(sbDeferred, dnsDeferred, vtDeferred, haDeferred, daDeferred).awaitAll()
+        val results = listOf(sbDeferred, dnsDeferred, vtDeferred, haDeferred, daDeferred, uhDeferred).awaitAll()
         val externalCoverageMissing = results.all { it == null }
         results.filterNotNull().forEach { allSignals.addAll(it) }
 
@@ -102,7 +104,7 @@ class ScanOrchestrator(
             TAG,
             "Signals Found -> SB: ${results[0]?.size ?: "failed"}, DNS: ${results[1]?.size ?: "failed"}, " +
                 "VT: ${results[2]?.size ?: "failed"}, HA: ${results[3]?.size ?: "failed"}, " +
-                "DA: ${results[4]?.size ?: "failed"}"
+                "DA: ${results[4]?.size ?: "failed"}, UH: ${results[5]?.size ?: "failed"}"
         )
 
         val finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)

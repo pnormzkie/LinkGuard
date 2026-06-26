@@ -63,6 +63,7 @@ class ScanOrchestratorTest {
         enrichment: SignalProvider = FakeProvider { emptyList() },
         hybrid: SignalProvider = FakeProvider { emptyList() },
         domainAge: SignalProvider = FakeProvider { emptyList() },
+        urlhaus: SignalProvider = FakeProvider { emptyList() },
         now: () -> Long = { 0L },
         redirect: RedirectResolver? = null
     ) = ScanOrchestrator(
@@ -73,6 +74,7 @@ class ScanOrchestratorTest {
         scoringEngine = ScoringEngine(),
         hybridAnalysisProvider = hybrid,
         domainAgeProvider = domainAge,
+        urlHausProvider = urlhaus,
         now = now,
         redirectResolver = redirect
     )
@@ -98,7 +100,7 @@ class ScanOrchestratorTest {
         val failing = FakeProvider { throw IOException("offline") }
         val orchestrator = orchestrator(
             reputation = failing, domain = failing, enrichment = failing,
-            hybrid = failing, domainAge = failing
+            hybrid = failing, domainAge = failing, urlhaus = failing
         )
 
         val result = orchestrator.scan("https://example.com")

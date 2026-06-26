@@ -6,6 +6,7 @@ import com.linkguard.app.data.provider.HybridAnalysisProvider
 import com.linkguard.app.data.provider.NextDnsDomainSignalProvider
 import com.linkguard.app.data.provider.RetryInterceptor
 import com.linkguard.app.data.provider.SafeBrowsingReputationProvider
+import com.linkguard.app.data.provider.UrlHausDomainProvider
 import com.linkguard.app.data.provider.VirusTotalEnrichmentProvider
 import com.linkguard.app.domain.orchestrator.ScanOrchestrator
 import com.linkguard.app.domain.scanner.LegacyHeuristicEngine
@@ -59,6 +60,7 @@ object ScannerProvider {
                 AppConfig.HYBRID_ANALYSIS_API_KEY
             ),
             domainAgeProvider = DomainAgeProvider(okHttpClient),
+            urlHausProvider = UrlHausDomainProvider(okHttpClient, AppConfig.URLHAUS_AUTH_KEY),
             redirectResolver = HttpRedirectResolver(redirectHttpClient)
         )
     }
