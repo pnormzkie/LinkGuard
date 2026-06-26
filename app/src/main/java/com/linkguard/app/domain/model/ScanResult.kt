@@ -11,5 +11,8 @@ data class ScanResult(
     val normalizedUrl: String,
     val verdict: ScanVerdict,
     val timestamp: Long = System.currentTimeMillis(),
-    val metadata: Map<String, String> = emptyMap()
+    val metadata: Map<String, String> = emptyMap(),
+    // The true destination when [url] redirected somewhere else (shortener/wrapper); null when
+    // the tapped URL was its own destination. Set by the orchestrator's redirect-resolution step.
+    val resolvedUrl: String? = null
 )

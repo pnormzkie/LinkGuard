@@ -125,8 +125,7 @@ class LinkInterceptActivity : AppCompatActivity() {
         setBadge(color, R.drawable.ic_stat_safe, getString(R.string.status_safe_link))
         setScoreRing(color, result.riskScore)
         binding.scoreFrame.visibility = View.VISIBLE
-        binding.tvUrl.text = result.url
-        binding.urlChip.visibility = View.VISIBLE
+        setTappedLink(result.url, result.resolvedUrl, color)
 
         val unvetted = result.flags.contains(ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON)
         binding.tvReason.text = getString(
@@ -154,8 +153,7 @@ class LinkInterceptActivity : AppCompatActivity() {
         )
         setScoreRing(color, result.riskScore)
         binding.scoreFrame.visibility = View.VISIBLE
-        binding.tvUrl.text = result.url
-        binding.urlChip.visibility = View.VISIBLE
+        setTappedLink(result.url, result.resolvedUrl, color)
         populateFlags(result, color)
 
         // Recommended action for a flagged link is to NOT open it.
@@ -180,8 +178,7 @@ class LinkInterceptActivity : AppCompatActivity() {
         hideScanningState()
 
         setBadge(color, R.drawable.ic_stat_suspicious, getString(R.string.link_unchecked_title))
-        binding.tvUrl.text = targetUrl
-        binding.urlChip.visibility = View.VISIBLE
+        setTappedLink(targetUrl, null, color)
         binding.tvReason.text = getString(R.string.link_unchecked_reason)
         binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.e_text2))
         binding.tvReason.visibility = View.VISIBLE
@@ -206,6 +203,25 @@ class LinkInterceptActivity : AppCompatActivity() {
     }
 
     // ─── Shared verdict-UI helpers ──────────────────────────────────────────────
+
+    /**
+     * Shows the tapped URL and, when the link redirected to a different destination
+     * (shortener/wrapper), the resolved URL tinted to the verdict colour. Hidden when there
+     * was no redirect, so a plain link looks exactly as before.
+     */
+    private fun setTappedLink(url: String, resolvedUrl: String?, color: Int) {
+        binding.tvUrl.text = url
+        if (!resolvedUrl.isNullOrBlank() && resolvedUrl != url) {
+            binding.tvResolvedUrl.text = resolvedUrl
+            binding.tvResolvedUrl.setTextColor(color)
+            binding.tvGoesToLabel.visibility = View.VISIBLE
+            binding.tvResolvedUrl.visibility = View.VISIBLE
+        } else {
+            binding.tvGoesToLabel.visibility = View.GONE
+            binding.tvResolvedUrl.visibility = View.GONE
+        }
+        binding.urlChip.visibility = View.VISIBLE
+    }
 
     private fun setBadge(color: Int, iconRes: Int, text: String) {
         binding.ivStatusIcon.setImageResource(iconRes)

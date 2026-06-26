@@ -1,6 +1,7 @@
 package com.linkguard.app
 
 import com.linkguard.app.data.provider.DomainAgeProvider
+import com.linkguard.app.data.provider.HttpRedirectResolver
 import com.linkguard.app.data.provider.HybridAnalysisProvider
 import com.linkguard.app.data.provider.NextDnsDomainSignalProvider
 import com.linkguard.app.data.provider.RetryInterceptor
@@ -27,6 +28,17 @@ object ScannerProvider {
             .build()
     }
 
+    // Dedicated client for redirect resolution: auto-redirects DISABLED so the resolver
+    // inspects and bounds every hop itself; short per-hop timeouts to protect click-time UX.
+    private val redirectHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(AppConfig.REDIRECT_PER_HOP_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(AppConfig.REDIRECT_PER_HOP_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
+    }
+
     private val scoringEngine = ScoringEngine()
 
     val orchestrator: ScanOrchestrator by lazy {
@@ -46,7 +58,8 @@ object ScannerProvider {
                 okHttpClient,
                 AppConfig.HYBRID_ANALYSIS_API_KEY
             ),
-            domainAgeProvider = DomainAgeProvider(okHttpClient)
+            domainAgeProvider = DomainAgeProvider(okHttpClient),
+            redirectResolver = HttpRedirectResolver(redirectHttpClient)
         )
     }
 }

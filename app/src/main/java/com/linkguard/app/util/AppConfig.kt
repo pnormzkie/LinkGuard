@@ -20,6 +20,12 @@ object AppConfig {
     // so a stale "safe" reading can't outlive a domain going bad.
     const val SCAN_CACHE_TTL_MS = 15 * 60 * 1000L
 
+    // Redirect/shortener resolution: follow a tapped link to its true destination before
+    // scoring. Bounded so it can't wreck click-time UX or loop forever.
+    const val REDIRECT_MAX_HOPS = 5
+    const val REDIRECT_TOTAL_BUDGET_MS = 3_000L
+    const val REDIRECT_PER_HOP_TIMEOUT_MS = 1_500L
+
     // GitHub repository checked for app updates via the Releases API.
     const val GITHUB_REPO = "pnormzkie/LinkGuard"
     // Minimum gap between automatic update checks (foreground returns re-check after this).
@@ -39,5 +45,6 @@ object AppConfig {
         const val APP = "app"
         const val THREAT_LEVEL = "threat_level"
         const val FLAG_GROUPS = "flag_groups"
+        const val RESOLVED_URL = "resolved_url"
     }
 }

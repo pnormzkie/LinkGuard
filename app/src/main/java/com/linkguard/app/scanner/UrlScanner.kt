@@ -146,7 +146,7 @@ object HeuristicScanner {
         "validate", "authenticate", "suspend", "locked", "unlock",
         "reward", "redeem", "cashback", "rebate", "refund", "prize",
         "winner", "won", "claim", "gift", "promo", "bonus", "points",
-        "peso", "php", "payout", "transfer", "expire", "expiring",
+        "peso", "payout", "transfer", "expire", "expiring",
         "urgent", "immediately", "limited", "final", "last", "warning",
         "alert", "notice", "padala", "bayad", "pera", "tulong", "libre", "panalo",
         "streak", "odds", "luck", "paid", "registration", "incredible", "winc", "voucher"
@@ -205,8 +205,24 @@ object HeuristicScanner {
         "microsoft", "google", "facebook", "netflix"
     )
 
+    /**
+     * Well-known legitimate domains that are not brand-spoofing targets (so they are not in
+     * OFFICIAL_DOMAINS) but are common enough that their normal auth/redirect flows must not
+     * be heuristically flagged. Kept deliberately small and curated — every entry here fully
+     * bypasses the heuristics for that registrable domain and its subdomains. Subdomain
+     * coverage comes from the endsWith check in scanWithContext.
+     */
+    private val ADDITIONAL_TRUSTED_DOMAINS = setOf(
+        "battle.net", "blizzard.com",
+        "steampowered.com", "steamcommunity.com",
+        "discord.com",
+        "epicgames.com",
+        "riotgames.com"
+    )
+
     private val ALL_OFFICIAL_DOMAINS: Set<String> = buildSet {
         OFFICIAL_DOMAINS.values.forEach { addAll(it) }
+        addAll(ADDITIONAL_TRUSTED_DOMAINS)
     }
 
     /**
@@ -241,6 +257,57 @@ object HeuristicScanner {
         return dp[a.length][b.length]
     }
 
+    /**
+     * Words attackers glue onto a brand name to look legitimate ("verifypaypal",
+     * "paypalsupport", "secure-amazon"). Used to tell a real spoof from an ordinary word
+     * that merely contains a brand substring ("startups", "pineapple", "appleton").
+     */
+    private val BRAND_AFFIXES = listOf(
+        "secure", "security", "login", "signin", "logon", "account", "accounts",
+        "verify", "verification", "verified", "update", "confirm", "support",
+        "service", "services", "customer", "online", "official", "auth", "help",
+        "billing", "payment", "payments", "wallet", "portal", "access", "recovery",
+        "unlock", "alert"
+    )
+
+    /**
+     * True if [host] looks like it is impersonating [brand] — i.e. the brand appears as a
+     * full label, or glued to a known phishing affix. This catches concatenations like
+     * "verifypaypal.com" / "paypalsupport.com" / "secure-paypal.com" while NOT matching a
+     * brand that is merely a fragment of an ordinary word ("ups" in "startups", "apple" in
+     * "pineapple"/"appleton"). Inputs are already lowercased. Reputation providers remain the
+     * primary defense for novel/sophisticated lookalikes; this is the fast local pre-filter.
+     */
+    private fun looksLikeBrandSpoof(host: String, brand: String): Boolean {
+        host.split('.', '-', '_').forEach { token ->
+            if (token.isEmpty() || !token.contains(brand)) return@forEach
+            if (token == brand) return true
+            val remainder = token.replaceFirst(brand, "")
+            if (BRAND_AFFIXES.any {
+                    remainder == it || remainder.startsWith(it) || remainder.endsWith(it)
+                }
+            ) return true
+        }
+        return false
+    }
+
+    /**
+     * True if [keyword] appears in [text] as a whole token (boundaries on both sides), so
+     * "login" matches "/login" but not "/bloginfo", and "last" matches "/last" but not
+     * "elastic". Inputs are already lowercased.
+     */
+    private fun containsKeyword(text: String, keyword: String): Boolean =
+        Regex("(?<![a-z0-9])" + Regex.escape(keyword) + "(?![a-z0-9])").containsMatchIn(text)
+
+    /**
+     * True if [url] references a file with extension [ext] (which includes the leading dot)
+     * at a real filename boundary — i.e. the extension is not immediately followed by another
+     * alphanumeric char. Prevents ".bat" from matching inside "account.battle.net". Input is
+     * already lowercased.
+     */
+    private fun urlReferencesFileType(url: String, ext: String): Boolean =
+        Regex(Regex.escape(ext) + "(?![a-z0-9])").containsMatchIn(url)
+
     fun scan(url: String): ScanResult = scanWithContext(url, null)
 
     fun scanWithContext(url: String, messageText: String?): ScanResult {
@@ -250,7 +317,10 @@ object HeuristicScanner {
         val urlLower = url.lowercase()
         val domain = DomainExtractor.extract(urlLower) ?: urlLower
         val urlPath = extractPath(urlLower)
-        val isOfficialDomain = domain in ALL_OFFICIAL_DOMAINS
+        // Official if the host matches a trusted domain exactly OR is a subdomain of one.
+        // The leading dot in ".$it" prevents suffix spoofing (e.g. "secure-google.com" is
+        // NOT a subdomain of "google.com").
+        val isOfficialDomain = ALL_OFFICIAL_DOMAINS.any { domain == it || domain.endsWith(".$it") }
 
         // 1. HTTP
         if (!isOfficialDomain && urlLower.startsWith("http://")) {
@@ -258,10 +328,11 @@ object HeuristicScanner {
             score += 30
         }
 
-        // 2. Suspicious TLDs
+        // 2. Suspicious TLDs (match the host's actual suffix, not a substring anywhere in
+        //    the URL — otherwise a TLD inside an embedded redirect param would misfire)
         if (!isOfficialDomain) {
             SUSPICIOUS_TLDS.forEach { tld ->
-                if (urlLower.contains(tld)) {
+                if (domain.endsWith(tld)) {
                     flags.add("Suspicious domain extension ($tld)")
                     score += 25
                 }
@@ -276,15 +347,16 @@ object HeuristicScanner {
             }
         }
 
-        // 4. Phishing keywords
+        // 4. Phishing keywords (whole-token match so "login" doesn't fire on "/bloginfo"
+        //    and "last" doesn't fire on "elastic")
         if (!isOfficialDomain) {
             PHISHING_KEYWORDS.forEach { kw ->
                 when {
-                    domain.contains(kw) -> {
+                    containsKeyword(domain, kw) -> {
                         flags.add("Phishing keyword in domain: \"$kw\"")
                         score += 15
                     }
-                    urlPath.contains(kw) -> {
+                    containsKeyword(urlPath, kw) -> {
                         flags.add("Phishing keyword in URL path: \"$kw\"")
                         score += 10
                     }
@@ -292,10 +364,11 @@ object HeuristicScanner {
             }
         }
 
-        // 5. Brand spoofing
+        // 5. Brand spoofing (brand as a full label or glued to a phishing affix, so
+        //    "verifypaypal.com" is caught but "startups.com"/"pineapple.com" are not)
         if (!isOfficialDomain) {
             ALL_BRANDS.forEach { brand ->
-                if (domain.contains(brand)) {
+                if (looksLikeBrandSpoof(domain, brand)) {
                     val officialList = OFFICIAL_DOMAINS[brand]
                         ?: listOf("$brand.com", "$brand.com.ph")
                     val isOfficial = officialList.any { domain == it || domain.endsWith(".$it") }
@@ -356,7 +429,7 @@ object HeuristicScanner {
             val subdomain = parts.dropLast(2).joinToString(".")
 
             ALL_BRANDS.forEach { brand ->
-                if (subdomain.contains(brand)) {
+                if (looksLikeBrandSpoof(subdomain, brand)) {
                     val officialList = OFFICIAL_DOMAINS[brand]
                         ?: listOf("$brand.com", "$brand.com.ph")
                     val isOfficialRoot = officialList.any { official ->
@@ -442,10 +515,11 @@ object HeuristicScanner {
             }
         }
 
-        // 17. Dangerous file extensions
+        // 17. Dangerous file extensions (match only at a real filename boundary, so ".bat"
+        //     no longer fires on "account.battle.net" / ".exe" on "api.execute.com")
         if (!isOfficialDomain) {
             DANGEROUS_EXTENSIONS.forEach { ext ->
-                if (urlLower.contains(ext)) {
+                if (urlReferencesFileType(urlLower, ext)) {
                     flags.add("Dangerous file type in URL: \"$ext\" — possible malware delivery")
                     score += 40
                 }

@@ -133,6 +133,22 @@ class ScanMapperTest {
     }
 
     @Test
+    fun `resolvedUrl carries through to the legacy result`() {
+        val domain = DomainScanResult(
+            url = "https://bit.ly/x",
+            normalizedUrl = "https://evil.example/landing",
+            verdict = ScoringEngine().evaluate(emptyList()),
+            resolvedUrl = "https://evil.example/landing"
+        )
+        assertEquals("https://evil.example/landing", domain.toLegacy().resolvedUrl)
+    }
+
+    @Test
+    fun `null resolvedUrl maps to null`() {
+        assertEquals(null, legacyOf(emptyList()).resolvedUrl)
+    }
+
+    @Test
     fun `flat flags list is unchanged by grouping`() {
         val signals = listOf(
             signal("Suspicious keyword", SignalSource.LOCAL_HEURISTIC),

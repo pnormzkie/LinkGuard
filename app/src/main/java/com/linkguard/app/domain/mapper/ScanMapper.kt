@@ -25,7 +25,8 @@ fun ScanResult.toLegacy(sourceApp: String = "Manual", senderInfo: String = "You"
         sourceApp = sourceApp,
         senderInfo = senderInfo,
         scannedAt = this.timestamp,
-        flagGroups = this.verdict.signals.toFlagGroups()
+        flagGroups = this.verdict.signals.toFlagGroups(),
+        resolvedUrl = this.resolvedUrl
     )
 }
 

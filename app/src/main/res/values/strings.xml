@@ -105,6 +105,7 @@
     <string name="link_unchecked_title">Couldn\'t verify this link</string>
     <string name="link_unchecked_reason">LinkGuard couldn\'t check this link — the scan didn\'t complete. Open it only if you trust the source.</string>
     <string name="link_tapped_label">Tapped Link</string>
+    <string name="link_goes_to_label">↳ Goes to</string>
     <string name="risk_label">Risk</string>
     <string name="why_flagged_header">Why this was flagged</string>
     <string name="btn_open_link">Open Link</string>

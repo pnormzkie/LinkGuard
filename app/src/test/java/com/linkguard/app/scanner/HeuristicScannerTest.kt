@@ -3,6 +3,7 @@ package com.linkguard.app.scanner
 import com.linkguard.app.data.ThreatLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -178,5 +179,112 @@ class HeuristicScannerTest {
         // clean url
         val safe = HeuristicScanner.scanWithContext("https://example.com", null)
         assertEquals(ThreatLevel.SAFE, safe.threatLevel)
+    }
+
+    // ─── False-positive regressions: boundary-aware matching (2026-06-26) ───────────
+
+    @Test
+    fun `battle_net is not flagged as a dangerous bat file`() {
+        // ".bat" must not match inside "account.battle.net" — the reported false positive.
+        val result = HeuristicScanner.scanWithContext(
+            "https://account.battle.net/login/logout?ref=https%3A%2F%2Fus.account.battle.net",
+            null
+        )
+        assertFalse(result.flags.any { it.contains("Dangerous file type") })
+        assertNotEquals(ThreatLevel.DANGER, result.threatLevel)
+    }
+
+    @Test
+    fun `whitelisted battle_net auth flow is safe with no flags`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://account.battle.net/login/logout?ref=https%3A%2F%2Fus.account.battle.net",
+            null
+        )
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertTrue(result.flags.isEmpty())
+    }
+
+    @Test
+    fun `legit subdomain of an official domain is treated as safe`() {
+        val result = HeuristicScanner.scanWithContext("https://accounts.google.com/signin", null)
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertTrue(result.flags.isEmpty())
+    }
+
+    @Test
+    fun `suffix-spoof of an official domain is not treated as official`() {
+        // "secure-google.com" ends with "google.com" but is NOT a subdomain of it.
+        val flags = flagsOf("https://secure-google.com/login")
+        assertTrue(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `a real bat file download is still flagged`() {
+        val flags = flagsOf("https://files.example.com/setup.bat")
+        assertTrue(flags.any { it.contains("Dangerous file type") })
+    }
+
+    @Test
+    fun `groups_google_com is not flagged as brand spoofing or subdomain abuse`() {
+        val flags = flagsOf("https://groups.google.com/g/some-group")
+        assertFalse(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+        assertFalse(flags.any { it.contains("subdomain", ignoreCase = true) })
+    }
+
+    @Test
+    fun `startups_com is not flagged as UPS brand spoofing`() {
+        val flags = flagsOf("https://startups.com")
+        assertFalse(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `pineapple_com is not flagged as APPLE brand spoofing`() {
+        val flags = flagsOf("https://pineapple.com")
+        assertFalse(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `brand glued to a prefix affix is still flagged as spoofing`() {
+        val flags = flagsOf("https://verifypaypal.com")
+        assertTrue(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `brand glued to a suffix affix is still flagged as spoofing`() {
+        val flags = flagsOf("https://paypalsupport.com")
+        assertTrue(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `brand with a separator is still flagged as spoofing`() {
+        val flags = flagsOf("https://secure-amazon.com")
+        assertTrue(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `dictionary word containing a brand substring is not flagged`() {
+        // "appleton" contains "apple" but the remainder "ton" is not a phishing affix.
+        val flags = flagsOf("https://appleton.com")
+        assertFalse(flags.any { it.contains("brand spoofing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `php file extension does not trigger a phishing keyword`() {
+        val flags = flagsOf("https://blog.example.com/index.php")
+        assertFalse(flags.any { it.contains("php") })
+    }
+
+    @Test
+    fun `keyword inside a longer word is not flagged`() {
+        // "last" must not match inside "elasticsearch".
+        val flags = flagsOf("https://search.example.com/elasticsearch/query")
+        assertFalse(flags.any { it.contains("Phishing keyword") && it.contains("last") })
+    }
+
+    @Test
+    fun `suspicious tld inside a redirect parameter is not flagged`() {
+        // ".ru" appears only in the embedded ref URL, not the real host (example.com).
+        val flags = flagsOf("https://example.com/go?url=https://news.example.ru/article")
+        assertFalse(flags.any { it.contains("Suspicious domain extension") })
     }
 }

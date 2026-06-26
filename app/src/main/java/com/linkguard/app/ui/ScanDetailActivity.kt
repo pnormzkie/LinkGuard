@@ -43,6 +43,7 @@ class ScanDetailActivity : AppCompatActivity() {
 
         setupUI(
             url        = url,
+            resolvedUrl = intent.getStringExtra(Extras.RESOLVED_URL),
             score      = intent.getIntExtra(Extras.SCORE, 0),
             category   = intent.getStringExtra(Extras.CATEGORY).orEmpty(),
             flags      = intent.getStringArrayExtra(Extras.FLAGS) ?: emptyArray(),
@@ -56,7 +57,7 @@ class ScanDetailActivity : AppCompatActivity() {
     // ─── UI Setup ─────────────────────────────────────────────────────────────
 
     private fun setupUI(
-        url: String, score: Int, category: String,
+        url: String, resolvedUrl: String?, score: Int, category: String,
         flags: Array<String>, flagGroups: List<FlagGroup>,
         sender: String, app: String, threatLevel: String
     ) {
@@ -84,6 +85,16 @@ class ScanDetailActivity : AppCompatActivity() {
 
         // Other fields
         binding.tvUrl.text      = url
+        // Resolved destination — only when the link redirected somewhere else.
+        if (!resolvedUrl.isNullOrBlank() && resolvedUrl != url) {
+            binding.tvResolvedUrl.text = resolvedUrl
+            binding.tvResolvedUrl.setTextColor(color)
+            binding.tvGoesToLabel.visibility = View.VISIBLE
+            binding.tvResolvedUrl.visibility = View.VISIBLE
+        } else {
+            binding.tvGoesToLabel.visibility = View.GONE
+            binding.tvResolvedUrl.visibility = View.GONE
+        }
         binding.tvCategory.text = category
         binding.tvSender.text   = if (app == "QR") getString(R.string.source_qr_scan) else getString(R.string.source_manual_scan)
 
@@ -148,6 +159,8 @@ class ScanDetailActivity : AppCompatActivity() {
             putExtra(Extras.THREAT_LEVEL, result.threatLevel.name)
             // Category groups for the collapsible flag UI (empty for history-loaded results).
             putParcelableArrayListExtra(Extras.FLAG_GROUPS, ArrayList(result.flagGroups))
+            // Resolved destination when the link redirected (null for history-loaded results).
+            result.resolvedUrl?.let { putExtra(Extras.RESOLVED_URL, it) }
         }
 
         fun newIntent(

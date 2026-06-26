@@ -1,11 +1,14 @@
 package com.linkguard.app.domain.orchestrator
 
 import com.linkguard.app.domain.model.Confidence
+import com.linkguard.app.domain.model.RedirectOutcome
+import com.linkguard.app.domain.model.RedirectResolution
 import com.linkguard.app.domain.model.ScanSignal
 import com.linkguard.app.domain.model.SignalSource
 import com.linkguard.app.domain.model.SignalStrength
 import com.linkguard.app.domain.model.Verdict
 import com.linkguard.app.domain.scanner.HeuristicEngine
+import com.linkguard.app.domain.scanner.RedirectResolver
 import com.linkguard.app.domain.scanner.SignalProvider
 import com.linkguard.app.domain.scoring.ScoringEngine
 import com.linkguard.app.util.AppConfig
@@ -33,6 +36,12 @@ class ScanOrchestratorTest {
         override suspend fun scan(url: String, messageText: String?): List<ScanSignal> = block(url)
     }
 
+    private class FakeRedirectResolver(
+        private val block: suspend (String) -> RedirectResolution
+    ) : RedirectResolver {
+        override suspend fun resolve(url: String): RedirectResolution = block(url)
+    }
+
     private fun signal(
         score: Int,
         strength: SignalStrength = SignalStrength.MEDIUM,
@@ -54,7 +63,8 @@ class ScanOrchestratorTest {
         enrichment: SignalProvider = FakeProvider { emptyList() },
         hybrid: SignalProvider = FakeProvider { emptyList() },
         domainAge: SignalProvider = FakeProvider { emptyList() },
-        now: () -> Long = { 0L }
+        now: () -> Long = { 0L },
+        redirect: RedirectResolver? = null
     ) = ScanOrchestrator(
         heuristicEngine = heuristic,
         reputationProvider = reputation,
@@ -63,7 +73,8 @@ class ScanOrchestratorTest {
         scoringEngine = ScoringEngine(),
         hybridAnalysisProvider = hybrid,
         domainAgeProvider = domainAge,
-        now = now
+        now = now,
+        redirectResolver = redirect
     )
 
     @Test
@@ -177,5 +188,62 @@ class ScanOrchestratorTest {
         orchestrator.scan("https://www.example.com/path?q=1")
 
         assertEquals("example.com", receivedInput)
+    }
+
+    @Test
+    fun `resolved destination is what gets scanned, tapped url preserved`() = runTest {
+        var heuristicInput: String? = null
+        var reputationInput: String? = null
+        var domainInput: String? = null
+        val orchestrator = orchestrator(
+            heuristic = FakeHeuristic { heuristicInput = it; emptyList() },
+            reputation = FakeProvider { reputationInput = it; emptyList() },
+            domain = FakeProvider { domainInput = it; emptyList() },
+            redirect = FakeRedirectResolver {
+                RedirectResolution(
+                    finalUrl = "https://evil.example/landing",
+                    hops = listOf(it, "https://evil.example/landing"),
+                    crossedDomains = true,
+                    outcome = RedirectOutcome.RESOLVED
+                )
+            }
+        )
+
+        val result = orchestrator.scan("https://sho.rt/a")
+
+        assertEquals("https://evil.example/landing", heuristicInput)
+        assertEquals("https://evil.example/landing", reputationInput)
+        assertEquals("evil.example", domainInput) // providers see the resolved domain
+        assertEquals("https://sho.rt/a", result.url) // tapped URL kept for display/history
+        assertEquals("https://evil.example/landing", result.resolvedUrl)
+    }
+
+    @Test
+    fun `trusted host skips redirect resolution`() = runTest {
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { error("must not resolve a trusted host") }
+        )
+
+        val result = orchestrator.scan("https://google.com/safe")
+
+        assertEquals(Verdict.SAFE, result.verdict.verdict) // completes; resolver never called
+    }
+
+    @Test
+    fun `redirect to a blocked target adds a strong signal`() = runTest {
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver {
+                RedirectResolution(
+                    finalUrl = it,
+                    hops = listOf(it),
+                    crossedDomains = false,
+                    outcome = RedirectOutcome.BLOCKED_PRIVATE_HOST
+                )
+            }
+        )
+
+        val result = orchestrator.scan("https://sho.rt/a")
+
+        assertTrue(result.verdict.signals.any { it.ruleId == "REDIRECT_BLOCKED_TARGET" })
     }
 }

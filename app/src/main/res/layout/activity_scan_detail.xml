@@ -180,6 +180,33 @@
                     android:lineSpacingMultiplier="1.4"
                     android:layout_marginBottom="14dp" />
 
+                <!-- Resolved destination — shown only when the scanned link redirected
+                     elsewhere. Tinted to the verdict colour in code. -->
+                <TextView
+                    android:id="@+id/tvGoesToLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/link_goes_to_label"
+                    android:textColor="@color/e_muted"
+                    android:textSize="10sp"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.12"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvResolvedUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="14dp"
+                    android:textColor="@color/e_text2"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:lineSpacingMultiplier="1.4"
+                    android:visibility="gone" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCopy"
                     android:layout_width="wrap_content"

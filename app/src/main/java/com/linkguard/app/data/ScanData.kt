@@ -39,7 +39,11 @@ data class ScanResult(
     val sourceApp: String,
     val senderInfo: String,
     val scannedAt: Long = System.currentTimeMillis(),
-    val flagGroups: List<FlagGroup> = emptyList()
+    val flagGroups: List<FlagGroup> = emptyList(),
+    /** The true destination when [url] redirected (shortener/wrapper). Like [flagGroups] this is
+     *  set for fresh scans only and is intentionally NOT persisted to Room — history-loaded
+     *  results read back null and the UI simply omits the "goes to" line. */
+    val resolvedUrl: String? = null
 ) : Parcelable
 
 data class ScanStats(
