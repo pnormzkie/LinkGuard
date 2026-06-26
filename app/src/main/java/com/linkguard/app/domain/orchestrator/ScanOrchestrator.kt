@@ -8,6 +8,8 @@ import com.linkguard.app.domain.model.ScanResult
 import com.linkguard.app.domain.model.ScanSignal
 import com.linkguard.app.domain.model.SignalSource
 import com.linkguard.app.domain.model.SignalStrength
+import com.linkguard.app.domain.model.Verdict
+import com.linkguard.app.domain.scanner.CredentialFormInspector
 import com.linkguard.app.domain.scanner.HeuristicEngine
 import com.linkguard.app.domain.scanner.RedirectResolver
 import com.linkguard.app.domain.scanner.SignalProvider
@@ -34,7 +36,10 @@ class ScanOrchestrator(
     private val now: () -> Long = System::currentTimeMillis,
     // Optional: when present, the tapped URL is followed to its true destination before scoring.
     // Null keeps the legacy behaviour (score the URL as-is).
-    private val redirectResolver: RedirectResolver? = null
+    private val redirectResolver: RedirectResolver? = null,
+    // Optional: when present, a borderline-suspicious untrusted destination has its page HTML
+    // inspected for a credential form (a confirming amplifier). Null disables the check.
+    private val credentialFormInspector: CredentialFormInspector? = null
 ) {
 
     companion object {
@@ -107,7 +112,25 @@ class ScanOrchestrator(
                 "DA: ${results[4]?.size ?: "failed"}, UH: ${results[5]?.size ?: "failed"}"
         )
 
-        val finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)
+        // 4. Conditional credential-form check. Only when the destination is untrusted AND
+        //    phase-1 is borderline-suspicious — so the page-body fetch (a privacy/perf cost) is
+        //    paid only when a found login form would actually change the verdict. THREAT is
+        //    already decided; SAFE isn't worth the fetch. A found form confirms → re-score.
+        var finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)
+        if (credentialFormInspector != null &&
+            finalVerdict.verdict == Verdict.SUSPICIOUS &&
+            !KnownDomains.isTrusted(domain)
+        ) {
+            val contentSignals = inspectContent(scanUrl)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Credential-form check ran for $domain -> found ${contentSignals.size} signal(s)")
+            }
+            if (contentSignals.isNotEmpty()) {
+                allSignals.addAll(contentSignals)
+                finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)
+            }
+        }
+
         val result = ScanResult(
             url = url,
             normalizedUrl = scanUrl.lowercase(),
@@ -177,6 +200,23 @@ class ScanOrchestrator(
         score = 15,
         matchedValue = finalUrl
     )
+
+    /** Bounded + fail-soft wrapper around the credential-form inspector (an amplifier that
+     *  must never break the scan). The inspector is itself fail-soft; the timeout guards the
+     *  click-time path if a body fetch hangs. */
+    private suspend fun inspectContent(scanUrl: String): List<ScanSignal> = try {
+        withTimeout(AppConfig.PROVIDER_TIMEOUT_MS) {
+            credentialFormInspector?.inspect(scanUrl) ?: emptyList()
+        }
+    } catch (e: TimeoutCancellationException) {
+        Log.w(TAG, "Credential-form inspection timed out")
+        emptyList()
+    } catch (e: CancellationException) {
+        throw e // never swallow real cancellation
+    } catch (e: Exception) {
+        Log.w(TAG, "Credential-form inspection failed: ${e.message}")
+        emptyList()
+    }
 
     private suspend fun guarded(
         name: String,

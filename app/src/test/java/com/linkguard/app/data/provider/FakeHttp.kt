@@ -26,6 +26,21 @@ internal fun clientReturning(code: Int, body: String): OkHttpClient =
         })
         .build()
 
+/** Like [clientReturning] but tags the body as text/html (for page-content inspection). */
+internal fun clientReturningHtml(code: Int, body: String, contentType: String = "text/html"): OkHttpClient =
+    OkHttpClient.Builder()
+        .addInterceptor(Interceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message("stub")
+                .header("Content-Type", contentType)
+                .body(body.toResponseBody(contentType.toMediaType()))
+                .build()
+        })
+        .build()
+
 /** Like [clientReturning] but with a raw byte body (e.g. DNS wireformat). */
 internal fun clientReturningBytes(code: Int, body: ByteArray): OkHttpClient =
     OkHttpClient.Builder()

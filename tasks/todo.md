@@ -871,3 +871,45 @@ Ships roadmap #2 (URLhaus 6th provider). User-facing: one more live malware-dist
 - [ ] USER ACTION: REVOKE both GitHub PATs pasted in chat (v1.15 + v1.16) — github.com/settings/tokens.
 - Standing (unchanged): rotate/restrict the 4 embedded API keys (now incl. URLhaus); off-machine
       keystore backup; durable fix for client-side keys = backend proxy.
+
+## 2026-06-27 — Roadmap #5: credential-form / page-content check — IMPLEMENTED + TESTED (not released)
+
+Honest re-scoping this session: #3 (NRD+brand) found already-covered (brand-spoof is STRONG→60→
+THREAT; scores sum), and #6 (TLS cert) found moot (Android's TLS stack already enforces the strong
+cert checks; "no HTTPS" already flagged at UrlScanner.kt:326; readable cert attrs are FP-heavy).
+So we went to #5 — the real remaining gap: brand-less zero-hour AI phishing (clean URL, login form).
+See tasks/plan-credential-form.md (approved: conditional-fetch design).
+
+- [x] New `domain/scanner/CredentialFormInspector` interface + `data/provider/HttpCredentialFormInspector`.
+      Conditional, read-only, bounded GET of the resolved page HTML; static-HTML detection only.
+      `<input type=password>` on untrusted host → MEDIUM/25 (CREDENTIAL_FORM_UNTRUSTED); password +
+      form action posting to a different registrable domain (excluding trusted IdPs) → STRONG/50
+      (CREDENTIAL_FORM_EXFIL). Guards: trusted-host skip, anti-SSRF private-host skip, non-HTML skip,
+      256 KB body cap (peekBody), 3 s timeout, fail-soft (any error → empty, never breaks scan).
+- [x] Orchestrator phase 4 (gated): fetch ONLY when phase-1 verdict == SUSPICIOUS AND host untrusted
+      (THREAT already decided; SAFE not worth the privacy/perf cost). Found form → re-score.
+      Disabled by injecting inspector = null (like redirectResolver). ScannerProvider wires a
+      dedicated short-timeout, no-redirect contentHttpClient.
+- [x] Config: AppConfig.CONTENT_FETCH_TIMEOUT_MS=3000, CONTENT_MAX_BYTES=256 KB.
+- [x] Tests: HttpCredentialFormInspectorTest (9: medium/exfil/IdP-not-exfil/no-password/non-html/
+      trusted-skip/private-skip/non-2xx/network-fail) + ScanOrchestratorTest (4: escalate / clean-not-
+      inspected / trusted-not-inspected / already-threat-not-inspected). FakeHttp + clientReturningHtml.
+      VERIFY: full suite = 262 tests, 0 failures, 0 errors.
+- LIMITATION (honest): static HTML only — JavaScript-rendered forms are NOT detected. Many phishing
+      kits still ship static forms (real value) but this is not complete coverage.
+- [x] On-device smoke (Pixel_7/API34 headless, real network) — PASS, no issues. Drove via
+      `am start .ui.LinkInterceptActivity VIEW <url>`; DEBUG log added in phase-4 ("Credential-form
+      check ran for X -> found N", gated by BuildConfig.DEBUG, kept). Evidence:
+      - github.com/login (trusted) → inspector SKIPPED (no fetch). ✓
+      - example.com (untrusted, HA-flagged Suspicious) → ran, real GET+parse, found 0 (no form) → unchanged. ✓
+      - the-internet.herokuapp.com/login → phase-1 SUSPICIOUS ("login" kw) → ran, real GET+parse of live
+        page → found 1 (password form) → CREDENTIAL_FORM_UNTRUSTED, surfaced in UI as "Login form on an
+        unverified site", verdict SUSPICIOUS 50%. tasks/smoke-credform-herokuapp.png. ✓
+      No crashes/exceptions. (DomainAge RDAP 403 = unrelated pre-existing rate-limit, fail-soft.)
+      EXFIL cross-domain variant = unit-tested only (no benign real target); same parse path.
+- [x] Release v1.17 (versionCode 18): bumped 17→18 / 1.16→1.17. Signed assembleRelease GREEN.
+      apksigner V2 cert ead80ea1…74227357 (SAME key → in-place update). aapt versionCode=18 versionName=1.17.
+      APK SHA-256 f2b8e9ba92a4b08ace57d0f779e6042169aeaece7fba14e36b0040a3d044498a, size per staging.
+      Staged release-staging/LinkGuard-v1.17.apk (hash matches) + RELEASE-NOTES-v1.17.md.
+- [ ] PUBLISH to GitHub pnormzkie/LinkGuard (tag v1.17, make_latest, upload LinkGuard-v1.17.apk via curl)
+      — needs a fresh fine-grained PAT (Contents: read/write). Prior v1.15/v1.16 PATs must be revoked.

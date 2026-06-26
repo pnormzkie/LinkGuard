@@ -1,6 +1,7 @@
 package com.linkguard.app
 
 import com.linkguard.app.data.provider.DomainAgeProvider
+import com.linkguard.app.data.provider.HttpCredentialFormInspector
 import com.linkguard.app.data.provider.HttpRedirectResolver
 import com.linkguard.app.data.provider.HybridAnalysisProvider
 import com.linkguard.app.data.provider.NextDnsDomainSignalProvider
@@ -40,6 +41,18 @@ object ScannerProvider {
             .build()
     }
 
+    // Dedicated client for the credential-form page fetch: short timeouts for click-time UX;
+    // auto-redirects DISABLED because the URL is already resolved (and to avoid SSRF via a
+    // redirect to a private host). The inspector caps how much of the body it reads.
+    private val contentHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(AppConfig.CONTENT_FETCH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(AppConfig.CONTENT_FETCH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
+    }
+
     private val scoringEngine = ScoringEngine()
 
     val orchestrator: ScanOrchestrator by lazy {
@@ -61,7 +74,8 @@ object ScannerProvider {
             ),
             domainAgeProvider = DomainAgeProvider(okHttpClient),
             urlHausProvider = UrlHausDomainProvider(okHttpClient, AppConfig.URLHAUS_AUTH_KEY),
-            redirectResolver = HttpRedirectResolver(redirectHttpClient)
+            redirectResolver = HttpRedirectResolver(redirectHttpClient),
+            credentialFormInspector = HttpCredentialFormInspector(contentHttpClient)
         )
     }
 }

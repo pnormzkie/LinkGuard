@@ -7,6 +7,7 @@ import com.linkguard.app.domain.model.ScanSignal
 import com.linkguard.app.domain.model.SignalSource
 import com.linkguard.app.domain.model.SignalStrength
 import com.linkguard.app.domain.model.Verdict
+import com.linkguard.app.domain.scanner.CredentialFormInspector
 import com.linkguard.app.domain.scanner.HeuristicEngine
 import com.linkguard.app.domain.scanner.RedirectResolver
 import com.linkguard.app.domain.scanner.SignalProvider
@@ -42,6 +43,12 @@ class ScanOrchestratorTest {
         override suspend fun resolve(url: String): RedirectResolution = block(url)
     }
 
+    private class FakeCredentialFormInspector(
+        private val block: suspend (String) -> List<ScanSignal>
+    ) : CredentialFormInspector {
+        override suspend fun inspect(finalUrl: String): List<ScanSignal> = block(finalUrl)
+    }
+
     private fun signal(
         score: Int,
         strength: SignalStrength = SignalStrength.MEDIUM,
@@ -65,7 +72,8 @@ class ScanOrchestratorTest {
         domainAge: SignalProvider = FakeProvider { emptyList() },
         urlhaus: SignalProvider = FakeProvider { emptyList() },
         now: () -> Long = { 0L },
-        redirect: RedirectResolver? = null
+        redirect: RedirectResolver? = null,
+        credential: CredentialFormInspector? = null
     ) = ScanOrchestrator(
         heuristicEngine = heuristic,
         reputationProvider = reputation,
@@ -76,7 +84,8 @@ class ScanOrchestratorTest {
         domainAgeProvider = domainAge,
         urlHausProvider = urlhaus,
         now = now,
-        redirectResolver = redirect
+        redirectResolver = redirect,
+        credentialFormInspector = credential
     )
 
     @Test
@@ -247,5 +256,60 @@ class ScanOrchestratorTest {
         val result = orchestrator.scan("https://sho.rt/a")
 
         assertTrue(result.verdict.signals.any { it.ruleId == "REDIRECT_BLOCKED_TARGET" })
+    }
+
+    @Test
+    fun `credential form on a borderline untrusted destination escalates to threat`() = runTest {
+        val nrd = signal(45, SignalStrength.STRONG, SignalSource.DOMAIN_SIGNAL, "Newly registered domain")
+        var inspected: String? = null
+        val orchestrator = orchestrator(
+            domainAge = FakeProvider { listOf(nrd) }, // phase-1 = SUSPICIOUS (STRONG, score 45)
+            credential = FakeCredentialFormInspector {
+                inspected = it
+                listOf(signal(25, SignalStrength.MEDIUM, SignalSource.LOCAL_HEURISTIC, "Login form on an unverified site"))
+            }
+        )
+
+        val result = orchestrator.scan("https://new-bank.test/login")
+
+        assertEquals("https://new-bank.test/login", inspected) // inspector saw the scanned URL
+        assertEquals(Verdict.THREAT, result.verdict.verdict) // 45 + 25 crosses the threat threshold
+    }
+
+    @Test
+    fun `clean scan does not invoke the credential inspector`() = runTest {
+        val orchestrator = orchestrator(
+            credential = FakeCredentialFormInspector { error("must not inspect a clean scan") }
+        )
+
+        val result = orchestrator.scan("https://example.com")
+
+        assertEquals(Verdict.SAFE, result.verdict.verdict)
+    }
+
+    @Test
+    fun `trusted host is not inspected even when borderline`() = runTest {
+        val suspicious = signal(45, SignalStrength.STRONG, title = "Some strong signal")
+        val orchestrator = orchestrator(
+            heuristic = FakeHeuristic { listOf(suspicious) },
+            credential = FakeCredentialFormInspector { error("must not inspect a trusted host") }
+        )
+
+        val result = orchestrator.scan("https://google.com/login")
+
+        assertEquals(Verdict.SUSPICIOUS, result.verdict.verdict) // stays suspicious; inspector skipped
+    }
+
+    @Test
+    fun `an already-threat scan does not invoke the inspector`() = runTest {
+        val critical = signal(100, SignalStrength.CRITICAL, title = "Flagged by Google Safe Browsing")
+        val orchestrator = orchestrator(
+            reputation = FakeProvider { listOf(critical) },
+            credential = FakeCredentialFormInspector { error("must not inspect; already threat") }
+        )
+
+        val result = orchestrator.scan("https://evil.test/x")
+
+        assertEquals(Verdict.THREAT, result.verdict.verdict)
     }
 }

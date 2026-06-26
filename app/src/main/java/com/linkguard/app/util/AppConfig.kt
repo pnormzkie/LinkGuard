@@ -27,6 +27,11 @@ object AppConfig {
     const val REDIRECT_TOTAL_BUDGET_MS = 3_000L
     const val REDIRECT_PER_HOP_TIMEOUT_MS = 1_500L
 
+    // Credential-form page inspection: a conditional, read-only GET of a borderline-suspicious
+    // destination's HTML to detect a login/password form. Bounded for click-time UX and privacy.
+    const val CONTENT_FETCH_TIMEOUT_MS = 3_000L
+    const val CONTENT_MAX_BYTES = 256L * 1024 // cap the body we read into memory (256 KB)
+
     // GitHub repository checked for app updates via the Releases API.
     const val GITHUB_REPO = "pnormzkie/LinkGuard"
     // Minimum gap between automatic update checks (foreground returns re-check after this).
