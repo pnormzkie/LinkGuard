@@ -848,7 +848,7 @@ paid/registration with low marginal gain). User provided a free abuse.ch Auth-Ke
   the other 3 keys) and is tied to ONE abuse.ch account — all installs share its quota and abuse.ch
   could revoke it. Same client-side-key tradeoff as VT/SB/HA; durable fix = backend proxy.
 
-## 2026-06-27 — Release v1.16 (versionCode 17): URLhaus feed — BUILT + SIGNED, publish pending
+## 2026-06-27 — Release v1.16 (versionCode 17): URLhaus feed — SHIPPED + PUBLISHED
 
 Ships roadmap #2 (URLhaus 6th provider). User-facing: one more live malware-distribution feed.
 
@@ -859,9 +859,15 @@ Ships roadmap #2 (URLhaus 6th provider). User-facing: one more live malware-dist
 - [x] Signed assembleRelease GREEN (R8 + shrinkResources + lintVital). apksigner V2 cert SHA-256
       ead80ea1…74227357 (SAME key → in-place update). aapt versionCode=17 versionName=1.16.
       APK SHA-256 1ac68eb0b0249f8f99bab3ddf34483177210c85810a65bd4914a9b6029a3f5ff, size 24503476.
-- [x] Staged release-staging/LinkGuard-v1.16.apk (hash matches build) + RELEASE-NOTES-v1.16.md;
-      wrote release/version.json (BOM-free ASCII, parses to code 17/name 1.16).
-- [ ] PUBLISH to GitHub pnormzkie/LinkGuard (tag v1.16, make_latest=true, upload app-release.apk
-      via curl) — BLOCKED on a fresh fine-grained PAT (Contents: read/write). Prior PAT must be revoked.
-- [ ] Live-verify: releases/latest=v1.16; re-download app-release.apk SHA-256 == local 1ac68eb0…a3f5ff.
-- [ ] USER ACTION: REVOKE the v1.15 GitHub PAT if not already done; revoke the new one after publish.
+- [x] Staged release-staging/LinkGuard-v1.16.apk (hash matches build) + RELEASE-NOTES-v1.16.md.
+      Committed 18537d8 (master, local only — no git remote configured).
+- [x] PUBLISHED to GitHub pnormzkie/LinkGuard: release id=345556579, tag v1.16, make_latest=true.
+      Asset LinkGuard-v1.16.apk state=uploaded, digest sha256:1ac68eb0…a3f5ff (matches local build).
+      (Matched the real v1.15 convention: ONE asset named LinkGuard-vX.Y.apk, no version.json —
+      the in-app updater reads the releases API and picks the first *.apk asset's download URL.)
+- [x] Live-verified: releases/latest=v1.16; public download re-hashed byte-identical
+      (24503476 bytes, 1ac68eb0…a3f5ff). In-app updater will offer v1.16 to v1.15 users.
+      https://github.com/pnormzkie/LinkGuard/releases/tag/v1.16
+- [ ] USER ACTION: REVOKE both GitHub PATs pasted in chat (v1.15 + v1.16) — github.com/settings/tokens.
+- Standing (unchanged): rotate/restrict the 4 embedded API keys (now incl. URLhaus); off-machine
+      keystore backup; durable fix for client-side keys = backend proxy.
