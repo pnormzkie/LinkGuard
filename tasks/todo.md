@@ -911,5 +911,10 @@ See tasks/plan-credential-form.md (approved: conditional-fetch design).
       apksigner V2 cert ead80ea1…74227357 (SAME key → in-place update). aapt versionCode=18 versionName=1.17.
       APK SHA-256 f2b8e9ba92a4b08ace57d0f779e6042169aeaece7fba14e36b0040a3d044498a, size per staging.
       Staged release-staging/LinkGuard-v1.17.apk (hash matches) + RELEASE-NOTES-v1.17.md.
-- [ ] PUBLISH to GitHub pnormzkie/LinkGuard (tag v1.17, make_latest, upload LinkGuard-v1.17.apk via curl)
-      — needs a fresh fine-grained PAT (Contents: read/write). Prior v1.15/v1.16 PATs must be revoked.
+- [x] Committed 97d85df (master, local only — no git remote).
+- [x] PUBLISHED to GitHub pnormzkie/LinkGuard: release id=345567938, tag v1.17, make_latest.
+      Asset LinkGuard-v1.17.apk state=uploaded, digest sha256:f2b8e9ba…44498a (matches local).
+- [x] Live-verified: releases/latest=v1.17; public download re-hashed byte-identical
+      (24507572 bytes, f2b8e9ba…44498a). In-app updater will offer v1.17 to v1.16 users.
+      https://github.com/pnormzkie/LinkGuard/releases/tag/v1.17
+- [ ] USER ACTION: REVOKE all 3 GitHub PATs pasted in chat (v1.15 + v1.16 + v1.17) — github.com/settings/tokens.
