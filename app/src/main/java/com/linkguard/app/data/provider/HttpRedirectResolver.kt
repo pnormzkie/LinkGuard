@@ -10,10 +10,10 @@ import com.linkguard.app.util.DomainExtractor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 
 /**
  * Follows a tapped link's HTTP redirect chain to its final destination, read-only and bounded.
@@ -38,63 +38,73 @@ class HttpRedirectResolver(
     private val isBlockedHost: (String) -> Boolean = { isPrivateOrLocalHost(it) }
 ) : RedirectResolver {
 
-    override suspend fun resolve(url: String): RedirectResolution = withContext(Dispatchers.IO) {
-        val chain = mutableListOf(url)
-        var current = url
+    private data class RedirectState(
+        val chain: MutableList<String>,
+        var current: String
+    )
+
+    private data class HopResponse(val code: Int, val location: String?)
+
+    override suspend fun resolve(url: String): RedirectResolution {
+        val state = RedirectState(mutableListOf(url), url)
+        return withTimeoutOrNull(totalBudgetMs) {
+            withContext(Dispatchers.IO) { resolveWithinBudget(state) }
+        } ?: result(state.chain, state.current, RedirectOutcome.TIMEOUT)
+    }
+
+    private suspend fun resolveWithinBudget(state: RedirectState): RedirectResolution {
         val startedAt = now()
         var hops = 0
 
         while (true) {
-            if (now() - startedAt >= totalBudgetMs) return@withContext result(chain, current, RedirectOutcome.TIMEOUT)
-            if (hops >= maxHops) return@withContext result(chain, current, RedirectOutcome.MAX_HOPS)
+            if (now() - startedAt >= totalBudgetMs) {
+                return result(state.chain, state.current, RedirectOutcome.TIMEOUT)
+            }
+            if (hops >= maxHops) return result(state.chain, state.current, RedirectOutcome.MAX_HOPS)
 
             val response = try {
-                fetchHop(current)
+                fetchHop(state.current)
             } catch (e: CancellationException) {
                 throw e // never swallow real coroutine cancellation
             } catch (e: Exception) {
-                Log.w(TAG, "redirect hop failed${if (BuildConfig.DEBUG) " for $current" else ""}: ${e.message}")
-                return@withContext result(chain, current, RedirectOutcome.ERROR)
+                Log.w(TAG, "redirect hop failed${if (BuildConfig.DEBUG) " for ${state.current}" else ""}: ${e.message}")
+                return result(state.chain, state.current, RedirectOutcome.ERROR)
             }
 
-            val code: Int
-            val location: String?
-            response.use {
-                code = it.code
-                location = if (code in 300..399) it.header("Location") else null
-            }
+            val code = response.code
+            val location = response.location
 
             if (code !in 300..399 || location.isNullOrBlank()) {
-                val outcome = if (chain.size > 1) RedirectOutcome.RESOLVED else RedirectOutcome.NO_REDIRECT
-                return@withContext result(chain, current, outcome)
+                val outcome = if (state.chain.size > 1) RedirectOutcome.RESOLVED else RedirectOutcome.NO_REDIRECT
+                return result(state.chain, state.current, outcome)
             }
 
             // resolve() returns null for relative-against-invalid or non-http(s) schemes —
             // that is exactly the "blocked scheme" case (javascript:/data:/intent:/mailto:).
-            val next = current.toHttpUrlOrNull()?.resolve(location)
-                ?: return@withContext result(chain, current, RedirectOutcome.BLOCKED_SCHEME)
+            val next = state.current.toHttpUrlOrNull()?.resolve(location)
+                ?: return result(state.chain, state.current, RedirectOutcome.BLOCKED_SCHEME)
             if (isBlockedHost(next.host)) {
-                return@withContext result(chain, current, RedirectOutcome.BLOCKED_PRIVATE_HOST)
+                return result(state.chain, state.current, RedirectOutcome.BLOCKED_PRIVATE_HOST)
             }
             val nextStr = next.toString()
-            if (chain.contains(nextStr)) return@withContext result(chain, current, RedirectOutcome.LOOP)
+            if (state.chain.contains(nextStr)) return result(state.chain, state.current, RedirectOutcome.LOOP)
 
-            chain.add(nextStr)
-            current = nextStr
+            state.chain.add(nextStr)
+            state.current = nextStr
             hops++
         }
-        @Suppress("UNREACHABLE_CODE")
-        result(chain, current, RedirectOutcome.RESOLVED)
     }
 
     /** HEAD first (minimal side effects); fall back to GET when the server rejects HEAD. */
-    private fun fetchHop(url: String): Response {
-        val head = client.newCall(request(url, head = true)).execute()
-        if (head.code == 405 || head.code == 501) {
-            head.close()
-            return client.newCall(request(url, head = false)).execute()
+    private suspend fun fetchHop(url: String): HopResponse {
+        client.executeCancellable(request(url, head = true)).use { head ->
+            if (head.code != 405 && head.code != 501) {
+                return HopResponse(head.code, head.header("Location"))
+            }
         }
-        return head
+        client.executeCancellable(request(url, head = false)).use { get ->
+            return HopResponse(get.code, get.header("Location"))
+        }
     }
 
     private fun request(url: String, head: Boolean): Request {

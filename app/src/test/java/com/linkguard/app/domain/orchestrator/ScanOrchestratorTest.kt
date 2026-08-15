@@ -302,6 +302,84 @@ class ScanOrchestratorTest {
     }
 
     @Test
+    fun `providers start only after stalled redirect reaches three second deadline`() = runTest {
+        val providerStarts = AtomicInteger()
+        val provider = FakeProvider { providerStarts.incrementAndGet(); emptyList() }
+        val orchestrator = orchestrator(
+            reputation = provider,
+            domain = provider,
+            enrichment = provider,
+            hybrid = provider,
+            domainAge = provider,
+            urlhaus = provider,
+            redirect = FakeRedirectResolver {
+                delay(AppConfig.REDIRECT_TOTAL_BUDGET_MS)
+                RedirectResolution(it, listOf(it), false, RedirectOutcome.TIMEOUT)
+            }
+        )
+
+        val scan = launch { orchestrator.scan("https://redirect-stall.test/path") }
+        runCurrent()
+        advanceTimeBy(AppConfig.REDIRECT_TOTAL_BUDGET_MS - 1)
+        runCurrent()
+        assertEquals(0, providerStarts.get())
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(6, providerStarts.get())
+        assertEquals(AppConfig.REDIRECT_TOTAL_BUDGET_MS, testScheduler.currentTime)
+        scan.join()
+    }
+
+    @Test
+    fun `parent cancellation during redirect never starts providers`() = runTest {
+        val providerStarts = AtomicInteger()
+        val provider = FakeProvider { providerStarts.incrementAndGet(); emptyList() }
+        val orchestrator = orchestrator(
+            reputation = provider,
+            domain = provider,
+            enrichment = provider,
+            hybrid = provider,
+            domainAge = provider,
+            urlhaus = provider,
+            redirect = FakeRedirectResolver { awaitCancellation() }
+        )
+
+        val scan = launch { orchestrator.scan("https://redirect-cancel.test/path") }
+        runCurrent()
+        scan.cancelAndJoin()
+
+        assertEquals(0, providerStarts.get())
+    }
+
+    @Test
+    fun `redirect timeout partial destination keeps historical score resolved url and cache behavior`() = runTest {
+        var redirectCalls = 0
+        val destination = "https://destination.test/partial"
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { original ->
+                redirectCalls++
+                RedirectResolution(
+                    finalUrl = destination,
+                    hops = listOf(original, destination),
+                    crossedDomains = true,
+                    outcome = RedirectOutcome.TIMEOUT
+                )
+            }
+        )
+
+        val first = orchestrator.scan("https://source.test/start")
+        val second = orchestrator.scan("https://source.test/start")
+
+        assertEquals(Verdict.SAFE, first.verdict.verdict)
+        assertEquals(15, first.verdict.finalScore)
+        assertEquals(setOf("REDIRECT_UNRESOLVED"), first.verdict.signals.map { it.ruleId }.toSet())
+        assertEquals(destination, first.resolvedUrl)
+        assertEquals(first.verdict, second.verdict)
+        assertEquals(1, redirectCalls)
+    }
+
+    @Test
     fun `credential form on a borderline untrusted destination escalates to threat`() = runTest {
         val nrd = signal(45, SignalStrength.STRONG, SignalSource.DOMAIN_SIGNAL, "Newly registered domain")
         var inspected: String? = null
@@ -644,7 +722,7 @@ class ScanOrchestratorTest {
     }
 
     @Test
-    fun `unsafe redirect DNS remains fail-soft and never reaches transport`() = runTest {
+    fun `unsafe redirect DNS remains fail-soft and never reaches transport`() = kotlinx.coroutines.runBlocking {
         val connectStarts = AtomicInteger()
         val requestStarts = AtomicInteger()
         val unsafeDns = HostSafetyValidator(object : Dns {

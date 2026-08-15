@@ -990,3 +990,11 @@ See tasks/plan-credential-form.md (approved: conditional-fetch design).
 - [x] Prevent RetryInterceptor from retrying or backing off after Call cancellation.
 - [x] Add deterministic helper/retry tests and retain orchestrator timeout/cancellation regression coverage.
 - [x] Run provider parsing tests, focused tests, full JVM suite, debug/release builds, and final diff audit.
+
+## 2026-08-16 — Strict cancellable redirect-resolution deadline
+
+- [x] Put the complete redirect chain under one existing three-second coroutine deadline.
+- [x] Route HEAD and fallback GET through CancellableOkHttp with local response ownership.
+- [x] Preserve partial hop state and propagate parent/ancestor cancellation.
+- [x] Add deterministic resolver and orchestrator deadline/cancellation/parity tests.
+- [x] Run focused/full tests, debug/release builds, diff check, and final read-only audit.
