@@ -982,3 +982,11 @@ See tasks/plan-credential-form.md (approved: conditional-fetch design).
 - [x] Prove private, mixed, empty, failed, and public DNS handling without real network access.
 - [x] Prove unsafe redirect DNS fails before transport and remains fail-soft through orchestration.
 - [x] Re-run focused/full tests, debug/release builds, diff check, signer check, and final audit.
+
+## 2026-08-16 — Cancellation-aware external provider HTTP calls
+
+- [x] Add one race-safe cancellable OkHttp execution helper with caller-owned successful responses.
+- [x] Route all six external providers through the helper without changing requests or parsing.
+- [x] Prevent RetryInterceptor from retrying or backing off after Call cancellation.
+- [x] Add deterministic helper/retry tests and retain orchestrator timeout/cancellation regression coverage.
+- [x] Run provider parsing tests, focused tests, full JVM suite, debug/release builds, and final diff audit.

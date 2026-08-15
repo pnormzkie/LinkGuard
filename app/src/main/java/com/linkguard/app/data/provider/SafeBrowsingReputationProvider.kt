@@ -36,7 +36,7 @@ class SafeBrowsingReputationProvider(
                 .post(body.toRequestBody(mediaType))
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            client.executeCancellable(request).use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 // Fail loud on non-2xx (bad key = 403, quota = 429, server = 5xx) so the
                 // orchestrator can tell "check failed" apart from "checked clean".

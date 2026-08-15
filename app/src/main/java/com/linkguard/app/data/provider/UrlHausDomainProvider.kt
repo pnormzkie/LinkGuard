@@ -52,7 +52,7 @@ class UrlHausDomainProvider(
                 .post(body)
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            client.executeCancellable(request).use { response ->
                 if (!response.isSuccessful) {
                     throw IOException("URLhaus HTTP ${response.code}")
                 }

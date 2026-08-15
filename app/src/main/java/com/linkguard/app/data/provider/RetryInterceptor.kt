@@ -24,16 +24,27 @@ class RetryInterceptor(
         val request = chain.request()
         var attempt = 0
         while (true) {
-            if (attempt > 0) sleeper(backoffFor(attempt))
+            throwIfCancelled(chain)
+            if (attempt > 0) {
+                throwIfCancelled(chain)
+                sleeper(backoffFor(attempt))
+                throwIfCancelled(chain)
+            }
+            throwIfCancelled(chain)
             try {
                 val response = chain.proceed(request)
                 if (response.code in 500..599 && attempt < maxRetries) {
+                    if (chain.call().isCanceled()) {
+                        response.close()
+                        throw IOException("Canceled")
+                    }
                     response.close() // must release the body before re-issuing
                     attempt++
                     continue
                 }
                 return response
             } catch (e: IOException) {
+                if (chain.call().isCanceled()) throw e
                 if (attempt >= maxRetries) throw e
                 attempt++
             }
@@ -42,4 +53,8 @@ class RetryInterceptor(
 
     private fun backoffFor(attempt: Int): Long =
         baseBackoffMs * attempt + (Math.random() * baseBackoffMs).toLong()
+
+    private fun throwIfCancelled(chain: Interceptor.Chain) {
+        if (chain.call().isCanceled()) throw IOException("Canceled")
+    }
 }

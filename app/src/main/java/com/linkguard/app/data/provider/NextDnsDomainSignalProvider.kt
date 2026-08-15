@@ -43,7 +43,7 @@ class NextDnsDomainSignalProvider(
                 .get()
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            client.executeCancellable(request).use { response ->
                 // Fail loud on a non-2xx resolve: an endpoint outage must not read as
                 // "domain not blocked". (Known trackers still fall back below via the catch.)
                 if (!response.isSuccessful) {

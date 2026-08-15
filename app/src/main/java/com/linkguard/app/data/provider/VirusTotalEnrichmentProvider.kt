@@ -45,7 +45,7 @@ class VirusTotalEnrichmentProvider(
                 .get()
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            client.executeCancellable(request).use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 // 404 = URL not yet in VirusTotal's database: a legitimate "no report" result.
                 if (response.code == 404) return@withContext emptyList()

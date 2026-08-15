@@ -55,7 +55,7 @@ class DomainAgeProvider(
                 .get()
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            client.executeCancellable(request).use { response ->
                 // 404 = registry has no RDAP record for this name (unsupported TLD, or not
                 // registered). That's a legitimate absence of signal, not a failed check.
                 if (response.code == 404) return@withContext emptyList()

@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * RetryInterceptor must retry transient failures once (5xx, connection IOException) but never
@@ -82,5 +83,41 @@ class RetryInterceptorTest {
         val result = runCatching { execute(client) }
         assertTrue("IOException must propagate after the retry", result.isFailure)
         assertEquals(2, calls.get()) // initial + one retry
+    }
+
+    @Test
+    fun `cancelled call performs no retry`() {
+        val calls = AtomicInteger(0)
+        val client = OkHttpClient.Builder()
+            .addInterceptor(RetryInterceptor(sleeper = {}))
+            .addInterceptor(Interceptor { chain ->
+                calls.incrementAndGet()
+                chain.call().cancel()
+                throw IOException("Canceled")
+            })
+            .build()
+
+        runCatching { execute(client) }
+
+        assertEquals(1, calls.get())
+    }
+
+    @Test
+    fun `cancellation during backoff prevents next proceed`() {
+        val calls = AtomicInteger(0)
+        val activeCall = AtomicReference<okhttp3.Call>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(RetryInterceptor(sleeper = { activeCall.get().cancel() }))
+            .addInterceptor(Interceptor { chain ->
+                calls.incrementAndGet()
+                stubResponding(500).intercept(chain)
+            })
+            .build()
+        val call = client.newCall(Request.Builder().url("https://example.com/").build())
+        activeCall.set(call)
+
+        runCatching { call.execute().close() }
+
+        assertEquals(1, calls.get())
     }
 }

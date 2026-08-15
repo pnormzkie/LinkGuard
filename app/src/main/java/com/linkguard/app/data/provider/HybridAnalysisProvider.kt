@@ -61,7 +61,7 @@ class HybridAnalysisProvider(
         emptyList()
     }
 
-    private fun performSearch(term: String, isTrusted: Boolean, isTracker: Boolean): List<ScanSignal> {
+    private suspend fun performSearch(term: String, isTrusted: Boolean, isTracker: Boolean): List<ScanSignal> {
         try {
             val isUrl = term.startsWith("http://", ignoreCase = true) ||
                     term.startsWith("https://", ignoreCase = true)
@@ -82,7 +82,7 @@ class HybridAnalysisProvider(
 
             val request = requestBuilder.build()
 
-            client.newCall(request).execute().use { response ->
+            client.executeCancellable(request).use { response ->
                 val responseBody = response.body?.string().orEmpty()
 
                 if (BuildConfig.DEBUG) Log.d(TAG, "HA Search ($term): HTTP ${response.code}")
