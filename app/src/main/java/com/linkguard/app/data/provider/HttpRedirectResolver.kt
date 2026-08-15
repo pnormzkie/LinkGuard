@@ -14,7 +14,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import java.net.InetAddress
 
 /**
  * Follows a tapped link's HTTP redirect chain to its final destination, read-only and bounded.
@@ -121,8 +120,6 @@ class HttpRedirectResolver(
     companion object {
         private const val TAG = "RedirectResolver"
         private const val USER_AGENT = "LinkGuard-SafetyCheck/1.0"
-        private val IPV4 = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
-
         private val SECOND_LEVEL_TLDS = setOf(
             "com.ph", "net.ph", "org.ph", "gov.ph",
             "co.uk", "org.uk", "gov.uk",
@@ -135,28 +132,8 @@ class HttpRedirectResolver(
          * are not IP literals are not blocked here (resolving DNS to check would add latency); a
          * named host pointing at a private IP is a documented residual.
          */
-        fun isPrivateOrLocalHost(host: String): Boolean {
-            val h = host.trim().lowercase().removeSurrounding("[", "]")
-            if (h.isEmpty()) return true
-            if (h == "localhost" || h.endsWith(".localhost") || h.endsWith(".local") ||
-                h.endsWith(".internal") || h.endsWith(".lan")
-            ) return true
-            val addr = ipLiteralOrNull(h) ?: return false
-            return addr.isLoopbackAddress || addr.isAnyLocalAddress ||
-                addr.isLinkLocalAddress || addr.isSiteLocalAddress || isUniqueLocalV6(addr)
-        }
-
-        // Only parse when the host looks like an IP literal — InetAddress.getByName does NOT
-        // perform DNS for a literal, so this stays network-free for named hosts (returns null).
-        private fun ipLiteralOrNull(host: String): InetAddress? {
-            if (!IPV4.matches(host) && !host.contains(':')) return null
-            return runCatching { InetAddress.getByName(host) }.getOrNull()
-        }
-
-        private fun isUniqueLocalV6(addr: InetAddress): Boolean {
-            val bytes = addr.address
-            return bytes.size == 16 && (bytes[0].toInt() and 0xfe) == 0xfc // fc00::/7
-        }
+        fun isPrivateOrLocalHost(host: String): Boolean =
+            HostSafetyValidator.isPrivateOrLocalHost(host)
 
         private fun registrableDomain(domain: String): String {
             val parts = domain.removePrefix("www.").split(".").filter { it.isNotEmpty() }

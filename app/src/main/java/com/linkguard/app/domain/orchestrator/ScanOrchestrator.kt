@@ -95,6 +95,15 @@ class ScanOrchestrator(
         allSignals.addAll(heuristicSignals)
         resolution?.let { allSignals.addAll(redirectSignals(it)) }
 
+        // Start bounded static inspection alongside providers only when local/redirect evidence
+        // has not already decided THREAT. Eligibility is side-effect-free and retains all fetch
+        // safeguards inside the inspector.
+        val localEvidenceIsThreat =
+            scoringEngine.evaluate(allSignals, externalCoverageMissing = false).verdict == Verdict.THREAT
+        val contentDeferred = credentialFormInspector
+            ?.takeIf { !localEvidenceIsThreat && it.isEligible(scanUrl) }
+            ?.let { async { inspectContent(scanUrl) } }
+
         // 3. Parallel API checks, each with its own timeout so one slow provider
         //    cannot starve the others. null means the check itself failed.
         val sbDeferred = async { guarded("SafeBrowsing", scanUrl, reputationProvider) }
@@ -115,15 +124,11 @@ class ScanOrchestrator(
                 "DA: ${results[4]?.size ?: "failed"}, UH: ${results[5]?.size ?: "failed"}"
         )
 
-        // 4. Static page inspection. Trusted hosts are skipped inside the inspector. Scan only
-        //    non-THREAT destinations so an otherwise-clean, AI-generated phishing page can still
-        //    be caught by its HTML, while already-dangerous URLs avoid an unnecessary fetch.
+        // 4. Include completed page evidence only when provider/heuristic evidence is not already
+        //    THREAT. This preserves the historical flags and scoring for provider-confirmed threats.
         var finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)
-        if (credentialFormInspector != null &&
-            finalVerdict.verdict != Verdict.THREAT &&
-            !KnownDomains.isTrusted(domain)
-        ) {
-            val contentSignals = inspectContent(scanUrl)
+        val contentSignals = contentDeferred?.await().orEmpty()
+        if (finalVerdict.verdict != Verdict.THREAT) {
             if (BuildConfig.DEBUG) {
                 Log.d(TAG, "Credential-form check ran for $domain -> found ${contentSignals.size} signal(s)")
             }
@@ -207,7 +212,7 @@ class ScanOrchestrator(
      *  must never break the scan). The inspector is itself fail-soft; the timeout guards the
      *  click-time path if a body fetch hangs. */
     private suspend fun inspectContent(scanUrl: String): List<ScanSignal> = try {
-        withTimeout(AppConfig.PROVIDER_TIMEOUT_MS) {
+        withTimeout(AppConfig.CONTENT_FETCH_TIMEOUT_MS) {
             credentialFormInspector?.inspect(scanUrl) ?: emptyList()
         }
     } catch (e: TimeoutCancellationException) {

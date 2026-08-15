@@ -12,13 +12,20 @@ import com.linkguard.app.util.DomainExtractor
 import com.linkguard.app.util.KnownDomains
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /**
  * Fetches a destination page's HTML (read-only, bounded) and detects a credential form.
@@ -38,13 +45,22 @@ class HttpCredentialFormInspector(
     private val client: OkHttpClient
 ) : CredentialFormInspector {
 
+    private val safeClient = client.newBuilder()
+        .dns((client.dns as? HostSafetyValidator) ?: HostSafetyValidator(client.dns))
+        .callTimeout(AppConfig.CONTENT_FETCH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .build()
+
+    override fun isEligible(finalUrl: String): Boolean {
+        val httpUrl = finalUrl.toHttpUrlOrNull() ?: return false
+        val pageDomain = DomainExtractor.extract(finalUrl) ?: return false
+        return !KnownDomains.isTrusted(pageDomain) &&
+            !HttpRedirectResolver.isPrivateOrLocalHost(httpUrl.host)
+    }
+
     override suspend fun inspect(finalUrl: String): List<ScanSignal> = withContext(Dispatchers.IO) {
+        if (!isEligible(finalUrl)) return@withContext emptyList()
         val httpUrl = finalUrl.toHttpUrlOrNull() ?: return@withContext emptyList()
         val pageDomain = DomainExtractor.extract(finalUrl) ?: return@withContext emptyList()
-        // Trusted majors obviously host login forms — never fetch or flag them.
-        if (KnownDomains.isTrusted(pageDomain)) return@withContext emptyList()
-        // Anti-SSRF: never contact private/loopback/link-local hosts.
-        if (HttpRedirectResolver.isPrivateOrLocalHost(httpUrl.host)) return@withContext emptyList()
 
         try {
             val request = Request.Builder()
@@ -53,7 +69,7 @@ class HttpCredentialFormInspector(
                 .get()
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            execute(request).use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 // Only parse HTML; skip JSON/binary/etc. (also avoids reading large media bodies).
                 val contentType = response.header("Content-Type").orEmpty()
@@ -70,6 +86,25 @@ class HttpCredentialFormInspector(
             Log.w(TAG, "content inspect failed${if (BuildConfig.DEBUG) " for $pageDomain" else ""}: ${e.message}")
             emptyList()
         }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun execute(request: Request): Response = suspendCancellableCoroutine { continuation ->
+        val call = safeClient.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                if (continuation.isActive) continuation.resumeWith(Result.failure(e))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (continuation.isActive) {
+                    continuation.resume(response) { response.close() }
+                } else {
+                    response.close()
+                }
+            }
+        })
     }
 
     private fun signalsFor(html: String, finalUrl: String, pageDomain: String): List<ScanSignal> {

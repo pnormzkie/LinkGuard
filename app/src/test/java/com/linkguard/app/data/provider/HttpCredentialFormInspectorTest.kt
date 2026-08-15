@@ -1,10 +1,21 @@
 package com.linkguard.app.data.provider
 
 import com.linkguard.app.domain.model.SignalStrength
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import okhttp3.Interceptor
+import okhttp3.Dns
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
+import java.net.InetAddress
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.LockSupport
 
 class HttpCredentialFormInspectorTest {
 
@@ -90,6 +101,31 @@ class HttpCredentialFormInspectorTest {
         val signals = HttpCredentialFormInspector(clientFailing())
             .inspect("http://login-evil.test/account")
         assertTrue(signals.isEmpty())
+    }
+
+    @Test
+    fun `parent cancellation cancels the active HTTP call promptly`() = runBlocking {
+        val requestStarted = CountDownLatch(1)
+        val callCancelled = CountDownLatch(1)
+        val publicAddress = InetAddress.getByName("93.184.216.34")
+        val client = OkHttpClient.Builder()
+            .dns(object : Dns {
+                override fun lookup(hostname: String): List<InetAddress> = listOf(publicAddress)
+            })
+            .addInterceptor(Interceptor { chain ->
+                requestStarted.countDown()
+                while (!chain.call().isCanceled()) LockSupport.parkNanos(1_000_000)
+                callCancelled.countDown()
+                throw IOException("cancelled")
+            })
+            .build()
+        val inspector = HttpCredentialFormInspector(client)
+        val job = launch(Dispatchers.Default) { inspector.inspect("https://cancel.test/login") }
+
+        assertTrue(requestStarted.await(1, TimeUnit.SECONDS))
+        job.cancelAndJoin()
+
+        assertTrue(callCancelled.await(1, TimeUnit.SECONDS))
     }
 
     @Test

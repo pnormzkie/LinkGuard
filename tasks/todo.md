@@ -960,3 +960,25 @@ See tasks/plan-credential-form.md (approved: conditional-fetch design).
       `LinkGuard-v1.18.apk` (24591136 bytes). Public download re-hashed byte-identical:
       262F445CB70D09BE7187E3ABD2E1F94BEE9FCA9081AF0C1D5286C7A9BE4AB0D2.
       https://github.com/pnormzkie/LinkGuard/releases/tag/v1.18
+
+## 2026-08-16 — Hybrid scan concurrency optimization
+
+- [x] Add side-effect-free page-inspection eligibility using the inspector's existing safeguards.
+- [x] Overlap eligible bounded page inspection with the six provider checks using structured concurrency.
+- [x] Preserve historical provider-THREAT flags by excluding page findings when other evidence is already THREAT.
+- [x] Add parity, timeout/failure, redirect, cache, cancellation, privacy, and virtual-time regression tests.
+- [x] Verify focused orchestrator tests, full JVM suite (299 tests), debug/release builds, and final surgical diff.
+
+### Final audit follow-up
+
+- [x] Enforce a strict 3-second total content-call and coroutine budget with active Call cancellation.
+- [x] Block public-looking hostnames that resolve to private, loopback, link-local, or unique-local IPs.
+- [x] Add deterministic deadline, provider-THREAT latency, HTTP cancellation, and injected-DNS tests.
+- [x] Re-run focused/full tests, debug/release builds, signer verification, and read-only diff audit.
+
+### Redirect DNS anti-SSRF closure
+
+- [x] Share the centralized validating DNS policy with the dedicated redirect client.
+- [x] Prove private, mixed, empty, failed, and public DNS handling without real network access.
+- [x] Prove unsafe redirect DNS fails before transport and remains fail-soft through orchestration.
+- [x] Re-run focused/full tests, debug/release builds, diff check, signer check, and final audit.

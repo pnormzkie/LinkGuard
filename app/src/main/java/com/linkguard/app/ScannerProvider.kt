@@ -3,6 +3,7 @@ package com.linkguard.app
 import com.linkguard.app.data.provider.DomainAgeProvider
 import com.linkguard.app.data.provider.HttpCredentialFormInspector
 import com.linkguard.app.data.provider.HttpRedirectResolver
+import com.linkguard.app.data.provider.HostSafetyValidator
 import com.linkguard.app.data.provider.HybridAnalysisProvider
 import com.linkguard.app.data.provider.NextDnsDomainSignalProvider
 import com.linkguard.app.data.provider.RetryInterceptor
@@ -21,6 +22,8 @@ import java.util.concurrent.TimeUnit
  */
 object ScannerProvider {
 
+    private val hostSafetyValidator: HostSafetyValidator by lazy { HostSafetyValidator() }
+
     val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -34,6 +37,7 @@ object ScannerProvider {
     // inspects and bounds every hop itself; short per-hop timeouts to protect click-time UX.
     private val redirectHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .dns(hostSafetyValidator)
             .connectTimeout(AppConfig.REDIRECT_PER_HOP_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(AppConfig.REDIRECT_PER_HOP_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .followRedirects(false)
@@ -46,6 +50,8 @@ object ScannerProvider {
     // redirect to a private host). The inspector caps how much of the body it reads.
     private val contentHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .dns(hostSafetyValidator)
+            .callTimeout(AppConfig.CONTENT_FETCH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .connectTimeout(AppConfig.CONTENT_FETCH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(AppConfig.CONTENT_FETCH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .followRedirects(false)

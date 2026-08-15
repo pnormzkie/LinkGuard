@@ -14,6 +14,9 @@ import com.linkguard.app.domain.model.ScanSignal
  * empty list so it can never break the surrounding scan.
  */
 interface CredentialFormInspector {
+    /** Side-effect-free eligibility check. Must not perform network access. */
+    fun isEligible(finalUrl: String): Boolean
+
     /** @param finalUrl the already-resolved destination URL. */
     suspend fun inspect(finalUrl: String): List<ScanSignal>
 }

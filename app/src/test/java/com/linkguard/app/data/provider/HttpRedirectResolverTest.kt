@@ -3,6 +3,9 @@ package com.linkguard.app.data.provider
 import com.linkguard.app.domain.model.RedirectOutcome
 import com.linkguard.app.util.AppConfig
 import kotlinx.coroutines.runBlocking
+import okhttp3.Call
+import okhttp3.Dns
+import okhttp3.EventListener
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -14,6 +17,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.util.concurrent.atomic.AtomicInteger
 
 class HttpRedirectResolverTest {
 
@@ -173,5 +180,37 @@ class HttpRedirectResolverTest {
         val res = resolver.resolve("https://a.test/x")
         assertEquals(RedirectOutcome.ERROR, res.outcome)
         assertEquals("https://a.test/x", res.finalUrl)
+    }
+
+    @Test
+    fun `unsafe DNS answer is blocked before socket connection or request transport`() = runBlocking {
+        val connectStarts = AtomicInteger()
+        val requestStarts = AtomicInteger()
+        val unsafeDns = HostSafetyValidator(object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> =
+                listOf(InetAddress.getByName("127.0.0.1"))
+        })
+        val client = OkHttpClient.Builder()
+            .dns(unsafeDns)
+            .eventListener(object : EventListener() {
+                override fun connectStart(
+                    call: Call,
+                    inetSocketAddress: InetSocketAddress,
+                    proxy: Proxy
+                ) {
+                    connectStarts.incrementAndGet()
+                }
+
+                override fun requestHeadersStart(call: Call) {
+                    requestStarts.incrementAndGet()
+                }
+            })
+            .build()
+
+        val result = HttpRedirectResolver(client).resolve("http://public-looking.test/path")
+
+        assertEquals(RedirectOutcome.ERROR, result.outcome)
+        assertEquals(0, connectStarts.get())
+        assertEquals(0, requestStarts.get())
     }
 }
