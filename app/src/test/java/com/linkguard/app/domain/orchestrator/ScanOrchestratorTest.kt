@@ -55,7 +55,7 @@ class ScanOrchestratorTest {
         source: SignalSource = SignalSource.EXTERNAL_REPUTATION,
         title: String = "Test signal"
     ) = ScanSignal(
-        ruleId = "TEST_RULE",
+        ruleId = "TEST_${title.filter { it.isLetterOrDigit() }}",
         title = title,
         description = "test",
         strength = strength,
@@ -241,6 +241,30 @@ class ScanOrchestratorTest {
     }
 
     @Test
+    fun `trusted host with redirect parameter is resolved and final host is scanned`() = runTest {
+        var resolvedInput: String? = null
+        var heuristicInput: String? = null
+        val orchestrator = orchestrator(
+            heuristic = FakeHeuristic { heuristicInput = it; emptyList() },
+            redirect = FakeRedirectResolver {
+                resolvedInput = it
+                RedirectResolution(
+                    finalUrl = "https://credential-harvest.test/login",
+                    hops = listOf(it, "https://credential-harvest.test/login"),
+                    crossedDomains = true,
+                    outcome = RedirectOutcome.RESOLVED
+                )
+            }
+        )
+
+        val tapped = "https://google.com/url?redirect_url=https%3A%2F%2Fcredential-harvest.test%2Flogin"
+        orchestrator.scan(tapped)
+
+        assertEquals(tapped, resolvedInput)
+        assertEquals("https://credential-harvest.test/login", heuristicInput)
+    }
+
+    @Test
     fun `redirect to a blocked target adds a strong signal`() = runTest {
         val orchestrator = orchestrator(
             redirect = FakeRedirectResolver {
@@ -277,13 +301,18 @@ class ScanOrchestratorTest {
     }
 
     @Test
-    fun `clean scan does not invoke the credential inspector`() = runTest {
+    fun `clean untrusted scan invokes the bounded page inspector`() = runTest {
+        var inspected: String? = null
         val orchestrator = orchestrator(
-            credential = FakeCredentialFormInspector { error("must not inspect a clean scan") }
+            credential = FakeCredentialFormInspector {
+                inspected = it
+                emptyList()
+            }
         )
 
         val result = orchestrator.scan("https://example.com")
 
+        assertEquals("https://example.com", inspected)
         assertEquals(Verdict.SAFE, result.verdict.verdict)
     }
 

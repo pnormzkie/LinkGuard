@@ -205,6 +205,17 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `chatgpt advanced account security page is safe`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://chatgpt.com/advanced-account-security?originator=android_app_homepage_beacon",
+            null
+        )
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertEquals(0, result.riskScore)
+        assertTrue(result.flags.isEmpty())
+    }
+
+    @Test
     fun `legit subdomain of an official domain is treated as safe`() {
         val result = HeuristicScanner.scanWithContext("https://accounts.google.com/signin", null)
         assertEquals(ThreatLevel.SAFE, result.threatLevel)
@@ -286,5 +297,29 @@ class HeuristicScannerTest {
         // ".ru" appears only in the embedded ref URL, not the real host (example.com).
         val flags = flagsOf("https://example.com/go?url=https://news.example.ru/article")
         assertFalse(flags.any { it.contains("Suspicious domain extension") })
+    }
+
+    @Test
+    fun `remote access app instruction is flagged as smishing`() {
+        val flags = flagsOf("https://example.com", "For account support, install AnyDesk now.")
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `task commission scam is flagged`() {
+        val flags = flagsOf("https://example.com", "Like and review products to earn commission per task.")
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `digital arrest payment demand is flagged`() {
+        val flags = flagsOf("https://example.com", "May warrant at kaso ka. Bayad agad ng legal fee.")
+        assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `benign remote support discussion is not flagged`() {
+        val flags = flagsOf("https://example.com", "Our IT policy explains remote desktop security.")
+        assertFalse(flags.any { it.contains("smishing", ignoreCase = true) })
     }
 }

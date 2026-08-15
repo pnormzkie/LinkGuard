@@ -191,7 +191,11 @@ object HeuristicScanner {
         // Tech-support / account-compromise scare scams
         Regex("(account|device|phone|computer).{0,20}(hacked|compromised|na-?hack|infected)", RegexOption.IGNORE_CASE),
         Regex("virus.{0,20}detected|detected.{0,20}virus", RegexOption.IGNORE_CASE),
-        Regex("(call|tumawag|tawag).{0,15}(now|agad|immediately).{0,25}(support|technician|microsoft|apple)", RegexOption.IGNORE_CASE)
+        Regex("(call|tumawag|tawag).{0,15}(now|agad|immediately).{0,25}(support|technician|microsoft|apple)", RegexOption.IGNORE_CASE),
+        Regex("(?:download|install|i-?install).{0,30}(?:anydesk|teamviewer|quicksupport|remote desktop)", RegexOption.IGNORE_CASE),
+        Regex("(?:like|follow|review|rate|subscribe).{0,40}(?:task|commission|kita|earn|bayad|paid)", RegexOption.IGNORE_CASE),
+        Regex("(?:guaranteed|sigurado|sure).{0,30}(?:return|profit|kita|income).{0,30}(?:invest|deposit|cash in|mag-?invest)", RegexOption.IGNORE_CASE),
+        Regex("(?:warrant|arrest|aresto|kaso|investigation).{0,50}(?:pay|bayad|deposit|transfer|legal fee|penalty)", RegexOption.IGNORE_CASE)
     )
 
     private val HOMOGRAPH_MAP = mapOf(
@@ -217,7 +221,8 @@ object HeuristicScanner {
         "steampowered.com", "steamcommunity.com",
         "discord.com",
         "epicgames.com",
-        "riotgames.com"
+        "riotgames.com",
+        "chatgpt.com", "openai.com"
     )
 
     private val ALL_OFFICIAL_DOMAINS: Set<String> = buildSet {

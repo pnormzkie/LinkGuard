@@ -918,3 +918,42 @@ See tasks/plan-credential-form.md (approved: conditional-fetch design).
       (24507572 bytes, f2b8e9ba…44498a). In-app updater will offer v1.17 to v1.16 users.
       https://github.com/pnormzkie/LinkGuard/releases/tag/v1.17
 - [ ] USER ACTION: REVOKE all 3 GitHub PATs pasted in chat (v1.15 + v1.16 + v1.17) — github.com/settings/tokens.
+
+## 2026-08-15 — ChatGPT URL false-positive fix
+
+- [x] Added `chatgpt.com` and `openai.com` to the curated trusted-domain list.
+- [x] Added regression coverage for `/advanced-account-security?originator=android_app_homepage_beacon`.
+- [x] Verify focused and full JVM unit tests: `:app:testDebugUnitTest` passed.
+
+## 2026-08-15 — AI-phishing static page detection
+
+- [x] Extended bounded static HTML inspection for OTP/payment forms, hidden sensitive fields,
+      urgent account language, brand impersonation, obfuscated scripts, cross-domain frames,
+      and urgent executable downloads.
+- [x] Added trusted ChatGPT/OpenAI domain consistency and trusted identity-provider exceptions.
+- [x] Expanded orchestrator inspection to untrusted non-THREAT destinations so clean-looking
+      phishing pages can be checked without inspecting trusted hosts or already-dangerous URLs.
+- [x] Added inspector and orchestrator regression tests.
+- [x] Verification: focused tests, full `:app:testDebugUnitTest`, and `:app:assembleDebug` pass.
+
+## 2026-08-15 — App-only advanced phishing hardening
+
+- [x] 1. Add benchmark-style malicious and legitimate regression fixtures.
+- [x] 2. Replace attribute-order-sensitive HTML extraction with bounded structured parsing.
+- [x] 3. Centralize page-brand identities and trusted authentication targets.
+- [x] 4. Detect multi-step sensitive forms, SVG/data payloads, ClickFix, overlays, clipboard use,
+      delayed redirects, and encoded/dynamic form behavior without executing JavaScript.
+- [x] 5. Calibrate generic keyword evidence so one weak word cannot change the verdict alone;
+      exact duplicate signals no longer inflate score or confidence.
+- [x] 6. Inspect redirect-capable trusted URLs without broadly scanning normal trusted pages.
+- [x] 7. Expand PH/Taglish message and QR regression coverage within current architecture.
+- [x] 8. Verify focused tests, full JVM suite (286 tests), debug build, and release build.
+
+## 2026-08-15 — Release v1.18
+
+- [x] Pre-flight: latest public release is v1.17; bump source to versionCode 19 / versionName 1.18.
+- [x] Full suite GREEN (286 tests) + signed release build GREEN (R8/shrink/lintVital).
+      APK: versionCode 19, versionName 1.18, V2 signer ead80ea1…27357 (same key),
+      size 24591136, SHA-256 262F445CB70D09BE7187E3ABD2E1F94BEE9FCA9081AF0C1D5286C7A9BE4AB0D2.
+- [x] Staged byte-identical `release-staging/LinkGuard-v1.18.apk`; local commit pending.
+- [ ] Publish v1.18 as latest GitHub Release and verify public asset byte-for-byte.

@@ -14,6 +14,18 @@
 **Rule:** This project has no Gradle wrapper script. Build with the cached Gradle 8.9 dist (`%USERPROFILE%\.gradle\wrapper\dists\gradle-8.9-bin\...\bin\gradle.bat`) and JDK 17 (`C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot`) — the bundled JBR is Java 21, which breaks AGP 8.1's jlink JdkImageTransform. Sandboxed shells also time out on dependency downloads; run Gradle unsandboxed.
 **Status:** active
 
+## 2026-08-15 — Trusted IdP exception for page-brand signals
+**Mistake:** A new page-brand impersonation signal treated an untrusted page posting a password form to Google as brand impersonation, breaking an existing OAuth regression test.
+**Context:** AI-phishing static HTML inspection expansion in `HttpCredentialFormInspector`.
+**Rule:** When adding brand/content signals, distinguish a page claiming a brand from a legitimate trusted identity-provider form target; test both local phishing forms and trusted OAuth-style destinations.
+**Status:** active
+
+## 2026-08-15 — Test signals need distinct rule identities
+**Mistake:** Existing scoring/orchestrator test helpers assigned one synthetic rule ID to different findings, so exact-rule deduplication initially collapsed valid test evidence and mapper groups.
+**Context:** App-only phishing hardening; duplicate-score protection in `ScoringEngine`.
+**Rule:** Test fixtures representing different findings must use distinct rule IDs. Production deduplication must include rule ID, source, and title so only exact repeated evidence is collapsed.
+**Status:** active
+
 ## 2026-06-12 — Verify audit findings before planning fixes
 **Mistake:** Initial code audit reported two issues that were already fixed (camera executor shutdown existed in onDestroy; PaymentQrValidator already bounds-checked TLV parsing).
 **Context:** LinkGuard improvements task — exploration phase findings fed into planning.

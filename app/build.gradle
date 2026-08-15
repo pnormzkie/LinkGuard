@@ -23,8 +23,8 @@ android {
         applicationId "com.linkguard.app"
         minSdk 26
         targetSdk 34
-        versionCode 18
-        versionName "1.17"
+        versionCode 19
+        versionName "1.18"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField "String", "VIRUSTOTAL_API_KEY", "\"${apiKey('VIRUSTOTAL_API_KEY')}\""
@@ -104,6 +104,9 @@ dependencies {
 
     // JSON
     implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Bounded, non-executing HTML parsing for phishing-page inspection
+    implementation 'org.jsoup:jsoup:1.17.2'
 
     // WorkManager
     implementation 'androidx.work:work-runtime-ktx:2.9.0'

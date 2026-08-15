@@ -19,7 +19,8 @@ object QrTypeDetector {
 
     private fun isUrl(text: String): Boolean {
         val lower = text.lowercase()
-        return lower.startsWith("http://") || lower.startsWith("https://")
+        return lower.startsWith("http://") || lower.startsWith("https://") ||
+            DOMAIN_ONLY_URL.matches(lower)
     }
 
     private fun isLikelyPaymentQr(text: String): Boolean {
@@ -39,4 +40,7 @@ object QrTypeDetector {
         return false
 
    }
+
+    private val DOMAIN_ONLY_URL =
+        Regex("""^(?:www\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:[/?#].*)?$""")
 }

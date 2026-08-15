@@ -23,7 +23,6 @@ class LegacyHeuristicEngine : HeuristicEngine {
                 flag.contains("typosquatting", ignoreCase = true) ||
                 flag.contains("subdomain", ignoreCase = true) -> SignalStrength.STRONG
                 
-                flag.contains("keyword", ignoreCase = true) || 
                 flag.contains("encoded", ignoreCase = true) ||
                 flag.contains("extension", ignoreCase = true) ||
                 flag.contains("TLD", ignoreCase = true) ||
@@ -32,6 +31,8 @@ class LegacyHeuristicEngine : HeuristicEngine {
                 flag.contains("file type", ignoreCase = true) ||
                 flag.contains("shortener", ignoreCase = true) -> SignalStrength.MEDIUM
                 
+                // A generic word such as "login" or "account" is not enough to change a
+                // verdict by itself. It remains useful as weak corroborating evidence.
                 else -> SignalStrength.WEAK
             }
 
@@ -44,7 +45,7 @@ class LegacyHeuristicEngine : HeuristicEngine {
                 score = when(strength) {
                     SignalStrength.STRONG -> 60
                     SignalStrength.MEDIUM -> 25
-                    else -> 15
+                    else -> if (flag.contains("keyword", ignoreCase = true)) 10 else 15
                 }
             )
         }

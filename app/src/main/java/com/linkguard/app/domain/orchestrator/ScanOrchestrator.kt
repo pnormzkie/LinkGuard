@@ -18,6 +18,7 @@ import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.DomainExtractor
 import com.linkguard.app.util.KnownDomains
 import kotlinx.coroutines.*
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * Orchestrates the full scanning pipeline including heuristics, reputation,
@@ -75,10 +76,12 @@ class ScanOrchestrator(
         }
 
         // 1b. Resolve redirects/shorteners to the true destination so heuristics + every
-        //     provider score the real landing page, not just a wrapper. Skipped for trusted
-        //     hosts (no need + saves latency). The verdict still gates opening; we never open.
+        //     provider score the real landing page, not just a wrapper. Normal trusted URLs
+        //     skip this for latency, but redirect-capable query parameters are still resolved
+        //     to prevent trusted-host open-redirect bypasses. The verdict still gates opening.
+        val originalDomain = DomainExtractor.extract(url)
         val resolution = redirectResolver
-            ?.takeIf { !KnownDomains.isTrusted(DomainExtractor.extract(url)) }
+            ?.takeIf { !KnownDomains.isTrusted(originalDomain) || hasRedirectParameter(url) }
             ?.resolve(url)
         val scanUrl = resolution?.finalUrl ?: url
 
@@ -112,13 +115,12 @@ class ScanOrchestrator(
                 "DA: ${results[4]?.size ?: "failed"}, UH: ${results[5]?.size ?: "failed"}"
         )
 
-        // 4. Conditional credential-form check. Only when the destination is untrusted AND
-        //    phase-1 is borderline-suspicious — so the page-body fetch (a privacy/perf cost) is
-        //    paid only when a found login form would actually change the verdict. THREAT is
-        //    already decided; SAFE isn't worth the fetch. A found form confirms → re-score.
+        // 4. Static page inspection. Trusted hosts are skipped inside the inspector. Scan only
+        //    non-THREAT destinations so an otherwise-clean, AI-generated phishing page can still
+        //    be caught by its HTML, while already-dangerous URLs avoid an unnecessary fetch.
         var finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)
         if (credentialFormInspector != null &&
-            finalVerdict.verdict == Verdict.SUSPICIOUS &&
+            finalVerdict.verdict != Verdict.THREAT &&
             !KnownDomains.isTrusted(domain)
         ) {
             val contentSignals = inspectContent(scanUrl)
@@ -233,4 +235,14 @@ class ScanOrchestrator(
         Log.w(TAG, "$name check failed${if (BuildConfig.DEBUG) " for $input" else ""}: ${e.message}")
         null
     }
+
+    private fun hasRedirectParameter(url: String): Boolean {
+        val parsed = url.toHttpUrlOrNull() ?: return false
+        return parsed.queryParameterNames.any { it.lowercase() in REDIRECT_PARAMETER_NAMES }
+    }
+
+    private val REDIRECT_PARAMETER_NAMES = setOf(
+        "url", "redirect", "redirect_uri", "redirect_url", "target", "dest", "destination",
+        "continue", "next", "return", "return_to", "returnurl", "goto", "out"
+    )
 }
