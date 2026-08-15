@@ -998,3 +998,17 @@ See tasks/plan-credential-form.md (approved: conditional-fetch design).
 - [x] Preserve partial hop state and propagate parent/ancestor cancellation.
 - [x] Add deterministic resolver and orchestrator deadline/cancellation/parity tests.
 - [x] Run focused/full tests, debug/release builds, diff check, and final read-only audit.
+
+## 2026-08-16 — v1.19 release-candidate preparation
+
+- [x] Verify the three scoped v1.19 commits and unchanged versionCode 20 / versionName 1.19.
+- [x] Run the complete JVM suite, debug build, and signed release/R8/lintVital build.
+- [x] Verify APK version, V2 signature, signing-certificate parity with v1.18, hash, and byte size.
+- [x] Stage `LinkGuard-v1.19.apk` without including unrelated workspace files.
+- [x] Accept committed icon refresh `12e0627` as part of v1.19 scope and update public notes to cover both icon and scan-pipeline improvements.
+- [ ] Present exact release notes and wait for explicit publish approval.
+
+Known provider-quality issues deferred to a separate calibrated fix after v1.19:
+- Hybrid Analysis may prioritize stale historical suspicious records over newer clean records.
+- URLhaus currently promotes offline host-level historical records to a strong finding.
+- Both behaviors pre-date v1.19; no provider mapping, scoring, threshold, or allowlist change is included in this release.
