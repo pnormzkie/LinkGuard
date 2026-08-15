@@ -955,5 +955,8 @@ See tasks/plan-credential-form.md (approved: conditional-fetch design).
 - [x] Full suite GREEN (286 tests) + signed release build GREEN (R8/shrink/lintVital).
       APK: versionCode 19, versionName 1.18, V2 signer ead80ea1…27357 (same key),
       size 24591136, SHA-256 262F445CB70D09BE7187E3ABD2E1F94BEE9FCA9081AF0C1D5286C7A9BE4AB0D2.
-- [x] Staged byte-identical `release-staging/LinkGuard-v1.18.apk`; local commit pending.
-- [ ] Publish v1.18 as latest GitHub Release and verify public asset byte-for-byte.
+- [x] Staged byte-identical `release-staging/LinkGuard-v1.18.apk`; committed as b702a61.
+- [x] Published v1.18 as latest GitHub Release; public API reports a production release and
+      `LinkGuard-v1.18.apk` (24591136 bytes). Public download re-hashed byte-identical:
+      262F445CB70D09BE7187E3ABD2E1F94BEE9FCA9081AF0C1D5286C7A9BE4AB0D2.
+      https://github.com/pnormzkie/LinkGuard/releases/tag/v1.18
