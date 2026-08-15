@@ -1012,3 +1012,15 @@ Known provider-quality issues deferred to a separate calibrated fix after v1.19:
 - Hybrid Analysis may prioritize stale historical suspicious records over newer clean records.
 - URLhaus currently promotes offline host-level historical records to a strong finding.
 - Both behaviors pre-date v1.19; no provider mapping, scoring, threshold, or allowlist change is included in this release.
+
+## 2026-08-16 — v1.20 release-candidate preparation
+
+- [x] Confirm public Latest is v1.19, public APK is versionCode 20 / versionName 1.19, and tag v1.20 is available.
+- [x] Bump only versionCode 20 -> 21 and versionName 1.19 -> 1.20.
+- [x] Add public v1.20 maintenance release notes for the committed scan-pipeline improvements.
+- [x] Run the complete non-cached JVM suite, debug build, and signed release/R8/lintVital build.
+- [x] Verify APK package/version, V2 signer, certificate parity, hash, byte size, and build/staging identity.
+- [x] Confirm UpdateChecker treats 1.20 as newer than 1.19 and 1.18.
+- [x] Present exact diffs and proposed staging list; separate staging approval received.
+
+Provider-quality calibration remains deferred: Hybrid Analysis stale-result selection and URLhaus offline host-level evidence will be handled in a separate release.
