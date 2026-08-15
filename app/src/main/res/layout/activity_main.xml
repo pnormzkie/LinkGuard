@@ -25,10 +25,8 @@
             <ImageView
                 android:layout_width="38dp"
                 android:layout_height="38dp"
-                android:background="@drawable/bg_e_btn_blue"
-                android:padding="9dp"
-                android:src="@drawable/ic_shield_sword"
-                app:tint="@color/e_text"
+                android:src="@mipmap/ic_launcher"
+                android:scaleType="fitCenter"
                 android:importantForAccessibility="no" />
 
             <TextView
