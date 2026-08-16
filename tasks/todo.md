@@ -1024,3 +1024,19 @@ Known provider-quality issues deferred to a separate calibrated fix after v1.19:
 - [x] Present exact diffs and proposed staging list; separate staging approval received.
 
 Provider-quality calibration remains deferred: Hybrid Analysis stale-result selection and URLhaus offline host-level evidence will be handled in a separate release.
+
+### Publication verification
+
+- [x] Pushed `release/v1.20-source` and annotated tag `v1.20`; both peel to `69c039aee85c09c224255fccd17e3f6f8e56c235` while remote `main` remains unchanged.
+- [x] Published GitHub Release `v1.20` as Latest with `draft=false`, `prerelease=false`, and exactly one custom asset: `LinkGuard-v1.20.apk`.
+- [x] Public asset verified byte-identical: 24,648,812 bytes, SHA-256 `72460FE1B96C7F3799D787855E913C3CD1EE8B5E7A1BB5152A5A1944A557E7A9`.
+- [x] `releases/latest` returns v1.20; UpdateChecker numeric version comparison offers 1.20 to both 1.18 and 1.19 users.
+
+## 2026-08-16 — v1.21 launcher-icon correction
+
+- [x] Replace only the legacy cyan-shield launcher fallback with the approved LinkGuard artwork.
+- [x] Bump versionCode 21 -> 22 and versionName 1.20 -> 1.21.
+- [x] Add focused public release notes for the launcher/search icon correction.
+- [x] Run complete non-cached JVM tests and debug/signed release/R8/lintVital builds.
+- [x] Verify APK version, V2 signer, certificate parity, hash, byte size, and build/staging identity.
+- [x] Present exact diff; staging and commit approval received.
