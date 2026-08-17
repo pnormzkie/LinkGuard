@@ -149,6 +149,19 @@ class ScanMapperTest {
     }
 
     @Test
+    fun `verified redirect opening target carries through to legacy result`() {
+        val domain = DomainScanResult(
+            url = "https://short.example/a",
+            normalizedUrl = "https://destination.example/landing",
+            verdict = ScoringEngine().evaluate(emptyList()),
+            resolvedUrl = "https://destination.example/landing",
+            verifiedResolvedUrl = "https://destination.example/landing"
+        )
+
+        assertEquals("https://destination.example/landing", domain.toLegacy().verifiedResolvedUrl)
+    }
+
+    @Test
     fun `flat flags list is unchanged by grouping`() {
         val signals = listOf(
             signal("Suspicious keyword", SignalSource.LOCAL_HEURISTIC),

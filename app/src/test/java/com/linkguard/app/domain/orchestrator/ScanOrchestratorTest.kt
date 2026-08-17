@@ -246,6 +246,7 @@ class ScanOrchestratorTest {
         assertEquals("evil.example", domainInput) // providers see the resolved domain
         assertEquals("https://sho.rt/a", result.url) // tapped URL kept for display/history
         assertEquals("https://evil.example/landing", result.resolvedUrl)
+        assertEquals("https://evil.example/landing", result.verifiedResolvedUrl)
     }
 
     @Test
@@ -375,6 +376,7 @@ class ScanOrchestratorTest {
         assertEquals(15, first.verdict.finalScore)
         assertEquals(setOf("REDIRECT_UNRESOLVED"), first.verdict.signals.map { it.ruleId }.toSet())
         assertEquals(destination, first.resolvedUrl)
+        assertEquals(null, first.verifiedResolvedUrl)
         assertEquals(first.verdict, second.verdict)
         assertEquals(1, redirectCalls)
     }

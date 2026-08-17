@@ -1040,3 +1040,21 @@ Provider-quality calibration remains deferred: Hybrid Analysis stale-result sele
 - [x] Run complete non-cached JVM tests and debug/signed release/R8/lintVital builds.
 - [x] Verify APK version, V2 signer, certificate parity, hash, byte size, and build/staging identity.
 - [x] Present exact diff; staging and commit approval received.
+
+### Publication verification
+
+- [x] Pushed `release/v1.21-source` and annotated tag `v1.21`; both resolve to `36fa3fbc74bb83c3531046db1b6a46bcfeae9d41`, while remote `main` remains unchanged.
+- [x] Published GitHub Release `v1.21` as Latest with `draft=false`, `prerelease=false`, and exactly one custom asset: `LinkGuard-v1.21.apk`.
+- [x] Public asset verified byte-identical: 24,648,812 bytes, SHA-256 `6F1D36409EA58172081CE0626A5BB01085A11F5DFDCDCBB4B6B8FD5DDCF807DE`.
+- [x] `releases/latest` returns v1.21; UpdateChecker numeric version comparison offers 1.21 to v1.20 and earlier users.
+
+## Next official release — v1.22 launcher-icon follow-up
+
+- [x] Promote the verified blue launcher-icon fix from `LinkGuard-S25-Icon-Fix.apk` into the official release source.
+- [x] Make completed redirect scans open the verified destination instead of re-opening the mutable wrapper URL; partial/blocked redirect outcomes retain the original opening target.
+- [x] Add focused regression coverage without changing scanning, scoring, network calls, UI layout, or database persistence.
+- [x] Bump versionCode 22 -> 23 and versionName 1.21 -> 1.22.
+- [x] Run all 337 JVM tests (0 failures/errors/skips) and build the signed release; verify versionCode 23 / versionName 1.22 and signer parity with v1.21.
+- [ ] Existing full-lint debt remains outside this bug-only release: stale `DismissReceiver` manifest entry, `UseAppTint`, and optional-camera ChromeOS declaration. No new v1.22 lint finding was introduced.
+- [ ] Verify staged APK hash/identity, then push and publish.
+- [ ] Push the scoped source branch/tag and publish `LinkGuard-v1.22.apk` with matching release notes.

@@ -143,7 +143,10 @@ class ScanOrchestrator(
             normalizedUrl = scanUrl.lowercase(),
             verdict = finalVerdict,
             timestamp = startedAt,
-            resolvedUrl = resolution?.takeIf { it.redirected }?.finalUrl
+            resolvedUrl = resolution?.takeIf { it.redirected }?.finalUrl,
+            verifiedResolvedUrl = resolution
+                ?.takeIf { it.redirected && it.outcome == RedirectOutcome.RESOLVED }
+                ?.finalUrl
         )
 
         // Don't cache unvetted results — retry external checks on the next scan.

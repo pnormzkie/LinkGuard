@@ -135,7 +135,10 @@ class LinkInterceptActivity : AppCompatActivity() {
         binding.tvReason.visibility = View.VISIBLE
 
         // Recommended action for a safe link is to open it.
-        configurePrimary(R.string.btn_open_link) { openInBrowser(result.url); finish() }
+        configurePrimary(R.string.btn_open_link) {
+            openInBrowser(result.verifiedResolvedUrl ?: result.url)
+            finish()
+        }
         configureSecondary(R.string.btn_close, R.color.e_muted) { finish() }
         binding.tvDangerOverride.visibility = View.GONE
         binding.buttonRow.visibility = View.VISIBLE
@@ -162,9 +165,14 @@ class LinkInterceptActivity : AppCompatActivity() {
             // High-risk: no co-equal override. Demote it to a low-emphasis, confirm-gated link.
             binding.btnSecondary.visibility = View.GONE
             binding.tvDangerOverride.visibility = View.VISIBLE
-            binding.tvDangerOverride.setOnClickListener { confirmDangerOpen(result.url) }
+            binding.tvDangerOverride.setOnClickListener {
+                confirmDangerOpen(result.verifiedResolvedUrl ?: result.url)
+            }
         } else {
-            configureSecondary(R.string.btn_open_anyway) { openInBrowser(result.url); finish() }
+            configureSecondary(R.string.btn_open_anyway) {
+                openInBrowser(result.verifiedResolvedUrl ?: result.url)
+                finish()
+            }
             binding.tvDangerOverride.visibility = View.GONE
         }
         binding.buttonRow.visibility = View.VISIBLE

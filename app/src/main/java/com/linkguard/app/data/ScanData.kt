@@ -43,7 +43,10 @@ data class ScanResult(
     /** The true destination when [url] redirected (shortener/wrapper). Like [flagGroups] this is
      *  set for fresh scans only and is intentionally NOT persisted to Room — history-loaded
      *  results read back null and the UI simply omits the "goes to" line. */
-    val resolvedUrl: String? = null
+    val resolvedUrl: String? = null,
+    /** Complete redirect destination approved for opening. Fresh-scan UI state only; not stored
+     *  in Room, just like [resolvedUrl]. Partial/blocked redirect outcomes leave this null. */
+    val verifiedResolvedUrl: String? = null
 ) : Parcelable
 
 data class ScanStats(
