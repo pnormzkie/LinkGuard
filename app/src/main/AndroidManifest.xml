@@ -23,9 +23,9 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_launcher_v123"
         android:label="LinkGuard"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_launcher_v123_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.LinkGuard"
         android:usesCleartextTraffic="false">
