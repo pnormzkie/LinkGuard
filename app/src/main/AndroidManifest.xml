@@ -52,13 +52,22 @@
         <!-- Main Activity -->
         <activity
             android:name=".ui.MainActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Versioned launcher component: forces OEM launchers/search indexes to create a new
+             icon entry instead of reusing the stale MainActivity component thumbnail. -->
+        <activity-alias
+            android:name=".ui.LauncherV124"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:icon="@mipmap/ic_launcher_v123"
+            android:label="LinkGuard"
+            android:targetActivity=".ui.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <!-- Threat Alert Activity (The Emergency Popup) -->
         <activity
