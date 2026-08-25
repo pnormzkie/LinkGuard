@@ -31,6 +31,13 @@
     <string name="scan_all_apps_desc">Off = trusted messaging apps only</string>
     <string name="scan_all_apps_on">Now scanning links from all apps</string>
     <string name="scan_all_apps_off">Scanning trusted messaging apps only</string>
+    <string name="excluded_urls">Excluded URLs</string>
+    <string name="excluded_urls_count">Excluded URLs · %1$d</string>
+    <string name="excluded_urls_hint">https://example.com/path?key=value</string>
+    <string name="excluded_urls_message">Enter one complete URL per line. Only an exact scheme, host, path, and query match will bypass tapped-link scanning. Different paths or query values will still be checked. Saved URLs open directly in your browser. Manual, QR, and notification scans are unchanged.</string>
+    <string name="excluded_urls_invalid">Invalid complete URL: %1$s</string>
+    <string name="excluded_urls_saved">Excluded URLs saved</string>
+    <string name="save">Save</string>
     <string name="error_invalid_url_qr">Invalid URL QR</string>
     <string name="error_unsupported_qr">Unsupported QR type</string>
     <string name="delete_scan">Delete Scan</string>

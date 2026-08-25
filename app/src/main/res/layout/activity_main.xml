@@ -581,6 +581,18 @@
         </FrameLayout>
 
         <TextView
+            android:id="@+id/btnExcludedUrls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="@string/excluded_urls"
+            android:textColor="@color/e_muted"
+            android:textSize="12sp"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
             android:id="@+id/tvVersion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

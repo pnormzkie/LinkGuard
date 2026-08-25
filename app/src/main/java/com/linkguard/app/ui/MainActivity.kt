@@ -15,8 +15,10 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.text.format.DateUtils
 import android.view.View
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.EditorInfo
@@ -47,6 +49,7 @@ import com.linkguard.app.update.UpdateInstaller
 import com.linkguard.app.update.formatReleaseNotes
 import com.linkguard.app.util.AlertCapabilities
 import com.linkguard.app.util.AppConfig
+import com.linkguard.app.util.ExcludedUrlMatcher
 import com.linkguard.app.util.MonitorPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -133,6 +136,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.loadData()
+        updateExcludedUrlsLabel()
         updateProtectionStatus()
         maybeRequestNotificationPermission()
         startAnimations()
@@ -213,6 +217,55 @@ class MainActivity : AppCompatActivity() {
                 getString(if (checked) R.string.scan_all_apps_on else R.string.scan_all_apps_off)
             )
         }
+
+        binding.btnExcludedUrls.setOnClickListener { showExcludedUrlsDialog() }
+    }
+
+    private fun showExcludedUrlsDialog() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.excluded_urls_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_VARIATION_URI
+            minLines = 4
+            maxLines = 8
+            setText(monitorPrefs.excludedUrls.sorted().joinToString("\n"))
+            setSelection(text.length)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.excluded_urls)
+            .setMessage(R.string.excluded_urls_message)
+            .setView(input)
+            .setPositiveButton(R.string.save, null)
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val entries = input.text.toString().lineSequence()
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .toList()
+                val invalid = entries.filter { ExcludedUrlMatcher.normalize(it) == null }
+                if (invalid.isNotEmpty()) {
+                    input.error = getString(R.string.excluded_urls_invalid, invalid.first())
+                    return@setOnClickListener
+                }
+
+                monitorPrefs.excludedUrls = entries.mapNotNull(ExcludedUrlMatcher::normalize).toSet()
+                updateExcludedUrlsLabel()
+                showSnackbar(getString(R.string.excluded_urls_saved))
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun updateExcludedUrlsLabel() {
+        binding.btnExcludedUrls.text = getString(
+            R.string.excluded_urls_count,
+            monitorPrefs.excludedUrls.size,
+        )
     }
 
     private fun openHistory(filter: String? = null) {

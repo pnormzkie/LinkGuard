@@ -21,6 +21,7 @@ import com.linkguard.app.databinding.ActivityLinkInterceptBinding
 import com.linkguard.app.databinding.ItemFlagBinding
 import com.linkguard.app.domain.mapper.toLegacy
 import com.linkguard.app.domain.scoring.ScoringEngine
+import com.linkguard.app.util.MonitorPreferences
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -34,8 +35,8 @@ import kotlinx.coroutines.launch
  * Treat all callers and intent extras as untrusted. Specifically:
  *  - `intent.data` is validated to http/https only; anything else is dropped and the
  *    activity finishes without acting on it.
- *  - The activity NEVER auto-opens a URL in the browser. Every verdict — including SAFE —
- *    shows a card and only opens on an explicit user tap. Do not add a silent forward path.
+ *  - The activity only auto-opens URLs that exactly match the user's explicit exclusion list.
+ *    Every scanned verdict — including SAFE — shows a card and requires a user tap.
  *  - CATEGORY_BROWSABLE callers are deliberately accepted (rejecting them would break
  *    legitimate link taps); the verdict UI, not the caller's identity, is the safeguard.
  */
@@ -59,6 +60,14 @@ class LinkInterceptActivity : AppCompatActivity() {
         if (url.isNullOrBlank() ||
             !(url.startsWith("http://", true) || url.startsWith("https://", true))
         ) {
+            finish()
+            return
+        }
+
+        // This narrow exception is user-created and exact: different paths or query values
+        // still follow the normal scan/verdict flow.
+        if (MonitorPreferences(applicationContext).isTapUrlExcluded(url)) {
+            openInBrowser(url)
             finish()
             return
         }

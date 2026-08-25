@@ -23,8 +23,8 @@ android {
         applicationId "com.linkguard.app"
         minSdk 26
         targetSdk 34
-        versionCode 25
-        versionName "1.24"
+        versionCode 26
+        versionName "1.25"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField "String", "VIRUSTOTAL_API_KEY", "\"${apiKey('VIRUSTOTAL_API_KEY')}\""

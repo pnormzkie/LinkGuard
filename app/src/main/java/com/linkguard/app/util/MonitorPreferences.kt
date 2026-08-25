@@ -24,8 +24,17 @@ class MonitorPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_SCAN_ALL_APPS, false)
         set(value) = prefs.edit().putBoolean(KEY_SCAN_ALL_APPS, value).apply()
 
+    /** Exact URLs the user trusts enough to bypass tapped-link interception. */
+    var excludedUrls: Set<String>
+        get() = prefs.getStringSet(KEY_EXCLUDED_URLS, emptySet()).orEmpty().toSet()
+        set(value) = prefs.edit().putStringSet(KEY_EXCLUDED_URLS, value.toSet()).apply()
+
+    fun isTapUrlExcluded(url: String): Boolean =
+        ExcludedUrlMatcher.isExcluded(url, excludedUrls)
+
     companion object {
         private const val PREFS_NAME = "linkguard_monitor_prefs"
         private const val KEY_SCAN_ALL_APPS = "scan_all_apps"
+        private const val KEY_EXCLUDED_URLS = "excluded_urls"
     }
 }
