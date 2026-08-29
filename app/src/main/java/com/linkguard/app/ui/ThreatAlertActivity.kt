@@ -51,47 +51,64 @@ class ThreatAlertActivity : AppCompatActivity() {
 
         window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
 
-        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra("scan_result", ScanResult::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra("scan_result")
-        }
-
-        result?.let {
-            val isDanger = it.threatLevel == ThreatLevel.DANGER
-            binding.alertTitle.text =
-                if (isDanger) getString(R.string.threat_alert_title)
-                else getString(R.string.suspicious_link_title)
-            
-            // Set icon based on threat level
-            if (isDanger) {
-                binding.alertIcon.setImageResource(android.R.drawable.ic_dialog_alert)
-            } else {
-                binding.alertIcon.setImageResource(R.drawable.ic_stat_suspicious)
-            }
-            
-            val appSource = it.sourceApp.ifBlank { getString(R.string.threat_alert_source_system) }
-            val messagePrefix =
-                if (isDanger) getString(R.string.threat_prefix_dangerous)
-                else getString(R.string.threat_prefix_suspicious)
-
-            binding.alertMessage.text =
-                getString(R.string.threat_alert_message, messagePrefix, it.senderInfo, appSource, it.url)
-            
-            binding.btnViewReport.setOnClickListener { _ ->
-                startActivity(ScanDetailActivity.newIntent(this, it))
-                finish()
-            }
+        if (!renderIntent(intent)) {
+            finish()
+            return
         }
 
         binding.btnDismiss.setOnClickListener { finish() }
     }
 
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+
+        if (!renderIntent(newIntent)) {
+            finish()
+        }
+    }
+
+    private fun renderIntent(sourceIntent: Intent): Boolean {
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            sourceIntent.getParcelableExtra(EXTRA_SCAN_RESULT, ScanResult::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            sourceIntent.getParcelableExtra(EXTRA_SCAN_RESULT)
+        } ?: return false
+
+        val isDanger = result.threatLevel == ThreatLevel.DANGER
+        binding.alertTitle.text =
+            if (isDanger) getString(R.string.threat_alert_title)
+            else getString(R.string.suspicious_link_title)
+
+        // Set icon based on threat level
+        if (isDanger) {
+            binding.alertIcon.setImageResource(android.R.drawable.ic_dialog_alert)
+        } else {
+            binding.alertIcon.setImageResource(R.drawable.ic_stat_suspicious)
+        }
+
+        val appSource = result.sourceApp.ifBlank { getString(R.string.threat_alert_source_system) }
+        val messagePrefix =
+            if (isDanger) getString(R.string.threat_prefix_dangerous)
+            else getString(R.string.threat_prefix_suspicious)
+
+        binding.alertMessage.text =
+            getString(R.string.threat_alert_message, messagePrefix, result.senderInfo, appSource, result.url)
+
+        binding.btnViewReport.setOnClickListener {
+            startActivity(ScanDetailActivity.newIntent(this, result))
+            finish()
+        }
+        return true
+    }
+
     companion object {
+        private const val EXTRA_SCAN_RESULT = "scan_result"
+
         fun newIntent(context: Context, result: ScanResult): Intent {
             return Intent(context, ThreatAlertActivity::class.java).apply {
-                putExtra("scan_result", result)
+                putExtra(EXTRA_SCAN_RESULT, result)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or 
                          Intent.FLAG_ACTIVITY_CLEAR_TOP or 
                          Intent.FLAG_ACTIVITY_SINGLE_TOP)

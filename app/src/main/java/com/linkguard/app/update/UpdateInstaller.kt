@@ -22,6 +22,8 @@ object UpdateInstaller {
 
     private const val TAG = "UpdateInstaller"
     private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+    private const val DOWNLOAD_COMPLETED_PERMISSION =
+        "android.permission.SEND_DOWNLOAD_COMPLETED_INTENTS"
 
     /** Returned when a download could not be started (untrusted URL or enqueue failure). */
     const val NO_DOWNLOAD = -1L
@@ -151,11 +153,15 @@ object UpdateInstaller {
         }
 
         // ACTION_DOWNLOAD_COMPLETE is sent by the system Downloads provider,
-        // which requires an exported receiver on Android 14+.
+        // which requires an exported receiver on Android 14+. Restrict the sender
+        // to the signature-level permission held by the Downloads provider so another
+        // app cannot spoof completion and unregister this receiver prematurely.
         ContextCompat.registerReceiver(
             appContext,
             receiver,
             IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+            DOWNLOAD_COMPLETED_PERMISSION,
+            null,
             ContextCompat.RECEIVER_EXPORTED
         )
 
