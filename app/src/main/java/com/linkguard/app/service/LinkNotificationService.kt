@@ -75,21 +75,19 @@ class LinkNotificationService : NotificationListenerService() {
         val sender = title.ifBlank { "Unknown" }
 
         urls.forEach { url ->
-            // Flood guard: skip when the per-window scan cap is hit (repeats of the same
-            // URL are already coalesced by the orchestrator's verdict cache).
-            if (!rateLimiter.tryAcquire()) {
-                if (BuildConfig.DEBUG) Log.w(TAG, "Rate limited, skipping scan for $url")
-                return@forEach
-            }
-            // Persistent daily cap (after the burst window) keeps us inside provider quotas
-            // across process restarts. Automatic path only — manual/tapped scans never hit this.
-            if (!dailyCounter.tryAcquire()) {
-                if (BuildConfig.DEBUG) Log.w(TAG, "Daily scan cap reached, skipping scan for $url")
-                return@forEach
+            // Quotas limit only network/API enrichment. Local heuristics always run so flooding
+            // cannot push a later malicious URL completely past protection.
+            val allowNetworkChecks = rateLimiter.tryAcquire() && dailyCounter.tryAcquire()
+            if (!allowNetworkChecks && BuildConfig.DEBUG) {
+                Log.w(TAG, "Network scan quota reached; running local-only analysis")
             }
             serviceScope.launch {
                 try {
-                    val domainResult = orchestrator.scan(url, messageText = fullMessageText)
+                    val domainResult = orchestrator.scan(
+                        url,
+                        messageText = fullMessageText,
+                        allowNetworkChecks = allowNetworkChecks
+                    )
                     val legacyResult = domainResult.toLegacy(sourceApp = appLabel, senderInfo = sender)
                     
                     repository.saveScan(legacyResult)

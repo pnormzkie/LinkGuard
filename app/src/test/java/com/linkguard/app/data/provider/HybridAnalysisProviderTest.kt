@@ -53,6 +53,33 @@ class HybridAnalysisProviderTest {
     }
 
     @Test
+    fun `newer clean analysis supersedes an older malicious report`() = runTest {
+        val body = """
+            {"count":2,"result":[
+              {"verdict":"malicious","threat_score":95,"analysis_start_time":"2025-01-01T00:00:00Z"},
+              {"verdict":"no specific threat","threat_score":5,"analysis_start_time":"2026-01-01T00:00:00Z"}]}
+        """.trimIndent()
+
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+
+        assertTrue(signals.isEmpty())
+    }
+
+    @Test
+    fun `missing analysis timestamp retains conservative worst-result behavior`() = runTest {
+        val body = """
+            {"count":2,"result":[
+              {"verdict":"malicious","threat_score":80},
+              {"verdict":"no specific threat","threat_score":5,"analysis_start_time":"2026-01-01"}]}
+        """.trimIndent()
+
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+
+        assertEquals(1, signals.size)
+        assertEquals("HYBRID_ANALYSIS_THREAT", signals[0].ruleId)
+    }
+
+    @Test
     fun `benign report yields no signal`() = runTest {
         val body = """{"count":1,"result":[{"verdict":"no specific threat","threat_score":10}]}"""
         assertTrue(provider(clientReturning(200, body)).fetchSignals(url).isEmpty())
@@ -71,9 +98,16 @@ class HybridAnalysisProviderTest {
     }
 
     @Test
-    fun `trusted domain is skipped without any network call`() = runTest {
-        // clientFailing proves the allow-list short-circuits before HTTP.
-        assertTrue(provider(clientFailing()).fetchSignals("https://github.com/user/repo").isEmpty())
+    fun `trusted-domain url is checked but its report remains calibrated`() = runTest {
+        val trustedUrl = "https://github.com/user/repo/releases/download/app.apk"
+        val body = """{"count":1,"result":[{"verdict":"malicious","threat_score":80}]}"""
+
+        val signals = provider(clientReturning(200, body)).fetchSignals(trustedUrl)
+
+        assertEquals(1, signals.size)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(15, signals[0].score)
+        assertEquals(trustedUrl, signals[0].matchedValue)
     }
 
     // ── Failure semantics ─────────────────────────────────────────────────────

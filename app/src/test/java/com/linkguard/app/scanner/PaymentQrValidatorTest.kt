@@ -105,4 +105,22 @@ class PaymentQrValidatorTest {
         assertFalse(result.isValid)
         assertTrue(result.message.contains("payload format"))
     }
+
+    @Test
+    fun `unsupported payload format indicator is rejected even with valid crc`() {
+        val body = "000202" + "5910TEST STORE" + "6006MANILA" + "6304"
+
+        val result = PaymentQrValidator.validate(body + crc16(body))
+
+        assertFalse(result.isValid)
+        assertEquals("Unsupported payload format indicator", result.message)
+    }
+
+    @Test
+    fun `data appended after crc is rejected`() {
+        val result = PaymentQrValidator.validate(validPayload() + "9999")
+
+        assertFalse(result.isValid)
+        assertEquals("CRC field positioning error", result.message)
+    }
 }

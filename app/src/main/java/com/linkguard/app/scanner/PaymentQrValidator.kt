@@ -32,12 +32,18 @@ object PaymentQrValidator {
             )
         }
 
-        // Tag 00: Payload Format Indicator (Dapat "01")
+        // Tag 00 must be first and its EMVCo Payload Format Indicator must be exactly "01".
         val payloadFormat = tags["00"]
         if (payloadFormat.isNullOrBlank()) {
             return PaymentQrValidationResult(
                 isValid = false,
                 message = "Missing payload format indicator"
+            )
+        }
+        if (payloadFormat != "01" || !text.startsWith("000201")) {
+            return PaymentQrValidationResult(
+                isValid = false,
+                message = "Unsupported payload format indicator"
             )
         }
 
@@ -51,7 +57,8 @@ object PaymentQrValidator {
         }
 
         val crcIndex = text.lastIndexOf("6304")
-        if (crcIndex == -1 || crcIndex + 8 > text.length) {
+        // CRC must be the final field; otherwise appended data was not protected by the checksum.
+        if (crcIndex == -1 || crcIndex + 8 != text.length) {
             return PaymentQrValidationResult(
                 isValid = false,
                 message = "CRC field positioning error"

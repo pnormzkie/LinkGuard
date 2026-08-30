@@ -340,10 +340,16 @@ class MainActivity : AppCompatActivity() {
                 val validation = PaymentQrValidator.validate(qr)
                 val result = ScanResult(
                     url = "Payment QR: ${validation.merchantName ?: "Unknown"}",
-                    threatLevel = if (validation.isValid) ThreatLevel.SAFE else ThreatLevel.SUSPICIOUS,
-                    riskScore = if (validation.isValid) 0 else 50,
-                    category = "Payment QR",
-                    flags = if (validation.isValid) emptyList() else listOf(validation.message),
+                    // A valid EMV checksum proves format integrity, not that the recipient account
+                    // belongs to the person or merchant the user intended to pay.
+                    threatLevel = ThreatLevel.SUSPICIOUS,
+                    riskScore = if (validation.isValid) 25 else 50,
+                    category = if (validation.isValid) "Payment QR — Payee unverified" else "Invalid Payment QR",
+                    flags = if (validation.isValid) {
+                        listOf("QR format and checksum are valid, but the recipient account was not verified")
+                    } else {
+                        listOf(validation.message)
+                    },
                     sourceApp = "QR",
                     senderInfo = "Physical Code"
                 )

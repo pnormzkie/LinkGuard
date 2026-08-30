@@ -118,7 +118,9 @@ class HeuristicScannerTest {
         // "pаypal.com" — the 'а' is Cyrillic U+0430, not Latin 'a'
         val result = HeuristicScanner.scanWithContext("https://pаypal.com", null)
         assertTrue(result.flags.any { it.contains("homoglyph", ignoreCase = true) })
-        assertEquals(ThreatLevel.SUSPICIOUS, result.threatLevel)
+        // Correct Unicode host extraction also lets the typosquatting rule corroborate the
+        // mixed-script signal, so a direct PayPal lookalike crosses the danger threshold.
+        assertEquals(ThreatLevel.DANGER, result.threatLevel)
     }
 
     @Test

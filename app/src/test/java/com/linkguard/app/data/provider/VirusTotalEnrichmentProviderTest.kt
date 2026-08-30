@@ -32,13 +32,14 @@ class VirusTotalEnrichmentProviderTest {
     }
 
     @Test
-    fun `trusted domain is skipped without any network call`() = runTest {
-        assertTrue(provider(clientFailing()).fetchSignals("https://google.com/search?q=x").isEmpty())
-    }
+    fun `trusted-domain url is still checked for a url-specific report`() = runTest {
+        val trustedUrl = "https://github.com/user/repo/releases/download/app.apk"
+        val body = """{"data":{"attributes":{"last_analysis_stats":{"malicious":1}}}}"""
 
-    @Test
-    fun `trusted subdomain is skipped without any network call`() = runTest {
-        assertTrue(provider(clientFailing()).fetchSignals("https://accounts.google.com/signin").isEmpty())
+        val signals = provider(clientReturning(200, body)).fetchSignals(trustedUrl)
+
+        assertEquals(1, signals.size)
+        assertEquals(trustedUrl, signals[0].matchedValue)
     }
 
     // ── Success path ──────────────────────────────────────────────────────────

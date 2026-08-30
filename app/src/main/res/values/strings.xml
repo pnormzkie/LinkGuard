@@ -169,7 +169,7 @@
     <string name="status_badge_safe">✓ SAFE</string>
 
     <!-- Payment QR snackbar (manual handling) -->
-    <string name="payment_qr_valid_header">✓ Valid payment QR</string>
+    <string name="payment_qr_valid_header">✓ Valid payment QR format</string>
     <string name="payment_qr_merchant_line">\nMerchant: %1$s</string>
     <string name="payment_qr_city_line">\nCity: %1$s</string>
     <string name="payment_qr_verify_reminder">\nAlways verify merchant details before paying.</string>

@@ -493,6 +493,30 @@ class HttpRedirectResolverTest {
     }
 
     @Test
+    fun `head success is verified when get reveals a redirect`() = runBlocking {
+        val getRange = AtomicReference<String?>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                val request = chain.request()
+                if (request.method == "HEAD") {
+                    stub(request, 200, null)
+                } else if (request.url.host == "cloaked.test") {
+                    getRange.set(request.header("Range"))
+                    stub(request, 302, "https://evil.test/landing")
+                } else {
+                    stub(request, 200, null)
+                }
+            })
+            .build()
+
+        val result = HttpRedirectResolver(client).resolve("https://cloaked.test/start")
+
+        assertEquals(RedirectOutcome.RESOLVED, result.outcome)
+        assertEquals("https://evil.test/landing", result.finalUrl)
+        assertEquals("bytes=0-0", getRange.get())
+    }
+
+    @Test
     fun `HEAD and fallback GET responses are both closed`() = runBlocking {
         val headClosed = CountDownLatch(1)
         val getClosed = CountDownLatch(1)

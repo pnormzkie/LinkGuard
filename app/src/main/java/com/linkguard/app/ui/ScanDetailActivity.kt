@@ -122,7 +122,7 @@ class ScanDetailActivity : AppCompatActivity() {
             val autoExpand = groups.size == 1
             groups.forEach { addFlagGroup(inflater, binding.flagsContainer, it, color, autoExpand) }
             // Only the "external checks unavailable" meta-note lives outside the groups.
-            flags.filter { it == ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON }
+            flags.filter(ScoringEngine::isCoverageWarning)
                 .forEach { addFlagNote(inflater, binding.flagsContainer, it) }
         } else {
             // History (no category data persisted): the flat list, as before.

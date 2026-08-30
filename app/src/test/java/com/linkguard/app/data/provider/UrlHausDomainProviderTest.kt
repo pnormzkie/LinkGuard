@@ -23,13 +23,14 @@ class UrlHausDomainProviderTest {
     }
 
     @Test
-    fun `listed host with only offline urls is strong`() = runBlocking {
+    fun `listed host with only offline urls is weak historical evidence`() = runBlocking {
         val body = """{"query_status":"ok","urls":[{"url_status":"offline"}]}"""
         val signals = UrlHausDomainProvider(clientReturning(200, body), key)
             .fetchSignals("http://evil.test/x")
         assertEquals(1, signals.size)
-        assertEquals("URLHAUS_KNOWN_MALWARE", signals[0].ruleId)
-        assertEquals(SignalStrength.STRONG, signals[0].strength)
+        assertEquals("URLHAUS_HISTORICAL_MALWARE", signals[0].ruleId)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(15, signals[0].score)
     }
 
     @Test

@@ -19,8 +19,8 @@ import okhttp3.Request
  * Follows a tapped link's HTTP redirect chain to its final destination, read-only and bounded.
  *
  * Safety invariants:
- *  - never opens/renders the target — it only walks `Location` headers (HEAD, GET fallback),
- *    never reads the body;
+ *  - never opens/renders the target — it only walks `Location` headers (HEAD, bounded GET probe),
+ *    never consumes the response body;
  *  - the injected [client] MUST disable auto-redirects so every hop is inspected here;
  *  - rejects non-http(s) redirect targets and private/loopback/link-local hosts (anti-SSRF);
  *  - bounded by [maxHops], a loop check, and a total [totalBudgetMs] time budget.
@@ -95,10 +95,17 @@ class HttpRedirectResolver(
         }
     }
 
-    /** HEAD first (minimal side effects); fall back to GET when the server rejects HEAD. */
+    /**
+     * HEAD first keeps the common redirect case cheap. A successful HEAD is also verified with a
+     * byte-range GET because some redirectors deliberately return 200 to HEAD and redirect only
+     * real GET requests. Redirecting HEAD responses need no second request.
+     */
     private suspend fun fetchHop(url: String): HopResponse {
         client.executeCancellable(request(url, head = true)).use { head ->
-            if (head.code != 405 && head.code != 501) {
+            if (head.code in 300..399 && !head.header("Location").isNullOrBlank()) {
+                return HopResponse(head.code, head.header("Location"))
+            }
+            if (head.code !in 200..299 && head.code != 405 && head.code != 501) {
                 return HopResponse(head.code, head.header("Location"))
             }
         }
@@ -109,7 +116,11 @@ class HttpRedirectResolver(
 
     private fun request(url: String, head: Boolean): Request {
         val builder = Request.Builder().url(url).header("User-Agent", USER_AGENT)
-        if (head) builder.head() else builder.get()
+        if (head) {
+            builder.head()
+        } else {
+            builder.header("Range", "bytes=0-0").get()
+        }
         return builder.build()
     }
 

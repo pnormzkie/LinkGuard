@@ -63,7 +63,11 @@ class ScanOrchestrator(
         synchronized(scanCache) { scanCache[key] = entry }
     }
 
-    suspend fun scan(url: String, messageText: String? = null): ScanResult = supervisorScope {
+    suspend fun scan(
+        url: String,
+        messageText: String? = null,
+        allowNetworkChecks: Boolean = true
+    ): ScanResult = supervisorScope {
         // 1. Check Cache — entries past the TTL are treated as a miss and re-scanned
         //    so a stale verdict can't outlive a domain going bad.
         val cacheKey = url + (messageText ?: "")
@@ -81,7 +85,10 @@ class ScanOrchestrator(
         //     to prevent trusted-host open-redirect bypasses. The verdict still gates opening.
         val originalDomain = DomainExtractor.extract(url)
         val resolution = redirectResolver
-            ?.takeIf { !KnownDomains.isTrusted(originalDomain) || hasRedirectParameter(url) }
+            ?.takeIf {
+                allowNetworkChecks &&
+                    (!KnownDomains.isTrusted(originalDomain) || hasRedirectParameter(url))
+            }
             ?.resolve(url)
         val scanUrl = resolution?.finalUrl ?: url
 
@@ -101,20 +108,27 @@ class ScanOrchestrator(
         val localEvidenceIsThreat =
             scoringEngine.evaluate(allSignals, externalCoverageMissing = false).verdict == Verdict.THREAT
         val contentDeferred = credentialFormInspector
-            ?.takeIf { !localEvidenceIsThreat && it.isEligible(scanUrl) }
+            ?.takeIf { allowNetworkChecks && !localEvidenceIsThreat && it.isEligible(scanUrl) }
             ?.let { async { inspectContent(scanUrl) } }
 
         // 3. Parallel API checks, each with its own timeout so one slow provider
         //    cannot starve the others. null means the check itself failed.
-        val sbDeferred = async { guarded("SafeBrowsing", scanUrl, reputationProvider) }
-        val dnsDeferred = async { guarded("NextDNS", domain, domainSignalProvider) }
-        val vtDeferred = async { guarded("VirusTotal", scanUrl, enrichmentProvider) }
-        val haDeferred = async { guarded("HybridAnalysis", scanUrl, hybridAnalysisProvider) }
-        val daDeferred = async { guarded("DomainAge", domain, domainAgeProvider) }
-        val uhDeferred = async { guarded("URLhaus", domain, urlHausProvider) }
-
-        val results = listOf(sbDeferred, dnsDeferred, vtDeferred, haDeferred, daDeferred, uhDeferred).awaitAll()
-        val externalCoverageMissing = results.all { it == null }
+        val results = if (allowNetworkChecks) {
+            val sbDeferred = async { guarded("SafeBrowsing", scanUrl, reputationProvider) }
+            val dnsDeferred = async { guarded("NextDNS", domain, domainSignalProvider) }
+            val vtDeferred = async { guarded("VirusTotal", scanUrl, enrichmentProvider) }
+            val haDeferred = async { guarded("HybridAnalysis", scanUrl, hybridAnalysisProvider) }
+            val daDeferred = async { guarded("DomainAge", domain, domainAgeProvider) }
+            val uhDeferred = async { guarded("URLhaus", domain, urlHausProvider) }
+            listOf(sbDeferred, dnsDeferred, vtDeferred, haDeferred, daDeferred, uhDeferred).awaitAll()
+        } else {
+            // Automatic notification quotas protect network/API resources, never the cheap local
+            // detector. null keeps the verdict visibly local-only and prevents safe-result caching.
+            List<List<ScanSignal>?>(PROVIDER_COUNT) { null }
+        }
+        val successfulProviderCount = results.count { it != null }
+        val externalCoverageMissing = successfulProviderCount == 0
+        val externalCoveragePartial = successfulProviderCount in 1 until PROVIDER_COUNT
         results.filterNotNull().forEach { allSignals.addAll(it) }
 
         Log.d(
@@ -126,7 +140,11 @@ class ScanOrchestrator(
 
         // 4. Include completed page evidence only when provider/heuristic evidence is not already
         //    THREAT. This preserves the historical flags and scoring for provider-confirmed threats.
-        var finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)
+        var finalVerdict = scoringEngine.evaluate(
+            allSignals,
+            externalCoverageMissing = externalCoverageMissing,
+            externalCoveragePartial = externalCoveragePartial
+        )
         val contentSignals = contentDeferred?.await().orEmpty()
         if (finalVerdict.verdict != Verdict.THREAT) {
             if (BuildConfig.DEBUG) {
@@ -134,7 +152,11 @@ class ScanOrchestrator(
             }
             if (contentSignals.isNotEmpty()) {
                 allSignals.addAll(contentSignals)
-                finalVerdict = scoringEngine.evaluate(allSignals, externalCoverageMissing)
+                finalVerdict = scoringEngine.evaluate(
+                    allSignals,
+                    externalCoverageMissing = externalCoverageMissing,
+                    externalCoveragePartial = externalCoveragePartial
+                )
             }
         }
 
@@ -149,8 +171,9 @@ class ScanOrchestrator(
                 ?.finalUrl
         )
 
-        // Don't cache unvetted results — retry external checks on the next scan.
-        if (!externalCoverageMissing) {
+        // Cache only fully vetted results. Partial provider outages must be retried on the next
+        // scan instead of preserving an overconfident clean verdict for the full TTL.
+        if (!externalCoverageMissing && !externalCoveragePartial) {
             cachePut(cacheKey, CacheEntry(result, startedAt))
         }
         result
@@ -246,11 +269,26 @@ class ScanOrchestrator(
 
     private fun hasRedirectParameter(url: String): Boolean {
         val parsed = url.toHttpUrlOrNull() ?: return false
-        return parsed.queryParameterNames.any { it.lowercase() in REDIRECT_PARAMETER_NAMES }
+        val parameterNames = parsed.queryParameterNames.mapTo(mutableSetOf()) { it.lowercase() }
+        if (parameterNames.any { it in REDIRECT_PARAMETER_NAMES }) return true
+
+        // Several major trusted services use short, endpoint-specific parameter names. Keep
+        // these scoped to their actual redirect paths so ordinary searches such as /search?q=
+        // do not incur redirect probing or get mistaken for open redirects.
+        val domain = DomainExtractor.extract(url)
+        val path = parsed.encodedPath.lowercase()
+        return when {
+            domain == "google.com" && path == "/url" -> "q" in parameterNames
+            domain == "facebook.com" && path == "/l.php" -> "u" in parameterNames
+            domain == "youtube.com" && path == "/redirect" -> "q" in parameterNames
+            else -> false
+        }
     }
 
     private val REDIRECT_PARAMETER_NAMES = setOf(
         "url", "redirect", "redirect_uri", "redirect_url", "target", "dest", "destination",
         "continue", "next", "return", "return_to", "returnurl", "goto", "out"
     )
+
+    private val PROVIDER_COUNT = 6
 }

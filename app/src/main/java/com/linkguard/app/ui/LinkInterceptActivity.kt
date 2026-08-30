@@ -136,7 +136,7 @@ class LinkInterceptActivity : AppCompatActivity() {
         binding.scoreFrame.visibility = View.VISIBLE
         setTappedLink(result.url, result.resolvedUrl, color)
 
-        val unvetted = result.flags.contains(ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON)
+        val unvetted = result.flags.any(ScoringEngine::isCoverageWarning)
         binding.tvReason.text = getString(
             if (unvetted) R.string.link_safe_local_only else R.string.link_safe_verified
         )
@@ -266,7 +266,7 @@ class LinkInterceptActivity : AppCompatActivity() {
             groups.forEach { addFlagGroup(layoutInflater, binding.flagsContainer, it, color, autoExpand) }
             // The only non-signal flat flag is the "external checks unavailable" meta-note;
             // surface it under the groups. (Signal titles are already represented by the groups.)
-            result.flags.filter { it == ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON }
+            result.flags.filter(ScoringEngine::isCoverageWarning)
                 .forEach { addFlagNote(layoutInflater, binding.flagsContainer, it) }
         } else {
             // Fallback when there is no category data: the flat list, as before.

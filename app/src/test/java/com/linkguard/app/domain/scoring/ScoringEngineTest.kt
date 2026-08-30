@@ -106,6 +106,15 @@ class ScoringEngineTest {
     }
 
     @Test
+    fun `safe verdict with partial external coverage has medium confidence`() {
+        val verdict = engine.evaluate(emptyList(), externalCoveragePartial = true)
+
+        assertEquals(Verdict.SAFE, verdict.verdict)
+        assertEquals(Confidence.MEDIUM, verdict.confidence)
+        assertTrue(verdict.secondaryReasons.contains(ScoringEngine.EXTERNAL_CHECKS_PARTIAL_REASON))
+    }
+
+    @Test
     fun `threat verdict without external coverage is capped at medium confidence`() {
         val verdict = engine.evaluate(
             listOf(signal(50, SignalStrength.CRITICAL, title = "Critical"), signal(50, title = "Other")),

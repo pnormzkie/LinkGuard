@@ -10,61 +10,72 @@ import java.util.regex.Pattern
 object UrlExtractor {
 
     private val URL_PATTERN: Pattern = Pattern.compile(
-        "(https?://[\\w\\-._~:/?#\\[\\]@!\$&'()*+,;=%]+)",
-        Pattern.CASE_INSENSITIVE
+        "(?<![\\p{L}\\p{N}_])(https?://[^\\s<>\\\"']+)",
+        Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
     )
 
     private val BARE_DOMAIN_PATTERN: Pattern = Pattern.compile(
-        "(?<![\\w@])([\\w\\-]+\\.[a-z]{2,}(?:/[\\w\\-._~:/?#\\[\\]@!\$&'()*+,;=%]*)?)",
-        Pattern.CASE_INSENSITIVE
-    )
-
-    private val WHITELISTED_DOMAINS = setOf(
-        "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
-        "facebook.com", "instagram.com", "twitter.com", "tiktok.com",
-        "google.com", "apple.com", "microsoft.com", "amazon.com",
-        "youtube.com", "linkedin.com", "github.com", "reddit.com",
-        "netflix.com", "paypal.com",
-        "bpi.com.ph", "bdo.com.ph", "metrobank.com.ph", "landbank.com",
-        "gcash.com", "maya.ph", "shopee.ph", "lazada.com.ph"
+        "(?<![\\p{L}\\p{N}_@])(" +
+            "(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]{0,61}[\\p{L}\\p{N}])?\\.)+" +
+            "(?:[\\p{L}]{2,63}|xn--[a-z0-9-]{2,59})" +
+            "(?::\\d{1,5})?(?:/[^\\s<>\\\"']*)?" +
+            ")",
+        Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
     )
 
     fun extractUrls(text: String): List<String> {
         val urls = mutableListOf<String>()
+        val explicitRanges = mutableListOf<IntRange>()
 
         val matcher1 = URL_PATTERN.matcher(text)
         while (matcher1.find()) {
-            urls.add(matcher1.group(1) ?: continue)
+            val candidate = normalizeCandidate(matcher1.group(1) ?: continue, addScheme = false)
+                ?: continue
+            urls.add(candidate)
+            explicitRanges.add(matcher1.start(1) until matcher1.end(1))
         }
 
         val matcher2 = BARE_DOMAIN_PATTERN.matcher(text)
         while (matcher2.find()) {
-            val domain = matcher2.group(1) ?: continue
-            val domainLower = domain.lowercase()
+            val range = matcher2.start(1) until matcher2.end(1)
+            if (explicitRanges.any { it.first < range.last + 1 && range.first < it.last + 1 }) continue
 
-            if (urls.any { it.contains(domainLower) }) continue
-            if (domain.length < 5) continue
-
-            val hostPart = domainLower.substringBefore("/")
-
-            val allowedTlds = listOf(
-                ".com", ".net", ".org", ".io", ".co",
-                ".ph", ".com.ph", ".net.ph", ".org.ph"
-            )
-
-            val looksLikeRealBareDomain = allowedTlds.any { tld ->
-                hostPart.endsWith(tld)
-            }
-
-            if (!looksLikeRealBareDomain) continue
-
-            if (WHITELISTED_DOMAINS.any { hostPart == it || hostPart.endsWith(".$it") }) continue
-
-            urls.add("https://$domain")
+            val candidate = normalizeCandidate(matcher2.group(1) ?: continue, addScheme = true)
+                ?: continue
+            urls.add(candidate)
         }
 
-        return urls.distinct()
+        return urls.distinctBy { it.lowercase() }
     }
+
+    /**
+     * Removes prose punctuation without damaging balanced delimiters that legitimately belong
+     * to a URL. Trust decisions deliberately happen later in the detection pipeline: extraction
+     * must never suppress a path merely because its host is well known.
+     */
+    private fun normalizeCandidate(raw: String, addScheme: Boolean): String? {
+        var value = raw.trim()
+        while (value.lastOrNull() in TRAILING_SENTENCE_PUNCTUATION) value = value.dropLast(1)
+        value = trimUnmatchedCloser(value, '(', ')')
+        value = trimUnmatchedCloser(value, '[', ']')
+        value = trimUnmatchedCloser(value, '{', '}')
+        if (value.isBlank()) return null
+
+        val normalized = if (addScheme) "https://$value" else value
+        val host = DomainExtractor.extract(normalized) ?: return null
+        if (!host.contains('.') || host.startsWith('.') || host.endsWith('.')) return null
+        return normalized
+    }
+
+    private fun trimUnmatchedCloser(value: String, opener: Char, closer: Char): String {
+        var trimmed = value
+        while (trimmed.endsWith(closer) && trimmed.count { it == closer } > trimmed.count { it == opener }) {
+            trimmed = trimmed.dropLast(1)
+        }
+        return trimmed
+    }
+
+    private val TRAILING_SENTENCE_PUNCTUATION = setOf('.', ',', ';', ':', '!', '?', '\u2026')
 }
 
 // ─── Heuristic Scanner ────────────────────────────────────────────────────────

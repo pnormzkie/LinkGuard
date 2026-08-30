@@ -142,6 +142,74 @@ class ScanOrchestratorTest {
     }
 
     @Test
+    fun `network quota exhaustion still runs local detection without network or caching`() = runTest {
+        var heuristicCalls = 0
+        var providerCalls = 0
+        var redirectCalls = 0
+        var contentCalls = 0
+        val localThreat = signal(
+            score = 60,
+            strength = SignalStrength.STRONG,
+            source = SignalSource.LOCAL_HEURISTIC,
+            title = "Local brand spoof"
+        )
+        val countingProvider = FakeProvider { providerCalls++; emptyList() }
+        val orchestrator = orchestrator(
+            heuristic = FakeHeuristic { heuristicCalls++; listOf(localThreat) },
+            reputation = countingProvider,
+            domain = countingProvider,
+            enrichment = countingProvider,
+            hybrid = countingProvider,
+            domainAge = countingProvider,
+            urlhaus = countingProvider,
+            redirect = FakeRedirectResolver {
+                redirectCalls++
+                error("redirect must not run in local-only mode")
+            },
+            credential = FakeCredentialFormInspector {
+                contentCalls++
+                error("content inspection must not run in local-only mode")
+            }
+        )
+
+        val first = orchestrator.scan("https://spoof.test", allowNetworkChecks = false)
+        val second = orchestrator.scan("https://spoof.test", allowNetworkChecks = false)
+
+        assertEquals(Verdict.THREAT, first.verdict.verdict)
+        assertEquals(Verdict.THREAT, second.verdict.verdict)
+        assertEquals(2, heuristicCalls) // local-only results are deliberately not cached
+        assertEquals(0, providerCalls)
+        assertEquals(0, redirectCalls)
+        assertEquals(0, contentCalls)
+        assertTrue(first.verdict.secondaryReasons.contains(ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON))
+    }
+
+    @Test
+    fun `partial provider coverage lowers confidence and is not cached`() = runTest {
+        var successfulCalls = 0
+        var failedCalls = 0
+        val failing = FakeProvider { failedCalls++; throw IOException("offline") }
+        val orchestrator = orchestrator(
+            reputation = FakeProvider { successfulCalls++; emptyList() },
+            domain = failing,
+            enrichment = failing,
+            hybrid = failing,
+            domainAge = failing,
+            urlhaus = failing
+        )
+
+        val first = orchestrator.scan("https://partial-coverage.test")
+        val second = orchestrator.scan("https://partial-coverage.test")
+
+        assertEquals(Verdict.SAFE, first.verdict.verdict)
+        assertEquals(Confidence.MEDIUM, first.verdict.confidence)
+        assertTrue(first.verdict.secondaryReasons.contains(ScoringEngine.EXTERNAL_CHECKS_PARTIAL_REASON))
+        assertEquals(2, successfulCalls)
+        assertEquals(10, failedCalls)
+        assertEquals(first.verdict, second.verdict)
+    }
+
+    @Test
     fun `one failing provider does not abort the others`() = runTest {
         val vtSignal = signal(45, SignalStrength.STRONG, SignalSource.ENRICHMENT, "3 Vendors Flagged")
         val orchestrator = orchestrator(
@@ -277,11 +345,23 @@ class ScanOrchestratorTest {
             }
         )
 
-        val tapped = "https://google.com/url?redirect_url=https%3A%2F%2Fcredential-harvest.test%2Flogin"
+        // Google's real redirect endpoint uses q=, while ordinary /search?q= links stay exempt.
+        val tapped = "https://google.com/url?q=https%3A%2F%2Fcredential-harvest.test%2Flogin"
         orchestrator.scan(tapped)
 
         assertEquals(tapped, resolvedInput)
         assertEquals("https://credential-harvest.test/login", heuristicInput)
+    }
+
+    @Test
+    fun `ordinary trusted search query does not trigger redirect resolution`() = runTest {
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { error("ordinary search must not be resolved") }
+        )
+
+        val result = orchestrator.scan("https://google.com/search?q=linkguard")
+
+        assertEquals(Verdict.SAFE, result.verdict.verdict)
     }
 
     @Test

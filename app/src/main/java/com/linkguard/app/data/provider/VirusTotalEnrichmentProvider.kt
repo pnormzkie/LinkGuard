@@ -8,8 +8,6 @@ import com.linkguard.app.domain.model.SignalSource
 import com.linkguard.app.domain.model.SignalStrength
 import com.linkguard.app.BuildConfig
 import com.linkguard.app.domain.scanner.SignalProvider
-import com.linkguard.app.util.DomainExtractor
-import com.linkguard.app.util.KnownDomains
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -26,11 +24,6 @@ class VirusTotalEnrichmentProvider(
 
     override suspend fun fetchSignals(input: String): List<ScanSignal> = withContext(Dispatchers.IO) {
         if (apiKey.trim().isEmpty()) return@withContext emptyList()
-
-        val domain = DomainExtractor.extract(input)
-        if (KnownDomains.isTrusted(domain)) {
-            return@withContext emptyList()
-        }
 
         try {
             // VirusTotal needs URL-safe base64 without padding. java.util.Base64 (API 26+,

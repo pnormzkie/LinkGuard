@@ -223,4 +223,39 @@ class HttpCredentialFormInspectorTest {
             .inspect("https://technology-news.test/article")
         assertTrue(signals.isEmpty())
     }
+
+    @Test
+    fun `meta refresh to another untrusted domain is detected without following it`() = runBlocking {
+        val html = """<html><head><meta http-equiv="refresh"
+            content="0; URL=https://landing-evil.test/login"></head><body>Loading</body></html>"""
+
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://wrapper.test/start")
+
+        assertTrue(signals.any {
+            it.ruleId == "CLIENT_SIDE_CROSS_DOMAIN_REDIRECT" &&
+                it.matchedValue == "https://landing-evil.test/login"
+        })
+    }
+
+    @Test
+    fun `literal javascript cross-domain redirect is detected without execution`() = runBlocking {
+        val html = """<html><script>window.location.replace('https://next-evil.test/step')</script></html>"""
+
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://wrapper.test/start")
+
+        assertTrue(signals.any { it.ruleId == "CLIENT_SIDE_CROSS_DOMAIN_REDIRECT" })
+    }
+
+    @Test
+    fun `same-domain and trusted client redirects remain clean`() = runBlocking {
+        val sameDomain = """<meta http-equiv="refresh" content="0;url=/next">"""
+        val trustedDestination = """<script>location.href='https://accounts.google.com/signin'</script>"""
+        val inspector = HttpCredentialFormInspector(clientReturningHtml(200, sameDomain))
+        val trustedInspector = HttpCredentialFormInspector(clientReturningHtml(200, trustedDestination))
+
+        assertTrue(inspector.inspect("https://wrapper.test/start").isEmpty())
+        assertTrue(trustedInspector.inspect("https://wrapper.test/start").isEmpty())
+    }
 }

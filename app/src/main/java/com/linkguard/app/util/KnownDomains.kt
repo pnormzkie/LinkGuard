@@ -9,8 +9,9 @@ package com.linkguard.app.util
 object KnownDomains {
 
     /**
-     * Major services trusted enough to skip external reputation/enrichment lookups.
-     * A match also covers subdomains (e.g. accounts.google.com matches google.com).
+     * Major services whose reputation can calibrate noisy domain-level signals. Trust does not
+     * bypass URL-specific checks because legitimate services can host user-controlled content or
+     * redirect to an unsafe destination. A match also covers subdomains.
      */
     val TRUSTED_DOMAINS: Set<String> = setOf(
         "google.com", "youtube.com", "facebook.com", "microsoft.com",

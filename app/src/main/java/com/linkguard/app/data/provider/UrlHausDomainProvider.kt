@@ -23,8 +23,9 @@ import java.io.IOException
  * complements the existing providers for zero-hour malware sites.
  *
  * Queries `POST /v1/host/` with `host=<domain>` and the free Auth-Key header. A listed host with
- * an ONLINE malware URL is treated as CRITICAL (active distribution); a listed host whose URLs are
- * all offline is STRONG (recently malicious). `no_results` is a legitimate "clean" absence.
+ * an ONLINE malware URL is treated as CRITICAL (active distribution). A host whose tracked URLs
+ * are all offline is retained only as WEAK historical evidence because host-level records can
+ * outlive the malicious path or a later ownership change. `no_results` is a clean absence.
  *
  * Failure semantics match the other providers: a blank key is a no-op (feature disabled); any
  * transport error, auth error, or non-2xx is rethrown so the orchestrator can tell "check failed"
@@ -94,12 +95,12 @@ class UrlHausDomainProvider(
             score = 100,
             matchedValue = domain
         ) else ScanSignal(
-            ruleId = "URLHAUS_KNOWN_MALWARE",
-            title = "Recently flagged on URLhaus",
-            description = "abuse.ch URLhaus recorded malware distribution on this host (URLs now offline).",
-            strength = SignalStrength.STRONG,
+            ruleId = "URLHAUS_HISTORICAL_MALWARE",
+            title = "Historical URLhaus malware record",
+            description = "abuse.ch URLhaus previously recorded malware on this host, but every tracked URL is now offline.",
+            strength = SignalStrength.WEAK,
             source = SignalSource.EXTERNAL_REPUTATION,
-            score = 50,
+            score = 15,
             matchedValue = domain
         )
     }

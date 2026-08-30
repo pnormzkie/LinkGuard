@@ -15,6 +15,11 @@ class ScoringEngine {
 
         const val EXTERNAL_CHECKS_UNAVAILABLE_REASON =
             "External security checks unavailable — verdict based on local analysis only"
+        const val EXTERNAL_CHECKS_PARTIAL_REASON =
+            "Some external security checks unavailable — verdict based on partial coverage"
+
+        fun isCoverageWarning(reason: String): Boolean =
+            reason == EXTERNAL_CHECKS_UNAVAILABLE_REASON || reason == EXTERNAL_CHECKS_PARTIAL_REASON
     }
 
     /**
@@ -22,7 +27,11 @@ class ScoringEngine {
      * or timeout), meaning the verdict rests on local heuristics alone. The verdict itself
      * is unchanged, but confidence is downgraded so "not vetted" never reads as "clean".
      */
-    fun evaluate(signals: List<ScanSignal>, externalCoverageMissing: Boolean = false): ScanVerdict {
+    fun evaluate(
+        signals: List<ScanSignal>,
+        externalCoverageMissing: Boolean = false,
+        externalCoveragePartial: Boolean = false
+    ): ScanVerdict {
         // A provider or parser must not inflate risk by emitting the same rule repeatedly.
         val effectiveSignals = signals.distinctBy { Triple(it.ruleId, it.source, it.title) }
         val totalScore = effectiveSignals.sumOf { it.score }.coerceIn(0, 100)
@@ -68,14 +77,16 @@ class ScoringEngine {
             else -> Confidence.MEDIUM
         }
         val confidence = when {
-            !externalCoverageMissing -> baseConfidence
-            verdict == Verdict.SAFE -> Confidence.LOW // "not vetted", not "clean"
-            else -> minOf(baseConfidence, Confidence.MEDIUM)
+            externalCoverageMissing && verdict == Verdict.SAFE -> Confidence.LOW // local-only
+            externalCoverageMissing -> minOf(baseConfidence, Confidence.MEDIUM)
+            externalCoveragePartial -> minOf(baseConfidence, Confidence.MEDIUM)
+            else -> baseConfidence
         }
 
         val secondaryReasons = buildList {
             addAll(effectiveSignals.map { it.title }.distinct())
             if (externalCoverageMissing) add(EXTERNAL_CHECKS_UNAVAILABLE_REASON)
+            else if (externalCoveragePartial) add(EXTERNAL_CHECKS_PARTIAL_REASON)
         }
 
         return ScanVerdict(

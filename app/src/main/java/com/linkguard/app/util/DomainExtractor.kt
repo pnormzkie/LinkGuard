@@ -18,7 +18,10 @@ object DomainExtractor {
             }
 
             val uri = URI(normalizedUrl)
-            val host = uri.host ?: return null
+            // java.net.URI leaves host null for valid Unicode/IDN authorities. Preserve the raw
+            // hostname so the heuristic layer can inspect mixed scripts before HTTP clients
+            // canonicalize it to punycode.
+            val host = uri.host ?: authorityHost(uri.rawAuthority) ?: return null
             host.lowercase().removePrefix("www.")
         } catch (e: Exception) {
             // Mirror URI.host: drop scheme, path, and query, then take the authority's
@@ -31,6 +34,15 @@ object DomainExtractor {
                 .substringBefore(":")
                 .removePrefix("www.")
                 .lowercase()
+        }
+    }
+
+    private fun authorityHost(authority: String?): String? {
+        val value = authority?.substringAfterLast('@')?.takeIf { it.isNotBlank() } ?: return null
+        return if (value.startsWith('[')) {
+            value.substringAfter('[').substringBefore(']').takeIf { it.isNotBlank() }
+        } else {
+            value.substringBefore(':').takeIf { it.isNotBlank() }
         }
     }
 }

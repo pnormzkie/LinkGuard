@@ -128,9 +128,23 @@ class HttpCredentialFormInspector(
             postsCredentialsToTrustedDomain(document)
         val hasUrgentLanguage = URGENT_ACCOUNT_LANGUAGE.containsMatchIn(visibleText)
         val hasExecutableDownload = hasExecutableDownload(document)
-        if (!hasSensitiveRequest && !hasExecutableDownload && !hasClickFix(visibleText)) return emptyList()
+        val clientSideRedirectTarget = crossDomainClientRedirect(document, html, finalUrl, pageDomain)
+        if (!hasSensitiveRequest && !hasExecutableDownload && !hasClickFix(visibleText) &&
+            clientSideRedirectTarget == null) return emptyList()
 
         return buildList {
+            if (clientSideRedirectTarget != null) add(
+                ScanSignal(
+                    ruleId = "CLIENT_SIDE_CROSS_DOMAIN_REDIRECT",
+                    title = "Page hides a redirect to another site",
+                    description = "The page uses a static browser redirect to send you to a different untrusted domain.",
+                    strength = SignalStrength.MEDIUM,
+                    source = SignalSource.LOCAL_HEURISTIC,
+                    score = 25,
+                    matchedValue = clientSideRedirectTarget,
+                    metadata = evidence("page_evasion")
+                )
+            )
             if (hasPassword) add(if (postsToUntrustedDomain) {
                 ScanSignal(
                     ruleId = "CREDENTIAL_FORM_EXFIL",
@@ -280,7 +294,8 @@ class HttpCredentialFormInspector(
                     metadata = evidence("page_evasion")
                 )
             )
-            if (hasSensitiveRequest && CLIPBOARD_OR_DELAYED_REDIRECT.containsMatchIn(normalized)) add(
+            if (hasSensitiveRequest && clientSideRedirectTarget == null &&
+                CLIPBOARD_OR_DELAYED_REDIRECT.containsMatchIn(normalized)) add(
                 ScanSignal(
                     ruleId = "SCRIPTED_USER_REDIRECTION",
                     title = "Sensitive page manipulates clipboard or delayed navigation",
@@ -366,6 +381,45 @@ class HttpCredentialFormInspector(
     private fun hasClickFix(visibleText: String): Boolean =
         CLICKFIX_LANGUAGE.containsMatchIn(visibleText)
 
+    /**
+     * Extracts only literal meta-refresh or simple JavaScript navigation targets. Nothing is
+     * executed or followed. Same-site and recognized trusted destinations are ignored to avoid
+     * treating ordinary refreshes and identity-provider handoffs as malicious behavior.
+     */
+    private fun crossDomainClientRedirect(
+        document: Document,
+        rawHtml: String,
+        finalUrl: String,
+        pageDomain: String
+    ): String? {
+        val candidates = buildList {
+            document.select("meta[http-equiv][content]")
+                .asSequence()
+                .filter { it.attr("http-equiv").equals("refresh", ignoreCase = true) }
+                .mapNotNullTo(this) { metaRefreshTarget(it.attr("content")) }
+            SIMPLE_SCRIPT_REDIRECT.findAll(rawHtml)
+                .mapNotNullTo(this) { it.groups[1]?.value ?: it.groups[2]?.value }
+        }
+        val base = finalUrl.toHttpUrlOrNull() ?: return null
+        val pageRegistrable = registrableDomain(pageDomain)
+        return candidates.firstNotNullOfOrNull { rawTarget ->
+            val target = base.resolve(rawTarget.trim()) ?: return@firstNotNullOfOrNull null
+            val targetDomain = DomainExtractor.extract(target.toString())
+                ?: return@firstNotNullOfOrNull null
+            target.toString().takeIf {
+                !KnownDomains.isTrusted(targetDomain) &&
+                    registrableDomain(targetDomain) != pageRegistrable
+            }
+        }
+    }
+
+    private fun metaRefreshTarget(content: String): String? {
+        val directive = content.substringAfter(';', missingDelimiterValue = "").trim()
+        if (!directive.startsWith("url", ignoreCase = true)) return null
+        return directive.substringAfter('=', missingDelimiterValue = "")
+            .trim().trim('\'', '"').takeIf { it.isNotBlank() }
+    }
+
     private fun evidence(group: String): Map<String, String> = mapOf("evidence_group" to group)
 
     private fun registrableDomain(domain: String): String {
@@ -402,6 +456,10 @@ class HttpCredentialFormInspector(
             Regex("""(?:data:(?:text/html|image/svg\+xml)|<svg\b[^>]*(?:onload|href\s*=\s*["']?data:))""", RegexOption.IGNORE_CASE)
         private val CLIPBOARD_OR_DELAYED_REDIRECT =
             Regex("""(?:navigator\.clipboard|clipboardData|setTimeout\s*\([^)]*(?:location|window\.open)|location\.(?:href|replace|assign)\s*=)""", RegexOption.IGNORE_CASE)
+        private val SIMPLE_SCRIPT_REDIRECT = Regex(
+            """(?:window\.|document\.|top\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']|(?:window\.|document\.|top\.)?location\.(?:replace|assign)\s*\(\s*["']([^"']+)["']""",
+            RegexOption.IGNORE_CASE
+        )
         private val CLICKFIX_LANGUAGE =
             Regex("""(?:press\s+(?:windows\s*\+\s*r|win\s*\+\s*r)|open\s+(?:powershell|terminal|command prompt)|paste\s+(?:the\s+)?command|run\s+(?:the\s+)?command|copy\s+(?:and\s+)?paste.{0,40}(?:verify|fix|captcha))""", RegexOption.IGNORE_CASE)
         private val DANGEROUS_DOWNLOAD_EXTENSIONS = setOf(

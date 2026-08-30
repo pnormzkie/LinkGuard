@@ -7,6 +7,11 @@ import org.junit.Test
 class DomainExtractorTest {
 
     @Test
+    fun `preserves unicode host for homoglyph analysis`() {
+        assertEquals("pаypal.com", DomainExtractor.extract("https://pаypal.com/login"))
+    }
+
+    @Test
     fun `extracts host from https url with path and query`() {
         assertEquals("example.com", DomainExtractor.extract("https://example.com/path?q=1"))
     }

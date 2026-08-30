@@ -20,6 +20,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 import java.security.MessageDigest
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 class HybridAnalysisProvider(
     private val client: OkHttpClient,
@@ -42,13 +46,6 @@ class HybridAnalysisProvider(
         // Identify if the domain or its parent is trusted
         val isTrusted = KnownDomains.isTrusted(domain)
         val isTracker = KnownDomains.isTracker(domain)
-
-        // Optimization: Skip Hybrid Analysis entirely for ALL trusted domains (including Google trackers).
-        // This prevents timeouts and relies on NextDNS for faster, more reliable tracker flagging.
-        if (isTrusted) {
-            if (BuildConfig.DEBUG) Log.d(TAG, "HybridAnalysis: Skipping trusted domain $domain")
-            return@withContext emptyList()
-        }
 
         // Search original URL only (No more redundant fallback searches to avoid timeouts)
         val signals = performSearch(trimmedInput, isTrusted, isTracker)
@@ -112,29 +109,23 @@ class HybridAnalysisProvider(
 
                 if (results == null || results.size() == 0) return emptyList()
 
-                var bestMatch: JsonObject? = null
-                var bestRiskValue = Int.MIN_VALUE
+                val candidates = results
+                    .filter { it.isJsonObject }
+                    .map { it.asJsonObject }
+                if (candidates.isEmpty()) return emptyList()
 
-                for (item in results) {
-                    if (!item.isJsonObject) continue
-
-                    val obj = item.asJsonObject
-                    val score = obj.getIntSafely("threat_score")
-                    val verdict = obj.getStringSafely("verdict").lowercase()
-
-                    val riskValue = when {
-                        verdict == "malicious" -> score + 1000
-                        verdict == "suspicious" -> score + 500
-                        else -> score
-                    }
-
-                    if (riskValue > bestRiskValue) {
-                        bestRiskValue = riskValue
-                        bestMatch = obj
-                    }
+                // When every report provides a usable analysis time, assess only the newest
+                // analysis batch. This prevents a stale malicious run from overriding a newer
+                // clean result forever. If any timestamp is absent/unparseable, retain the
+                // conservative historical worst-result behavior rather than hiding evidence.
+                val timestamped = candidates.map { it to it.analysisTimestampOrNull() }
+                val eligible = if (timestamped.all { it.second != null }) {
+                    val newest = timestamped.maxOf { it.second!! }
+                    timestamped.filter { it.second == newest }.map { it.first }
+                } else {
+                    candidates
                 }
-
-                val chosen = bestMatch ?: return emptyList()
+                val chosen = eligible.maxByOrNull(::riskValue) ?: return emptyList()
 
                 val score = chosen.getIntSafely("threat_score")
                 val rawVerdict = chosen.getStringSafely("verdict").let { if (it.trim().isEmpty()) "unknown" else it }
@@ -205,6 +196,23 @@ class HybridAnalysisProvider(
         } catch (_: Exception) {
             ""
         }
+    }
+
+    private fun riskValue(result: JsonObject): Int {
+        val score = result.getIntSafely("threat_score")
+        return when (result.getStringSafely("verdict").lowercase()) {
+            "malicious" -> score + 1000
+            "suspicious" -> score + 500
+            else -> score
+        }
+    }
+
+    private fun JsonObject.analysisTimestampOrNull(): Instant? {
+        val raw = getStringSafely("analysis_start_time").trim()
+        if (raw.isEmpty()) return null
+        return runCatching { Instant.parse(raw) }.getOrNull()
+            ?: runCatching { LocalDateTime.parse(raw.replace(' ', 'T')).toInstant(ZoneOffset.UTC) }.getOrNull()
+            ?: runCatching { LocalDate.parse(raw).atStartOfDay(ZoneOffset.UTC).toInstant() }.getOrNull()
     }
 
 }
