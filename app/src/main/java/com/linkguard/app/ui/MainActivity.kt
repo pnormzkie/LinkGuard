@@ -43,6 +43,7 @@ import com.linkguard.app.databinding.ItemUpdateNoteBinding
 import com.linkguard.app.scanner.PaymentQrValidator
 import com.linkguard.app.scanner.QrType
 import com.linkguard.app.scanner.QrTypeDetector
+import com.linkguard.app.scanner.UrlInputNormalizer
 import com.linkguard.app.update.UpdateChecker
 import com.linkguard.app.update.UpdateInfo
 import com.linkguard.app.update.UpdateInstaller
@@ -318,7 +319,7 @@ class MainActivity : AppCompatActivity() {
             binding.etUrl.error = getString(R.string.error_enter_url)
             return
         }
-        val url = normalizeUrl(raw) ?: run {
+        val url = UrlInputNormalizer.normalize(raw) ?: run {
             binding.etUrl.error = getString(R.string.error_invalid_url)
             return
         }
@@ -330,7 +331,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleQrResult(qr: String) {
         when (QrTypeDetector.detect(qr)) {
             QrType.URL -> {
-                val url = normalizeUrl(qr) ?: run {
+                val url = UrlInputNormalizer.normalize(qr) ?: run {
                     showSnackbar(getString(R.string.error_invalid_url_qr))
                     return
                 }
@@ -369,22 +370,6 @@ class MainActivity : AppCompatActivity() {
             }
             QrType.UNKNOWN -> showSnackbar(getString(R.string.error_unsupported_qr))
         }
-    }
-
-    private fun normalizeUrl(input: String): String? {
-        var candidate = input.trim()
-        if (!candidate.startsWith("http://", ignoreCase = true) &&
-            !candidate.startsWith("https://", ignoreCase = true)
-        ) {
-            candidate = "https://$candidate"
-        }
-        return runCatching {
-            val uri = candidate.toUri()
-            val host = uri.host
-            if (uri.scheme.isNullOrBlank() || host.isNullOrBlank()) return null
-            if (!host.contains(".") || host.startsWith(".") || host.endsWith(".")) return null
-            candidate
-        }.getOrNull()
     }
 
     // ─── ViewModel Observers ──────────────────────────────────────────────────

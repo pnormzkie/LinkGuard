@@ -3,7 +3,25 @@ package com.linkguard.app.scanner
 import com.linkguard.app.data.ScanResult
 import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.util.DomainExtractor
+import com.linkguard.app.util.KnownDomains
+import java.net.URI
 import java.util.regex.Pattern
+
+internal val DANGEROUS_FILE_EXTENSIONS = listOf(
+    ".exe", ".apk", ".bat", ".cmd", ".msi", ".ps1",
+    ".vbs", ".jar", ".scr", ".pif", ".reg",
+    ".zip", ".rar", ".7z", ".docm", ".xlsm", ".pptm"
+)
+
+internal enum class LocalHeuristicStrength { WEAK, MEDIUM, STRONG, CRITICAL }
+
+internal data class LocalHeuristicFinding(
+    val ruleId: String,
+    val title: String,
+    val strength: LocalHeuristicStrength,
+    val score: Int,
+    val legacyScore: Int
+)
 
 // ─── URL Extractor ────────────────────────────────────────────────────────────
 
@@ -82,13 +100,12 @@ object UrlExtractor {
 
 object HeuristicScanner {
 
-    private val SUSPICIOUS_TLDS = listOf(
+    // A TLD is weak context, never a verdict by itself. Keep this list limited to suffixes
+    // with elevated abuse risk; mainstream namespaces such as .io/.info/.shop are excluded.
+    private val ELEVATED_RISK_TLDS = listOf(
         ".tk", ".ml", ".ga", ".cf", ".gq",
-        ".xyz", ".top", ".click", ".download", ".ru", ".cc", ".su",
-        ".pw", ".ws", ".biz", ".info", ".link", ".online", ".site",
-        ".shop", ".store", ".live", ".club", ".vip", ".win", ".loan",
-        ".work", ".party", ".review", ".stream", ".gdn", ".racing",
-        ".io", ".ph-", "ph.cc", ".buzz", ".icu", ".cyou"
+        ".xyz", ".top", ".click", ".download", ".cc", ".su",
+        ".pw", ".vip", ".win", ".loan", ".buzz", ".icu", ".cyou"
     )
 
     private val URL_SHORTENERS = listOf(
@@ -97,12 +114,6 @@ object HeuristicScanner {
         "tiny.cc", "shorte.st", "adf.ly", "bc.vc", "s.id",
         "v.gd", "clck.ru", "qr.ae", "to.ly", "x.co",
         "lnkd.in", "fb.me", "wa.me", "go2l.ink", "shorturl.at"
-    )
-
-    private val DANGEROUS_EXTENSIONS = listOf(
-        ".exe", ".apk", ".bat", ".cmd", ".msi", ".ps1",
-        ".vbs", ".jar", ".scr", ".pif", ".reg",
-        ".zip", ".rar", ".7z", ".docm", ".xlsm", ".pptm"
     )
 
     private val PH_BRANDS = listOf(
@@ -221,28 +232,6 @@ object HeuristicScanner {
     )
 
     /**
-     * Well-known legitimate domains that are not brand-spoofing targets (so they are not in
-     * OFFICIAL_DOMAINS) but are common enough that their normal auth/redirect flows must not
-     * be heuristically flagged. Kept deliberately small and curated — every entry here fully
-     * bypasses the heuristics for that registrable domain and its subdomains. Subdomain
-     * coverage comes from the endsWith check in scanWithContext.
-     */
-    private val ADDITIONAL_TRUSTED_DOMAINS = setOf(
-        "battle.net", "blizzard.com",
-        "steampowered.com", "steamcommunity.com",
-        "discord.com",
-        "epicgames.com",
-        "riotgames.com",
-        "chatgpt.com", "openai.com",
-        "secure.indeed.com"
-    )
-
-    private val ALL_OFFICIAL_DOMAINS: Set<String> = buildSet {
-        OFFICIAL_DOMAINS.values.forEach { addAll(it) }
-        addAll(ADDITIONAL_TRUSTED_DOMAINS)
-    }
-
-    /**
      * True if any alphabetic label mixes Unicode scripts within a single label (e.g. Latin
      * letters alongside Cyrillic/Greek lookalikes) — the hallmark of a homoglyph attack like
      * "pаypal.com" (Cyrillic 'а'). COMMON/INHERITED code points (digits, hyphen) are ignored.
@@ -322,45 +311,83 @@ object HeuristicScanner {
      * alphanumeric char. Prevents ".bat" from matching inside "account.battle.net". Input is
      * already lowercased.
      */
-    private fun urlReferencesFileType(url: String, ext: String): Boolean =
-        Regex(Regex.escape(ext) + "(?![a-z0-9])").containsMatchIn(url)
+    private fun urlReferencesFileType(pathAndQuery: String, ext: String): Boolean =
+        Regex(Regex.escape(ext) + "(?![a-z0-9])").containsMatchIn(pathAndQuery)
 
-    fun scan(url: String): ScanResult = scanWithContext(url, null)
+    /**
+     * Only the path and query can identify a downloaded file. Looking at the full URL would
+     * misread a hostname such as "example.zip" or fragment-only display text as a download.
+     */
+    private fun extractFileReference(url: String): String = runCatching {
+        val uri = URI(url)
+        buildString {
+            append(uri.rawPath.orEmpty())
+            uri.rawQuery?.let {
+                append('?')
+                append(it)
+            }
+        }
+    }.getOrElse {
+        extractPath(url).substringBefore('#')
+    }
 
-    fun scanWithContext(url: String, messageText: String?): ScanResult {
-        val flags = mutableListOf<String>()
+    private data class Analysis(
+        val findings: List<LocalHeuristicFinding>,
+        val legacyScore: Int
+    )
+
+    private fun analyze(url: String, messageText: String?): Analysis {
+        val findings = mutableListOf<LocalHeuristicFinding>()
         var score = 0
+
+        fun addFinding(
+            ruleId: String,
+            title: String,
+            legacyScore: Int,
+            strength: LocalHeuristicStrength,
+            activeScore: Int
+        ) {
+            findings += LocalHeuristicFinding(ruleId, title, strength, activeScore, legacyScore)
+            score += legacyScore
+        }
 
         val urlLower = url.lowercase()
         val domain = DomainExtractor.extract(urlLower) ?: urlLower
         val urlPath = extractPath(urlLower)
+        val fileReference = extractFileReference(urlLower)
         // Official if the host matches a trusted domain exactly OR is a subdomain of one.
         // The leading dot in ".$it" prevents suffix spoofing (e.g. "secure-google.com" is
         // NOT a subdomain of "google.com").
-        val isOfficialDomain = ALL_OFFICIAL_DOMAINS.any { domain == it || domain.endsWith(".$it") }
+        val isOfficialDomain = KnownDomains.isTrusted(domain)
 
         // 1. HTTP
         if (!isOfficialDomain && urlLower.startsWith("http://")) {
-            flags.add("Unencrypted HTTP connection")
-            score += 30
+            addFinding("UNENCRYPTED_HTTP", "Unencrypted HTTP connection", 30, LocalHeuristicStrength.WEAK, 15)
         }
 
-        // 2. Suspicious TLDs (match the host's actual suffix, not a substring anywhere in
-        //    the URL — otherwise a TLD inside an embedded redirect param would misfire)
+        // 2. Elevated-risk TLD (one weak signal only; a suffix never decides the verdict alone)
         if (!isOfficialDomain) {
-            SUSPICIOUS_TLDS.forEach { tld ->
-                if (domain.endsWith(tld)) {
-                    flags.add("Suspicious domain extension ($tld)")
-                    score += 25
-                }
+            ELEVATED_RISK_TLDS.firstOrNull { domain.endsWith(it) }?.let { tld ->
+                addFinding(
+                    "ELEVATED_RISK_TLD",
+                    "Domain extension has elevated abuse risk ($tld)",
+                    15,
+                    LocalHeuristicStrength.WEAK,
+                    15
+                )
             }
         }
 
         // 3. URL Shorteners (always check — shorteners can wrap official domains)
         URL_SHORTENERS.forEach { shortener ->
             if (domain == shortener || domain.endsWith(".$shortener")) {
-                flags.add("URL shortener detected — destination hidden")
-                score += 30
+                addFinding(
+                    "URL_SHORTENER",
+                    "URL shortener detected — destination hidden",
+                    30,
+                    LocalHeuristicStrength.MEDIUM,
+                    25
+                )
             }
         }
 
@@ -370,12 +397,22 @@ object HeuristicScanner {
             PHISHING_KEYWORDS.forEach { kw ->
                 when {
                     containsKeyword(domain, kw) -> {
-                        flags.add("Phishing keyword in domain: \"$kw\"")
-                        score += 15
+                        addFinding(
+                            "PHISHING_KEYWORD_DOMAIN_$kw",
+                            "Phishing keyword in domain: \"$kw\"",
+                            15,
+                            LocalHeuristicStrength.WEAK,
+                            10
+                        )
                     }
                     containsKeyword(urlPath, kw) -> {
-                        flags.add("Phishing keyword in URL path: \"$kw\"")
-                        score += 10
+                        addFinding(
+                            "PHISHING_KEYWORD_PATH_$kw",
+                            "Phishing keyword in URL path: \"$kw\"",
+                            10,
+                            LocalHeuristicStrength.WEAK,
+                            10
+                        )
                     }
                 }
             }
@@ -390,8 +427,13 @@ object HeuristicScanner {
                         ?: listOf("$brand.com", "$brand.com.ph")
                     val isOfficial = officialList.any { domain == it || domain.endsWith(".$it") }
                     if (!isOfficial) {
-                        flags.add("Possible brand spoofing: \"${brand.uppercase()}\"")
-                        score += 40
+                        addFinding(
+                            "BRAND_SPOOF_${brand.filter { it.isLetterOrDigit() }}",
+                            "Possible brand spoofing: \"${brand.uppercase()}\"",
+                            40,
+                            LocalHeuristicStrength.STRONG,
+                            40
+                        )
                     }
                 }
             }
@@ -403,8 +445,13 @@ object HeuristicScanner {
             if (normalizedDomain != domain) {
                 ALL_BRANDS.forEach { brand ->
                     if (normalizedDomain.contains(brand)) {
-                        flags.add("Lookalike domain detected — uses numbers as letters")
-                        score += 45
+                        addFinding(
+                            "NUMBER_SUBSTITUTION_LOOKALIKE",
+                            "Lookalike domain detected — uses numbers as letters",
+                            45,
+                            LocalHeuristicStrength.STRONG,
+                            45
+                        )
                     }
                 }
             }
@@ -415,25 +462,45 @@ object HeuristicScanner {
         if (!isOfficialDomain) {
             val labels = domain.split(".")
             if (labels.any { it.startsWith("xn--") }) {
-                flags.add("Internationalized (punycode) domain — can disguise the real name")
-                score += 25
+                addFinding(
+                    "PUNYCODE_DOMAIN",
+                    "Internationalized (punycode) domain — can disguise the real name",
+                    15,
+                    LocalHeuristicStrength.WEAK,
+                    10
+                )
                 val decoded = runCatching { java.net.IDN.toUnicode(domain) }.getOrDefault(domain)
                 if (ALL_BRANDS.any { decoded.contains(it, ignoreCase = true) }) {
-                    flags.add("Lookalike domain — punycode mimics a known brand")
-                    score += 45
+                    addFinding(
+                        "PUNYCODE_BRAND_LOOKALIKE",
+                        "Lookalike domain — punycode mimics a known brand",
+                        45,
+                        LocalHeuristicStrength.STRONG,
+                        45
+                    )
                 }
             }
             if (hasMixedScript(domain)) {
-                flags.add("Domain mixes character sets — possible homoglyph spoofing")
-                score += 45
+                addFinding(
+                    "MIXED_SCRIPT_DOMAIN",
+                    "Domain mixes character sets — possible homoglyph spoofing",
+                    45,
+                    LocalHeuristicStrength.STRONG,
+                    45
+                )
             }
         }
 
         // 7. Excessive subdomains
         val parts = domain.split(".")
         if (!isOfficialDomain && parts.size > 4) {
-            flags.add("Unusual number of subdomains")
-            score += 15
+            addFinding(
+                "EXCESSIVE_SUBDOMAINS",
+                "Unusual number of subdomains",
+                15,
+                LocalHeuristicStrength.WEAK,
+                15
+            )
         }
 
         // 8. Brand in subdomain
@@ -456,8 +523,13 @@ object HeuristicScanner {
                                 (rootDomainPh != null && rootDomainPh.endsWith(".$official"))
                     }
                     if (!isOfficialRoot) {
-                        flags.add("Brand name used in subdomain — classic phishing trick")
-                        score += 50
+                        addFinding(
+                            "BRAND_IN_SUBDOMAIN_${brand.filter { it.isLetterOrDigit() }}",
+                            "Brand name used in subdomain — classic phishing trick",
+                            50,
+                            LocalHeuristicStrength.STRONG,
+                            50
+                        )
                     }
                 }
             }
@@ -465,86 +537,119 @@ object HeuristicScanner {
 
         // 9. IP address
         if (domain.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) {
-            flags.add("IP address used instead of domain name")
-            score += 30
+            addFinding(
+                "IP_ADDRESS_HOST",
+                "IP address used instead of domain name",
+                30,
+                LocalHeuristicStrength.MEDIUM,
+                25
+            )
         }
 
         // 10. Long URL
         if (!isOfficialDomain && url.length > 200) {
-            flags.add("Unusually long URL")
-            score += 10
+            addFinding("LONG_URL", "Unusually long URL", 10, LocalHeuristicStrength.WEAK, 10)
         }
 
         // 11. Excessive encoding
         if (!isOfficialDomain && url.count { it == '%' } > 5) {
-            flags.add("Excessive URL encoding — possible obfuscation")
-            score += 20
+            addFinding(
+                "EXCESSIVE_URL_ENCODING",
+                "Excessive URL encoding — possible obfuscation",
+                20,
+                LocalHeuristicStrength.WEAK,
+                15
+            )
         }
 
-        // 12. Scam TLDs
-        if (!isOfficialDomain) {
-            val scamTldPattern = Regex("\\.(cc|su|pw|buzz|icu|cyou|vip|win|loan)$")
-            if (scamTldPattern.containsMatchIn(domain)) {
-                flags.add("Domain uses TLD commonly associated with scams")
-                score += 30
-            }
-        }
-
-        // 13. Gibberish domain
+        // 12. Gibberish domain
         if (!isOfficialDomain) {
             val domainName = parts.firstOrNull().orEmpty()
             val consonantRatio = domainName.count { it in "bcdfghjklmnpqrstvwxyz" }.toFloat() /
                     domainName.length.coerceAtLeast(1)
             if (domainName.length > 6 && consonantRatio > 0.75f) {
-                flags.add("Domain appears randomly generated")
-                score += 20
+                addFinding(
+                    "GIBBERISH_DOMAIN",
+                    "Domain appears randomly generated",
+                    20,
+                    LocalHeuristicStrength.WEAK,
+                    15
+                )
             }
         }
 
-        // 14. Smishing pattern
+        // 13. Smishing pattern
         if (messageText != null) {
             var smishingMatched = false
             SMISHING_PATTERNS.forEach { pattern ->
                 if (!smishingMatched && pattern.containsMatchIn(messageText)) {
-                    flags.add("Message matches known smishing/scam pattern")
-                    score += 40
+                    addFinding(
+                        "SMISHING_MESSAGE_PATTERN",
+                        "Message matches known smishing/scam pattern",
+                        40,
+                        LocalHeuristicStrength.MEDIUM,
+                        25
+                    )
                     smishingMatched = true
                 }
             }
         }
 
-        // 15. Dash-heavy domain
+        // 14. Dash-heavy domain
         if (!isOfficialDomain && domain.count { it == '-' } >= 3) {
-            flags.add("Domain contains excessive hyphens — common in fake sites")
-            score += 15
+            addFinding(
+                "DASH_HEAVY_DOMAIN",
+                "Domain contains excessive hyphens — common in fake sites",
+                15,
+                LocalHeuristicStrength.WEAK,
+                15
+            )
         }
 
-        // 16. Typosquatting (Levenshtein)
+        // 15. Typosquatting (Levenshtein)
         if (!isOfficialDomain) {
             val cleanDomain = domain.removePrefix("www.")
             val domainName = cleanDomain.split(".").firstOrNull().orEmpty()
             PROTECTED_DOMAINS.forEach { brand ->
                 val distance = levenshtein(domainName, brand)
                 if (domainName.length >= 4 && distance in 1..2 && domainName != brand) {
-                    flags.add("Lookalike domain — very similar to \"${brand.uppercase()}\" (possible typosquatting)")
-                    score += 50
+                    addFinding(
+                        "TYPOSQUAT_${brand.filter { it.isLetterOrDigit() }}",
+                        "Lookalike domain — very similar to \"${brand.uppercase()}\" (possible typosquatting)",
+                        50,
+                        LocalHeuristicStrength.STRONG,
+                        50
+                    )
                 }
             }
         }
 
-        // 17. Dangerous file extensions (match only at a real filename boundary, so ".bat"
+        // 16. Dangerous file extensions (match only at a real filename boundary, so ".bat"
         //     no longer fires on "account.battle.net" / ".exe" on "api.execute.com")
-        if (!isOfficialDomain) {
-            DANGEROUS_EXTENSIONS.forEach { ext ->
-                if (urlReferencesFileType(urlLower, ext)) {
-                    flags.add("Dangerous file type in URL: \"$ext\" — possible malware delivery")
-                    score += 40
-                }
+        DANGEROUS_FILE_EXTENSIONS.forEach { ext ->
+            if (urlReferencesFileType(fileReference, ext)) {
+                addFinding(
+                    "DANGEROUS_FILE_TYPE_${ext.removePrefix(".").uppercase()}",
+                    "Dangerous file type in URL: \"$ext\" — possible malware delivery",
+                    if (isOfficialDomain) 10 else 40,
+                    if (isOfficialDomain) LocalHeuristicStrength.WEAK else LocalHeuristicStrength.MEDIUM,
+                    if (isOfficialDomain) 10 else 25
+                )
             }
         }
 
         score = score.coerceIn(0, 100)
+        return Analysis(findings.distinctBy { it.ruleId }, score)
+    }
 
+    internal fun findingsWithContext(url: String, messageText: String?): List<LocalHeuristicFinding> =
+        analyze(url, messageText).findings
+
+    fun scan(url: String): ScanResult = scanWithContext(url, null)
+
+    fun scanWithContext(url: String, messageText: String?): ScanResult {
+        val analysis = analyze(url, messageText)
+        val score = analysis.legacyScore.coerceIn(0, 100)
         val threatLevel = when {
             score >= 60 -> ThreatLevel.DANGER
             score >= 25 -> ThreatLevel.SUSPICIOUS
@@ -556,7 +661,7 @@ object HeuristicScanner {
             threatLevel = threatLevel,
             riskScore = score,
             category = "Scanning...", // Will be updated by the scoring pipeline
-            flags = flags.distinct(),
+            flags = analysis.findings.map { it.title },
             sourceApp = "",
             senderInfo = ""
         )

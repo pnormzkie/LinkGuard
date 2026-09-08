@@ -4,6 +4,7 @@ import com.linkguard.app.domain.model.ScanSignal
 import com.linkguard.app.domain.model.SignalSource
 import com.linkguard.app.domain.model.SignalStrength
 import com.linkguard.app.scanner.HeuristicScanner
+import com.linkguard.app.scanner.LocalHeuristicStrength
 
 /**
  * A bridge between the new Domain Orchestrator and the legacy HeuristicScanner rules.
@@ -12,41 +13,19 @@ import com.linkguard.app.scanner.HeuristicScanner
 class LegacyHeuristicEngine : HeuristicEngine {
 
     override suspend fun scan(url: String, messageText: String?): List<ScanSignal> {
-        // We use the existing scan logic from the legacy HeuristicScanner
-        val legacyResult = HeuristicScanner.scanWithContext(url, messageText)
-        
-        return legacyResult.flags.map { flag ->
-            // Inferred mapping of legacy flag text to structured SignalStrength
-            val strength = when {
-                flag.contains("spoofing", ignoreCase = true) || 
-                flag.contains("Lookalike", ignoreCase = true) ||
-                flag.contains("typosquatting", ignoreCase = true) ||
-                flag.contains("subdomain", ignoreCase = true) -> SignalStrength.STRONG
-                
-                flag.contains("encoded", ignoreCase = true) ||
-                flag.contains("extension", ignoreCase = true) ||
-                flag.contains("TLD", ignoreCase = true) ||
-                flag.contains("pattern", ignoreCase = true) ||
-                flag.contains("IP address", ignoreCase = true) ||
-                flag.contains("file type", ignoreCase = true) ||
-                flag.contains("shortener", ignoreCase = true) -> SignalStrength.MEDIUM
-                
-                // A generic word such as "login" or "account" is not enough to change a
-                // verdict by itself. It remains useful as weak corroborating evidence.
-                else -> SignalStrength.WEAK
-            }
-
+        return HeuristicScanner.findingsWithContext(url, messageText).map { finding ->
             ScanSignal(
-                ruleId = "LEGACY_${flag.filter { it.isLetterOrDigit() }}",
-                title = flag,
-                description = flag,
-                strength = strength,
+                ruleId = "LOCAL_${finding.ruleId}",
+                title = finding.title,
+                description = finding.title,
+                strength = when (finding.strength) {
+                    LocalHeuristicStrength.WEAK -> SignalStrength.WEAK
+                    LocalHeuristicStrength.MEDIUM -> SignalStrength.MEDIUM
+                    LocalHeuristicStrength.STRONG -> SignalStrength.STRONG
+                    LocalHeuristicStrength.CRITICAL -> SignalStrength.CRITICAL
+                },
                 source = SignalSource.LOCAL_HEURISTIC,
-                score = when(strength) {
-                    SignalStrength.STRONG -> 60
-                    SignalStrength.MEDIUM -> 25
-                    else -> if (flag.contains("keyword", ignoreCase = true)) 10 else 15
-                }
+                score = finding.score
             )
         }
     }

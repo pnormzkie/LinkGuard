@@ -21,9 +21,21 @@ class HeuristicScannerTest {
     }
 
     @Test
-    fun `suspicious tld is flagged`() {
-        val flags = flagsOf("https://abcd.xyz")
-        assertTrue(flags.any { it.contains("Suspicious domain extension") })
+    fun `elevated risk tld is weak context but not suspicious by itself`() {
+        val result = HeuristicScanner.scanWithContext("https://abcd.xyz", null)
+        assertTrue(result.flags.any { it.contains("elevated abuse risk") })
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertTrue(result.riskScore < 25)
+    }
+
+    @Test
+    fun `mainstream tlds are not treated as suspicious`() {
+        listOf("portfolio.io", "example.info", "example.shop", "example.store").forEach { host ->
+            val result = HeuristicScanner.scanWithContext("https://$host", null)
+            assertFalse("$host should not receive a TLD warning", result.flags.any {
+                it.contains("extension", ignoreCase = true) || it.contains("TLD", ignoreCase = true)
+            })
+        }
     }
 
     @Test
@@ -55,6 +67,24 @@ class HeuristicScannerTest {
     fun `dangerous file extension is flagged`() {
         val flags = flagsOf("https://files.abcd.com/setup.apk")
         assertTrue(flags.any { it.contains("Dangerous file type") })
+    }
+
+    @Test
+    fun `dangerous file extension in a query value is flagged`() {
+        val flags = flagsOf("https://files.abcd.com/download?file=setup.apk")
+        assertTrue(flags.any { it.contains("Dangerous file type") })
+    }
+
+    @Test
+    fun `file-like public domain is not treated as a download`() {
+        val flags = flagsOf("https://example.zip/")
+        assertFalse(flags.any { it.contains("Dangerous file type") })
+    }
+
+    @Test
+    fun `file extension in a fragment is not treated as a download`() {
+        val flags = flagsOf("https://example.com/docs#setup.apk")
+        assertFalse(flags.any { it.contains("Dangerous file type") })
     }
 
     @Test
@@ -110,7 +140,7 @@ class HeuristicScannerTest {
         // xn-- label (a famous Cyrillic "apple" homoglyph encoding)
         val result = HeuristicScanner.scanWithContext("https://xn--80ak6aa92e.com", null)
         assertTrue(result.flags.any { it.contains("punycode", ignoreCase = true) })
-        assertTrue(result.riskScore >= 25)
+        assertTrue(result.riskScore < 25)
     }
 
     @Test
@@ -173,10 +203,10 @@ class HeuristicScannerTest {
         assertEquals(ThreatLevel.DANGER, danger.threatLevel)
         assertTrue(danger.riskScore >= 60)
 
-        // 25 points (suspicious TLD only)
-        val suspicious = HeuristicScanner.scanWithContext("https://abcd.xyz", null)
-        assertEquals(ThreatLevel.SUSPICIOUS, suspicious.threatLevel)
-        assertTrue(suspicious.riskScore in 25..59)
+        // An elevated-risk TLD is context, not a verdict by itself.
+        val tldOnly = HeuristicScanner.scanWithContext("https://abcd.xyz", null)
+        assertEquals(ThreatLevel.SAFE, tldOnly.threatLevel)
+        assertTrue(tldOnly.riskScore < 25)
 
         // clean url
         val safe = HeuristicScanner.scanWithContext("https://example.com", null)
@@ -204,6 +234,17 @@ class HeuristicScannerTest {
         )
         assertEquals(ThreatLevel.SAFE, result.threatLevel)
         assertTrue(result.flags.isEmpty())
+    }
+
+    @Test
+    fun `trusted github apk remains visible but does not become suspicious by itself`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://github.com/pnormzkie/LinkGuard/releases/download/v1.28/LinkGuard-v1.28.apk",
+            null
+        )
+        assertTrue(result.flags.any { it.contains("Dangerous file type") })
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertTrue(result.riskScore < 25)
     }
 
     @Test

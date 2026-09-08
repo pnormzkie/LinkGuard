@@ -16,11 +16,16 @@ object KnownDomains {
     val TRUSTED_DOMAINS: Set<String> = setOf(
         "google.com", "youtube.com", "facebook.com", "microsoft.com",
         "apple.com", "amazon.com", "netflix.com", "google.com.ph",
-        "gcash.com", "maya.ph", "paymaya.com", "bpi.com.ph", "bdo.com.ph", "metrobank.com.ph",
+        "gcash.com", "globe.com.ph", "maya.ph", "paymaya.com", "bpi.com.ph",
+        "bpiexpressonline.com", "bdo.com.ph", "metrobank.com.ph",
         "landbank.com", "unionbankph.com", "shopee.ph", "lazada.com.ph", "rcbc.com",
         "grab.com", "sss.gov.ph", "pagibig.gov.ph", "philhealth.gov.ph", "bir.gov.ph",
         "paypal.com", "instagram.com", "twitter.com", "x.com", "linkedin.com", "github.com",
         "chatgpt.com", "openai.com", "secure.indeed.com",
+        "fb.com", "shopee.com", "lazada.com", "hdmf.gov.ph",
+        "visa.com", "mastercard.com", "dhl.com", "dhl.com.ph", "fedex.com",
+        "battle.net", "blizzard.com", "steampowered.com", "steamcommunity.com",
+        "discord.com", "epicgames.com", "riotgames.com",
         "googlesyndication.com", "googleadservices.com", "doubleclick.net"
     )
 
