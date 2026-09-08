@@ -82,6 +82,13 @@ class HttpCredentialFormInspectorTest {
     }
 
     @Test
+    fun `indeed oauth host is skipped without a request`() = runBlocking {
+        val signals = HttpCredentialFormInspector(clientFailing())
+            .inspect("https://secure.indeed.com/oauth/v2/authorize?response_type=code")
+        assertTrue(signals.isEmpty())
+    }
+
+    @Test
     fun `private host is skipped without a request (anti-SSRF)`() = runBlocking {
         val signals = HttpCredentialFormInspector(clientFailing())
             .inspect("http://192.168.1.1/login")

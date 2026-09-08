@@ -47,6 +47,8 @@ class NotificationFilterTest {
     fun `system surfaces are excluded`() {
         assertFalse(shouldScan("android"))
         assertFalse(shouldScan("com.android.systemui"))
+        assertFalse(shouldScan("com.android.providers.downloads"))
+        assertFalse(shouldScan("com.google.android.providers.downloads"))
         assertFalse(shouldScan("com.android.vending"))
         assertFalse(shouldScan("com.google.android.gms"))
     }

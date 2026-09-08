@@ -233,7 +233,8 @@ object HeuristicScanner {
         "discord.com",
         "epicgames.com",
         "riotgames.com",
-        "chatgpt.com", "openai.com"
+        "chatgpt.com", "openai.com",
+        "secure.indeed.com"
     )
 
     private val ALL_OFFICIAL_DOMAINS: Set<String> = buildSet {
@@ -469,7 +470,7 @@ object HeuristicScanner {
         }
 
         // 10. Long URL
-        if (url.length > 200) {
+        if (!isOfficialDomain && url.length > 200) {
             flags.add("Unusually long URL")
             score += 10
         }

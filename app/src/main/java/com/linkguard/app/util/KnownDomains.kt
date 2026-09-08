@@ -20,7 +20,7 @@ object KnownDomains {
         "landbank.com", "unionbankph.com", "shopee.ph", "lazada.com.ph", "rcbc.com",
         "grab.com", "sss.gov.ph", "pagibig.gov.ph", "philhealth.gov.ph", "bir.gov.ph",
         "paypal.com", "instagram.com", "twitter.com", "x.com", "linkedin.com", "github.com",
-        "chatgpt.com", "openai.com",
+        "chatgpt.com", "openai.com", "secure.indeed.com",
         "googlesyndication.com", "googleadservices.com", "doubleclick.net"
     )
 

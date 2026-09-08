@@ -25,6 +25,8 @@ object NotificationFilter {
     private val EXCLUDED_PACKAGES = setOf(
         "android",                       // core framework notifications
         "com.android.systemui",          // system UI (charging, screenshots, etc.)
+        "com.android.providers.downloads", // AOSP Download Manager status/completion notices
+        "com.google.android.providers.downloads", // Google Download Manager variant
         "com.android.vending",           // Play Store (download/update notices)
         "com.google.android.gms",        // Play services
     )

@@ -218,6 +218,19 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `indeed oauth authorization url is safe`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://secure.indeed.com/oauth/v2/authorize?response_type=code&client_id=" +
+                "b945f2c710f278485e264bd779d3eec629d0f193c&redirect_uri=" +
+                "https%3A%2F%2Fexample.com%2Foauth%2Fcallback&scope=openid%20email%20profile",
+            null
+        )
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertEquals(0, result.riskScore)
+        assertTrue(result.flags.isEmpty())
+    }
+
+    @Test
     fun `legit subdomain of an official domain is treated as safe`() {
         val result = HeuristicScanner.scanWithContext("https://accounts.google.com/signin", null)
         assertEquals(ThreatLevel.SAFE, result.threatLevel)
