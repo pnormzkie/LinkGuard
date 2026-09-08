@@ -95,6 +95,28 @@ class ScoringEngineTest {
         assertEquals(Confidence.MEDIUM, verdict.confidence)
     }
 
+    @Test
+    fun `tracker label does not mask a critical reputation finding`() {
+        val verdict = engine.evaluate(listOf(
+            signal(10, source = SignalSource.DOMAIN_SIGNAL, title = "Ad/Tracker Filter"),
+            signal(100, SignalStrength.CRITICAL, SignalSource.EXTERNAL_REPUTATION, "URLhaus malware")
+        ))
+
+        assertEquals(Verdict.THREAT, verdict.verdict)
+        assertEquals("Known phishing or malicious site", verdict.primaryReason)
+    }
+
+    @Test
+    fun `tracker category is reserved for tracker-only suspicious evidence`() {
+        val verdict = engine.evaluate(listOf(
+            signal(15, source = SignalSource.DOMAIN_SIGNAL, title = "Tracker DNS match"),
+            signal(15, source = SignalSource.ENRICHMENT, title = "Tracker sandbox match")
+        ))
+
+        assertEquals(Verdict.SUSPICIOUS, verdict.verdict)
+        assertEquals("Ad/Tracker Detected", verdict.primaryReason)
+    }
+
     // ── External coverage missing (all providers failed) ─────────────────────
 
     @Test

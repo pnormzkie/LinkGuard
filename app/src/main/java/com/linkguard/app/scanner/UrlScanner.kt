@@ -394,27 +394,26 @@ object HeuristicScanner {
         // 4. Phishing keywords (whole-token match so "login" doesn't fire on "/bloginfo"
         //    and "last" doesn't fire on "elastic")
         if (!isOfficialDomain) {
-            PHISHING_KEYWORDS.forEach { kw ->
-                when {
-                    containsKeyword(domain, kw) -> {
-                        addFinding(
-                            "PHISHING_KEYWORD_DOMAIN_$kw",
-                            "Phishing keyword in domain: \"$kw\"",
-                            15,
-                            LocalHeuristicStrength.WEAK,
-                            10
-                        )
-                    }
-                    containsKeyword(urlPath, kw) -> {
-                        addFinding(
-                            "PHISHING_KEYWORD_PATH_$kw",
-                            "Phishing keyword in URL path: \"$kw\"",
-                            10,
-                            LocalHeuristicStrength.WEAK,
-                            10
-                        )
-                    }
-                }
+            // Keyword hits are one evidence family. A marketing URL containing several terms
+            // such as /promo/gift/reward must not accumulate enough duplicate evidence to turn
+            // suspicious by itself. Prefer the domain match because it is the stronger context.
+            val domainKeyword = PHISHING_KEYWORDS.firstOrNull { containsKeyword(domain, it) }
+            val pathKeyword = PHISHING_KEYWORDS.firstOrNull { containsKeyword(urlPath, it) }
+            when {
+                domainKeyword != null -> addFinding(
+                    "PHISHING_KEYWORD_DOMAIN",
+                    "Phishing keyword in domain: \"$domainKeyword\"",
+                    15,
+                    LocalHeuristicStrength.WEAK,
+                    10
+                )
+                pathKeyword != null -> addFinding(
+                    "PHISHING_KEYWORD_PATH",
+                    "Phishing keyword in URL path: \"$pathKeyword\"",
+                    10,
+                    LocalHeuristicStrength.WEAK,
+                    10
+                )
             }
         }
 

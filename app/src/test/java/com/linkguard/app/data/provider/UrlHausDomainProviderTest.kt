@@ -13,13 +13,34 @@ class UrlHausDomainProviderTest {
     private val key = "test-auth-key"
 
     @Test
-    fun `listed host with an online url is critical`() = runBlocking {
-        val body = """{"query_status":"ok","urls":[{"url_status":"online","threat":"malware_download"}]}"""
+    fun `listed exact path with an online url is critical`() = runBlocking {
+        val body = """{"query_status":"ok","urls":[{"url":"http://evil.test/x","url_status":"online","threat":"malware_download"}]}"""
         val signals = UrlHausDomainProvider(clientReturning(200, body), key)
             .fetchSignals("http://evil.test/x")
         assertEquals(1, signals.size)
         assertEquals("URLHAUS_ACTIVE_MALWARE", signals[0].ruleId)
         assertEquals(SignalStrength.CRITICAL, signals[0].strength)
+    }
+
+    @Test
+    fun `online malware on a different shared-host path is weak evidence`() = runBlocking {
+        val body = """{"query_status":"ok","urls":[{"url":"http://shared.test/malware.exe","url_status":"online"}]}"""
+        val signals = UrlHausDomainProvider(clientReturning(200, body), key)
+            .fetchSignals("https://shared.test/legitimate-page")
+
+        assertEquals(1, signals.size)
+        assertEquals("URLHAUS_SHARED_HOST_ACTIVITY", signals[0].ruleId)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(15, signals[0].score)
+    }
+
+    @Test
+    fun `matching path and query are required for a critical urlhaus result`() = runBlocking {
+        val body = """{"query_status":"ok","urls":[{"url":"http://evil.test/download?id=bad","url_status":"online"}]}"""
+        val signals = UrlHausDomainProvider(clientReturning(200, body), key)
+            .fetchSignals("https://evil.test/download?id=good")
+
+        assertEquals("URLHAUS_SHARED_HOST_ACTIVITY", signals.single().ruleId)
     }
 
     @Test

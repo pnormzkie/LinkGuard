@@ -55,14 +55,14 @@ class NextDnsDomainSignalProvider(
                 if (isBlockedByApi || isKnownTracker) {
                     return@withContext listOf(
                         ScanSignal(
-                            ruleId = "NEXTDNS_BLOCK",
+                            ruleId = if (isKnownTracker) "NEXTDNS_TRACKER" else "NEXTDNS_POLICY_BLOCK",
                             title = if (isKnownTracker) "Blocked by NextDNS: Ad/Tracker Filter" else "Blocked by NextDNS",
                             description = if (isKnownTracker)
                                 "This domain matches LinkGuard's ad/tracker filter list."
-                                else "LinkGuard's DNS threat-intelligence check indicates this domain is blocked.",
-                            strength = SignalStrength.MEDIUM,
+                                else "The configured DNS policy blocks this domain. This can reflect security, privacy, or parental-control policy and is treated as supporting evidence.",
+                            strength = SignalStrength.WEAK,
                             source = SignalSource.DOMAIN_SIGNAL,
-                            score = 25,
+                            score = if (isKnownTracker) 10 else 15,
                             matchedValue = domain
                         )
                     )
@@ -85,9 +85,9 @@ class NextDnsDomainSignalProvider(
             ruleId = "NEXTDNS_OFFLINE_BLOCK",
             title = "Blocked by NextDNS: Ad/Tracker Filter",
             description = "This domain matches LinkGuard's ad/tracker filter list.",
-            strength = SignalStrength.MEDIUM,
+            strength = SignalStrength.WEAK,
             source = SignalSource.DOMAIN_SIGNAL,
-            score = 25,
+            score = 10,
             matchedValue = domain
         )
     )

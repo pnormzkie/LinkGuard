@@ -160,10 +160,10 @@ class HttpCredentialFormInspector(
                 ScanSignal(
                     ruleId = "CREDENTIAL_FORM_UNTRUSTED",
                     title = "Login form on an unverified site",
-                    description = "This page asks for a password but is not a recognized, trusted site.",
-                    strength = SignalStrength.MEDIUM,
+                    description = "This page asks for a password on a site LinkGuard does not recognize. This is supporting evidence unless other risky behavior is present.",
+                    strength = SignalStrength.WEAK,
                     source = SignalSource.LOCAL_HEURISTIC,
-                    score = 25,
+                    score = 10,
                     matchedValue = finalUrl
                 )
             })
@@ -195,10 +195,10 @@ class HttpCredentialFormInspector(
                 ScanSignal(
                     ruleId = "MULTI_STEP_LOGIN_FORM",
                     title = "Multi-step login starts on an unverified site",
-                    description = "The page begins an account sign-in flow before revealing the password step.",
-                    strength = SignalStrength.MEDIUM,
+                    description = "The page begins an account sign-in flow before revealing the password step. This is supporting evidence unless other risky behavior is present.",
+                    strength = SignalStrength.WEAK,
                     source = SignalSource.LOCAL_HEURISTIC,
-                    score = 25,
+                    score = 10,
                     matchedValue = finalUrl,
                     metadata = evidence("sensitive_data")
                 )

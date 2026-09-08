@@ -119,7 +119,7 @@ class ScanOrchestrator(
             val vtDeferred = async { guarded("VirusTotal", scanUrl, enrichmentProvider) }
             val haDeferred = async { guarded("HybridAnalysis", scanUrl, hybridAnalysisProvider) }
             val daDeferred = async { guarded("DomainAge", domain, domainAgeProvider) }
-            val uhDeferred = async { guarded("URLhaus", domain, urlHausProvider) }
+            val uhDeferred = async { guarded("URLhaus", scanUrl, urlHausProvider) }
             listOf(sbDeferred, dnsDeferred, vtDeferred, haDeferred, daDeferred, uhDeferred).awaitAll()
         } else {
             // Automatic notification quotas protect network/API resources, never the cheap local

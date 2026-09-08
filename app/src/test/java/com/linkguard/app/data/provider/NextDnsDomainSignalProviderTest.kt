@@ -1,5 +1,6 @@
 package com.linkguard.app.data.provider
 
+import com.linkguard.app.domain.model.SignalStrength
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -71,8 +72,9 @@ class NextDnsDomainSignalProviderTest {
             .fetchSignals("blocked.example.com")
 
         assertEquals(1, signals.size)
-        assertEquals("NEXTDNS_BLOCK", signals[0].ruleId)
-        assertEquals(25, signals[0].score)
+        assertEquals("NEXTDNS_POLICY_BLOCK", signals[0].ruleId)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(15, signals[0].score)
         assertEquals("blocked.example.com", signals[0].matchedValue)
     }
 
@@ -92,7 +94,7 @@ class NextDnsDomainSignalProviderTest {
             .fetchSignals("ads.example.com")
 
         assertEquals(1, signals.size)
-        assertEquals("NEXTDNS_BLOCK", signals[0].ruleId)
+        assertEquals("NEXTDNS_POLICY_BLOCK", signals[0].ruleId)
     }
 
     @Test
@@ -102,7 +104,7 @@ class NextDnsDomainSignalProviderTest {
         val signals = provider(clientReturningBytes(200, body)).fetchSignals("blocked.example.com")
 
         assertEquals(1, signals.size)
-        assertEquals("NEXTDNS_BLOCK", signals[0].ruleId)
+        assertEquals("NEXTDNS_POLICY_BLOCK", signals[0].ruleId)
     }
 
     @Test
@@ -117,7 +119,9 @@ class NextDnsDomainSignalProviderTest {
         val signals = provider(clientReturningBytes(200, body)).fetchSignals("doubleclick.net")
 
         assertEquals(1, signals.size)
-        assertEquals("NEXTDNS_BLOCK", signals[0].ruleId)
+        assertEquals("NEXTDNS_TRACKER", signals[0].ruleId)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(10, signals[0].score)
     }
 
     @Test
@@ -150,6 +154,8 @@ class NextDnsDomainSignalProviderTest {
 
         assertEquals(1, signals.size)
         assertEquals("NEXTDNS_OFFLINE_BLOCK", signals[0].ruleId)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(10, signals[0].score)
     }
 
     @Test

@@ -349,6 +349,18 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `multiple marketing keywords count as one weak evidence family`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://campaign-page.net/promo/gift/reward/bonus/prize",
+            null
+        )
+
+        assertEquals(1, result.flags.count { it.contains("Phishing keyword") })
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+        assertEquals(10, result.riskScore)
+    }
+
+    @Test
     fun `suspicious tld inside a redirect parameter is not flagged`() {
         // ".ru" appears only in the embedded ref URL, not the real host (example.com).
         val flags = flagsOf("https://example.com/go?url=https://news.example.ru/article")

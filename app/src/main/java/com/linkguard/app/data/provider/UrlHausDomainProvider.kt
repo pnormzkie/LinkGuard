@@ -13,6 +13,7 @@ import com.linkguard.app.util.KnownDomains
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -23,9 +24,9 @@ import java.io.IOException
  * complements the existing providers for zero-hour malware sites.
  *
  * Queries `POST /v1/host/` with `host=<domain>` and the free Auth-Key header. A listed host with
- * an ONLINE malware URL is treated as CRITICAL (active distribution). A host whose tracked URLs
- * are all offline is retained only as WEAK historical evidence because host-level records can
- * outlive the malicious path or a later ownership change. `no_results` is a clean absence.
+ * an ONLINE malware URL is treated as CRITICAL only when its path and query match the scanned
+ * URL. Activity on a different path and offline history are retained only as WEAK evidence because
+ * host-level records can refer to another shared-host tenant or outlive a later ownership change.
  *
  * Failure semantics match the other providers: a blank key is a no-op (feature disabled); any
  * transport error, auth error, or non-2xx is rethrown so the orchestrator can tell "check failed"
@@ -64,7 +65,7 @@ class UrlHausDomainProvider(
                 val status = json.get("query_status")?.asString.orEmpty()
                 when (status) {
                     // Listed — inspect the tracked URLs to grade severity.
-                    "ok" -> signalFor(json, domain)?.let { listOf(it) } ?: emptyList()
+                    "ok" -> signalFor(json, input, domain)?.let { listOf(it) } ?: emptyList()
                     // Host is simply not on the blocklist — a real "clean", not a failure.
                     "no_results", "invalid_host" -> emptyList()
                     // Auth / request problems must fail loud, not look clean.
@@ -78,21 +79,31 @@ class UrlHausDomainProvider(
         }
     }
 
-    private fun signalFor(json: JsonObject, domain: String): ScanSignal? {
+    private fun signalFor(json: JsonObject, scannedUrl: String, domain: String): ScanSignal? {
         val urls = json.get("urls")?.takeIf { it.isJsonArray }?.asJsonArray ?: return null
         if (urls.size() == 0) return null
 
-        val hasOnline = urls.any { el ->
-            el.isJsonObject && el.asJsonObject.get("url_status")?.asString.equals("online", ignoreCase = true)
+        val onlineRecords = urls.filter { el ->
+            el.isJsonObject && el.asJsonObject.get("url_status")?.asString.equals("online", true)
         }
+        val onlineUrls = onlineRecords.mapNotNull { it.asJsonObject.get("url")?.asString }
+        val exactActiveMatch = onlineUrls.any { sameUrlTarget(scannedUrl, it) }
 
-        return if (hasOnline) ScanSignal(
+        return if (exactActiveMatch) ScanSignal(
             ruleId = "URLHAUS_ACTIVE_MALWARE",
             title = "Listed on URLhaus malware blocklist",
-            description = "abuse.ch URLhaus tracks an ACTIVE malware distribution URL on this host.",
+            description = "abuse.ch URLhaus tracks this exact path as an ACTIVE malware distribution URL.",
             strength = SignalStrength.CRITICAL,
             source = SignalSource.EXTERNAL_REPUTATION,
             score = 100,
+            matchedValue = scannedUrl
+        ) else if (onlineRecords.isNotEmpty()) ScanSignal(
+            ruleId = "URLHAUS_SHARED_HOST_ACTIVITY",
+            title = "Active URLhaus record elsewhere on this host",
+            description = "abuse.ch URLhaus tracks a different active malware path on this host. Shared hosting can affect unrelated sites, so this is supporting evidence only.",
+            strength = SignalStrength.WEAK,
+            source = SignalSource.EXTERNAL_REPUTATION,
+            score = 15,
             matchedValue = domain
         ) else ScanSignal(
             ruleId = "URLHAUS_HISTORICAL_MALWARE",
@@ -103,5 +114,13 @@ class UrlHausDomainProvider(
             score = 15,
             matchedValue = domain
         )
+    }
+
+    private fun sameUrlTarget(scannedUrl: String, listedUrl: String): Boolean {
+        val scanned = scannedUrl.toHttpUrlOrNull() ?: return false
+        val listed = listedUrl.toHttpUrlOrNull() ?: return false
+        return scanned.host.equals(listed.host, ignoreCase = true) &&
+            scanned.encodedPath == listed.encodedPath &&
+            scanned.encodedQuery == listed.encodedQuery
     }
 }

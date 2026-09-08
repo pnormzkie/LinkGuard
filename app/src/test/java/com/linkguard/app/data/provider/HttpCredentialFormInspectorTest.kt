@@ -25,12 +25,13 @@ class HttpCredentialFormInspectorTest {
            </form></body></html>"""
 
     @Test
-    fun `password form on untrusted site is a medium signal`() = runBlocking {
+    fun `password form on untrusted site is weak corroborating evidence`() = runBlocking {
         val signals = HttpCredentialFormInspector(clientReturningHtml(200, loginHtml))
             .inspect("http://login-evil.test/account")
         assertEquals(1, signals.size)
         assertEquals("CREDENTIAL_FORM_UNTRUSTED", signals[0].ruleId)
-        assertEquals(SignalStrength.MEDIUM, signals[0].strength)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(10, signals[0].score)
     }
 
     @Test
@@ -54,6 +55,7 @@ class HttpCredentialFormInspectorTest {
             .inspect("http://some-portal.test/login")
         assertEquals(1, signals.size)
         assertEquals("CREDENTIAL_FORM_UNTRUSTED", signals[0].ruleId)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
     }
 
     @Test
@@ -193,6 +195,9 @@ class HttpCredentialFormInspectorTest {
         val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
             .inspect("https://clean-looking.test/start")
         assertTrue(signals.any { it.ruleId == "MULTI_STEP_LOGIN_FORM" })
+        assertTrue(signals.any {
+            it.ruleId == "MULTI_STEP_LOGIN_FORM" && it.strength == SignalStrength.WEAK && it.score == 10
+        })
     }
 
     @Test

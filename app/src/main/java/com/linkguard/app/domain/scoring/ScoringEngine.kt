@@ -45,12 +45,20 @@ class ScoringEngine {
 
         // Simplify category labeling as requested
         val sources = effectiveSignals.map { it.source }.distinct()
+        val trackerOnly = effectiveSignals.isNotEmpty() &&
+            effectiveSignals.all { it.title.contains("Tracker", ignoreCase = true) }
         val primaryReason = if (verdict == Verdict.SAFE) {
             "No risks detected"
         } else {
             when {
-                // Priority Case: Known Trackers
-                effectiveSignals.any { it.title.contains("Tracker", ignoreCase = true) } -> "Ad/Tracker Detected"
+                // Confirmed malicious reputation must never be hidden by an accompanying tracker hit.
+                effectiveSignals.any {
+                    it.strength == SignalStrength.CRITICAL &&
+                        it.source == SignalSource.EXTERNAL_REPUTATION
+                } -> "Known phishing or malicious site"
+
+                // Use the tracker category only when every effective signal is tracker-specific.
+                trackerOnly -> "Ad/Tracker Detected"
 
                 // Case 4: Mixed signals
                 sources.size > 1 -> "Multiple security risks detected"
