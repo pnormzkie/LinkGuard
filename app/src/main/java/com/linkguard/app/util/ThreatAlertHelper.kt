@@ -19,8 +19,9 @@ import com.linkguard.app.ui.ThreatAlertActivity
  */
 object ThreatAlertHelper {
 
-    private const val CHANNEL_DANGER_ID = "linkguard_danger_v3"
-    private const val CHANNEL_WARNING_ID = "linkguard_warning_v3"
+    // Channel visibility is persisted by Android; use new IDs for the privacy default.
+    private const val CHANNEL_DANGER_ID = "linkguard_danger_v4"
+    private const val CHANNEL_WARNING_ID = "linkguard_warning_v4"
 
     fun alert(context: Context, result: ScanResult) {
         if (result.threatLevel == ThreatLevel.SAFE) return
@@ -76,7 +77,9 @@ object ThreatAlertHelper {
                 .bigText("URL: $shortUrl\n\nProtect yourself immediately."))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            // PRIVATE keeps sender/URL out of the lockscreen; the full-screen alert still
+            // shows everything once the device is unlocked (ThreatAlertActivity gates detail).
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setAutoCancel(true)
             .setOngoing(isCritical)
             .setFullScreenIntent(popupPendingIntent, true) 
@@ -107,7 +110,7 @@ object ThreatAlertHelper {
                 vibrationPattern = longArrayOf(0, 800, 200, 800, 200, 1000)
                 setBypassDnd(true)
                 setSound(alarmSound, audioAttributes)
-                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
             }
             nm.createNotificationChannel(dangerChannel)
         }

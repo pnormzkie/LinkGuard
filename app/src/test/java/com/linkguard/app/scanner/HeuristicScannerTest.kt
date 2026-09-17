@@ -154,6 +154,48 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `mixed script analysis is preserved across IDN encodings`() {
+        val unicodeHost = "pаypal.com" // Existing fixture: Cyrillic U+0430.
+        val asciiHost = java.net.IDN.toASCII(unicodeHost)
+        val unicode = HeuristicScanner.findingsWithContext("https://$unicodeHost", null)
+        val ascii = HeuristicScanner.findingsWithContext("https://$asciiHost", null)
+
+        assertNotEquals(unicodeHost, asciiHost)
+        val unicodeFinding = unicode.single { it.ruleId == "MIXED_SCRIPT_DOMAIN" }
+        assertEquals(unicodeFinding, ascii.singleOrNull { it.ruleId == "MIXED_SCRIPT_DOMAIN" })
+    }
+
+    @Test
+    fun `lookalike evidence and verdict survive IDN encoding`() {
+        val unicodeHost = "pаypal.com"
+        val asciiHost = java.net.IDN.toASCII(unicodeHost)
+        val unicode = HeuristicScanner.findingsWithContext("https://$unicodeHost", null)
+        val ascii = HeuristicScanner.findingsWithContext("https://$asciiHost", null)
+        val unicodeTypos = unicode.filter { it.ruleId.startsWith("TYPOSQUAT_") }
+
+        assertTrue(unicodeTypos.isNotEmpty())
+        assertEquals(unicodeTypos, ascii.filter { it.ruleId.startsWith("TYPOSQUAT_") })
+        assertEquals(ThreatLevel.DANGER, HeuristicScanner.scan("https://$asciiHost").threatLevel)
+    }
+
+    @Test
+    fun `legitimate single script IDNs remain safe in both encodings`() {
+        listOf("bücher.de", "mañana.com", "пример.рф").forEach { host ->
+            listOf(host, java.net.IDN.toASCII(host)).forEach { spelling ->
+                val url = "https://$spelling"
+                val findings = HeuristicScanner.findingsWithContext(url, null)
+                assertFalse(spelling, findings.any {
+                    it.ruleId == "MIXED_SCRIPT_DOMAIN" ||
+                        it.ruleId.startsWith("TYPOSQUAT_") ||
+                        it.ruleId == "PUNYCODE_BRAND_LOOKALIKE"
+                })
+                assertEquals(spelling, ThreatLevel.SAFE, HeuristicScanner.scan(url).threatLevel)
+                assertEquals(url, HeuristicScanner.scan(url).url)
+            }
+        }
+    }
+
+    @Test
     fun `plain ascii domain is not flagged as homoglyph or punycode`() {
         val flags = flagsOf("https://example.com")
         assertFalse(flags.any { it.contains("homoglyph", ignoreCase = true) })

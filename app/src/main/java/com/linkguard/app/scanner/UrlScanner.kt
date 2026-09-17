@@ -353,6 +353,9 @@ object HeuristicScanner {
 
         val urlLower = url.lowercase()
         val domain = DomainExtractor.extract(urlLower) ?: urlLower
+        // Inspect the actual characters, not the ASCII encoding, for local lookalike rules.
+        // Keep domain and the original URL unchanged for trust checks and network/navigation.
+        val unicodeDomain = runCatching { java.net.IDN.toUnicode(domain) }.getOrDefault(domain)
         val urlPath = extractPath(urlLower)
         val fileReference = extractFileReference(urlLower)
         // Official if the host matches a trusted domain exactly OR is a subdomain of one.
@@ -421,7 +424,7 @@ object HeuristicScanner {
         //    "verifypaypal.com" is caught but "startups.com"/"pineapple.com" are not)
         if (!isOfficialDomain) {
             ALL_BRANDS.forEach { brand ->
-                if (looksLikeBrandSpoof(domain, brand)) {
+                if (looksLikeBrandSpoof(unicodeDomain, brand)) {
                     val officialList = OFFICIAL_DOMAINS[brand]
                         ?: listOf("$brand.com", "$brand.com.ph")
                     val isOfficial = officialList.any { domain == it || domain.endsWith(".$it") }
@@ -440,8 +443,8 @@ object HeuristicScanner {
 
         // 6. Homograph / number-substitution
         if (!isOfficialDomain) {
-            val normalizedDomain = domain.map { HOMOGRAPH_MAP[it] ?: it }.joinToString("")
-            if (normalizedDomain != domain) {
+            val normalizedDomain = unicodeDomain.map { HOMOGRAPH_MAP[it] ?: it }.joinToString("")
+            if (normalizedDomain != unicodeDomain) {
                 ALL_BRANDS.forEach { brand ->
                     if (normalizedDomain.contains(brand)) {
                         addFinding(
@@ -468,8 +471,7 @@ object HeuristicScanner {
                     LocalHeuristicStrength.WEAK,
                     10
                 )
-                val decoded = runCatching { java.net.IDN.toUnicode(domain) }.getOrDefault(domain)
-                if (ALL_BRANDS.any { decoded.contains(it, ignoreCase = true) }) {
+                if (ALL_BRANDS.any { unicodeDomain.contains(it, ignoreCase = true) }) {
                     addFinding(
                         "PUNYCODE_BRAND_LOOKALIKE",
                         "Lookalike domain — punycode mimics a known brand",
@@ -479,7 +481,7 @@ object HeuristicScanner {
                     )
                 }
             }
-            if (hasMixedScript(domain)) {
+            if (hasMixedScript(unicodeDomain)) {
                 addFinding(
                     "MIXED_SCRIPT_DOMAIN",
                     "Domain mixes character sets — possible homoglyph spoofing",
@@ -595,7 +597,7 @@ object HeuristicScanner {
         }
 
         // 14. Dash-heavy domain
-        if (!isOfficialDomain && domain.count { it == '-' } >= 3) {
+        if (!isOfficialDomain && unicodeDomain.count { it == '-' } >= 3) {
             addFinding(
                 "DASH_HEAVY_DOMAIN",
                 "Domain contains excessive hyphens — common in fake sites",
@@ -607,7 +609,7 @@ object HeuristicScanner {
 
         // 15. Typosquatting (Levenshtein)
         if (!isOfficialDomain) {
-            val cleanDomain = domain.removePrefix("www.")
+            val cleanDomain = unicodeDomain.removePrefix("www.")
             val domainName = cleanDomain.split(".").firstOrNull().orEmpty()
             PROTECTED_DOMAINS.forEach { brand ->
                 val distance = levenshtein(domainName, brand)

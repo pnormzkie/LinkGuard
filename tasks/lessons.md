@@ -8,6 +8,18 @@
 
 <!-- Add lessons below this line -->
 
+## 2026-09-18 — Verify notification adapters at the production boundary
+**Mistake:** Initially treated EXTRA_MESSAGES as a nested Bundle and marked the change done after compilation; pure string tests did not exercise Android extras. Also repeated blocked shell attempts instead of maintaining a clear verification checkpoint.
+**Context:** v1.30 notification and privacy fixes. Corrected EXTRA_MESSAGES to direct Parcelable[] and shared the Bundle adapter between the service and instrumentation tests.
+**Rule:** Compilation does not verify a framework data contract. Tests must call the production adapter, not duplicate it. Installation/boot failures mean tests did not run, not that they passed. After an execution blocker is established, preserve the gate and report it without repeated claims of completion.
+**Status:** active
+
+## 2026-09-18 — Preserve approval and delegation boundaries
+**Mistake:** Edited notification visibility during an earlier read-only audit (reverted before approval), then selected isolated agents for uncommitted original-tree work, preventing useful implementation.
+**Context:** v1.30 audit and approved follow-up batch.
+**Rule:** Read-only requests never authorize edits. Use the approved scope after explicit approval; do not select worktree isolation unless requested, and never send agents outside a denied workspace boundary.
+**Status:** active
+
 ## 2026-06-12 — Build environment constraints on this machine
 **Mistake:** Assumed gradlew.bat existed and that Android Studio's bundled JBR could build the project; first two build attempts failed.
 **Context:** LinkGuard improvements task — baseline build before code changes.

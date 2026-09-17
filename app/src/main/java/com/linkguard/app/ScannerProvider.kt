@@ -26,6 +26,7 @@ object ScannerProvider {
 
     val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .callTimeout(AppConfig.PROVIDER_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             // One retry on transient 5xx / connection failures; never on 4xx (esp. 429 quota).

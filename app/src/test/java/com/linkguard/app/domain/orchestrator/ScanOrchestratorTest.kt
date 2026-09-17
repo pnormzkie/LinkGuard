@@ -108,6 +108,43 @@ class ScanOrchestratorTest {
     )
 
     @Test
+    fun `external lookups strip credentials and fragments but local analysis preserves input`() = runTest {
+        val original = "https://user:secret@example.com/login?q=42#private"
+        val inputs = mutableListOf<String>()
+        var localInput = ""
+        val recorder = FakeProvider { inputs.add(it); emptyList() }
+        val scanner = orchestrator(
+            heuristic = FakeHeuristic { localInput = it; emptyList() },
+            reputation = recorder, enrichment = recorder, hybrid = recorder, urlhaus = recorder
+        )
+
+        val result = scanner.scan(original)
+
+        assertEquals(List(4) { "https://example.com/login?q=42" }, inputs)
+        assertEquals(original, localInput)
+        assertEquals(original, result.url)
+    }
+
+    @Test
+    fun `unparseable URL never reaches external providers and is not cached`() = runTest {
+        var calls = 0
+        var localCalls = 0
+        val recorder = FakeProvider { calls++; emptyList() }
+        val scanner = orchestrator(
+            heuristic = FakeHeuristic { localCalls++; emptyList() },
+            reputation = recorder, enrichment = recorder, hybrid = recorder, urlhaus = recorder,
+            domain = recorder, domainAge = recorder
+        )
+        val input = "https://user:secret@example.com:invalid/login#private"
+
+        scanner.scan(input)
+        scanner.scan(input)
+
+        assertEquals(0, calls)
+        assertEquals(2, localCalls)
+    }
+
+    @Test
     fun `hung provider times out while siblings are still collected`() = runTest {
         val sbSignal = signal(100, SignalStrength.CRITICAL, title = "Flagged by Google Safe Browsing")
         val orchestrator = orchestrator(
@@ -434,7 +471,7 @@ class ScanOrchestratorTest {
     }
 
     @Test
-    fun `redirect timeout partial destination keeps historical score resolved url and cache behavior`() = runTest {
+    fun `incomplete redirect resolution is suspicious not safe and never cached`() = runTest {
         var redirectCalls = 0
         val destination = "https://destination.test/partial"
         val orchestrator = orchestrator(
@@ -450,15 +487,70 @@ class ScanOrchestratorTest {
         )
 
         val first = orchestrator.scan("https://source.test/start")
-        val second = orchestrator.scan("https://source.test/start")
 
-        assertEquals(Verdict.SAFE, first.verdict.verdict)
-        assertEquals(15, first.verdict.finalScore)
+        assertEquals(Verdict.SUSPICIOUS, first.verdict.verdict)
+        assertEquals(25, first.verdict.finalScore)
         assertEquals(setOf("REDIRECT_UNRESOLVED"), first.verdict.signals.map { it.ruleId }.toSet())
         assertEquals(destination, first.resolvedUrl)
         assertEquals(null, first.verifiedResolvedUrl)
-        assertEquals(first.verdict, second.verdict)
-        assertEquals(1, redirectCalls)
+
+        // An unverified destination must not be cached as a vetted verdict: the second scan
+        // must re-resolve instead of returning the stored SUSPICIOUS verdict.
+        val second = orchestrator.scan("https://source.test/start")
+        assertEquals(2, redirectCalls)
+        assertEquals(first.verdict.finalScore, second.verdict.finalScore)
+    }
+
+    @Test
+    fun `redirect loop and hop exhaustion are suspicious not safe`() = runTest {
+        val loopResolution = RedirectResolution(
+            finalUrl = "https://loop.test/a",
+            hops = listOf("https://source.test/start", "https://loop.test/a", "https://loop.test/b"),
+            crossedDomains = true,
+            outcome = RedirectOutcome.LOOP
+        )
+        val hopResolution = RedirectResolution(
+            finalUrl = "https://destination.test/deep",
+            hops = List(6) { "https://hop$it.test/x" },
+            crossedDomains = true,
+            outcome = RedirectOutcome.MAX_HOPS
+        )
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { original ->
+                if (original.contains("loop")) loopResolution else hopResolution
+            }
+        )
+
+        assertEquals(Verdict.SUSPICIOUS, orchestrator.scan("https://loop.test/start").verdict.verdict)
+        assertEquals(Verdict.SUSPICIOUS, orchestrator.scan("https://hops.test/start").verdict.verdict)
+    }
+
+    @Test
+    fun `mid-chain transport error is suspicious resolved outcome stays safe`() = runTest {
+        val errorResolution = RedirectResolution(
+            finalUrl = "https://destination.test/stalled",
+            hops = listOf("https://source.test/start", "https://destination.test/stalled"),
+            crossedDomains = true,
+            outcome = RedirectOutcome.ERROR
+        )
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { errorResolution }
+        )
+
+        assertEquals(Verdict.SUSPICIOUS, orchestrator.scan("https://source.test/start").verdict.verdict)
+
+        // A chain that fully resolved to a clean destination keeps its SAFE verdict
+        // (historical behavior; guards against over-blocking).
+        val resolvedResolution = RedirectResolution(
+            finalUrl = "https://destination.test/ok",
+            hops = listOf("https://source.test/start", "https://destination.test/ok"),
+            crossedDomains = true,
+            outcome = RedirectOutcome.RESOLVED
+        )
+        val resolvedOrchestrator = orchestrator(
+            redirect = FakeRedirectResolver { resolvedResolution }
+        )
+        assertEquals(Verdict.SAFE, resolvedOrchestrator.scan("https://source.test/start").verdict.verdict)
     }
 
     @Test

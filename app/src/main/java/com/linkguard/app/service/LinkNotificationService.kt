@@ -16,6 +16,7 @@ import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.DailyScanCounter
 import com.linkguard.app.util.MonitorPreferences
 import com.linkguard.app.util.NotificationFilter
+import com.linkguard.app.util.NotificationPayloadExtractor
 import com.linkguard.app.util.ScanRateLimiter
 import com.linkguard.app.util.ThreatAlertHelper
 import kotlinx.coroutines.CoroutineScope
@@ -63,11 +64,8 @@ class LinkNotificationService : NotificationListenerService() {
         if (!NotificationFilter.isWithinScope(sbn.packageName, monitorPrefs.scanAllApps)) return
 
         val extras = sbn.notification.extras
-        val title = extras.getString(Notification.EXTRA_TITLE).orEmpty()
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
-
-        val fullMessageText = "$title $text $bigText"
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+        val fullMessageText = NotificationPayloadExtractor.collectText(extras)
         val urls = UrlExtractor.extractUrls(fullMessageText)
         if (urls.isEmpty()) return
 
@@ -89,8 +87,14 @@ class LinkNotificationService : NotificationListenerService() {
                         allowNetworkChecks = allowNetworkChecks
                     )
                     val legacyResult = domainResult.toLegacy(sourceApp = appLabel, senderInfo = sender)
-                    
-                    repository.saveScan(legacyResult)
+
+                    // Alerting must not depend on history persistence: a DB failure should
+                    // degrade the record, never skip the warning the user needs to see.
+                    runCatching { repository.saveScan(legacyResult) }
+                        .onFailure {
+                            if (it is kotlinx.coroutines.CancellationException) throw it
+                            Log.e(TAG, "History save failed (${it.javaClass.simpleName}); continuing alert delivery")
+                        }
 
                     if (legacyResult.threatLevel != ThreatLevel.SAFE) {
                         // Use central helper which now handles high-priority heads-up logic
@@ -105,6 +109,8 @@ class LinkNotificationService : NotificationListenerService() {
                         putExtra(AppConfig.Extras.THREAT_LEVEL, legacyResult.threatLevel.name)
                         putExtra(AppConfig.Extras.SCORE, legacyResult.riskScore)
                     })
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Scan error${if (BuildConfig.DEBUG) " for $url" else ""}: ${e.message}")
                 }

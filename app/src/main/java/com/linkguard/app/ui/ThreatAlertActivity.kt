@@ -59,6 +59,11 @@ class ThreatAlertActivity : AppCompatActivity() {
         binding.btnDismiss.setOnClickListener { finish() }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!renderIntent(intent)) finish()
+    }
+
     override fun onNewIntent(newIntent: Intent) {
         super.onNewIntent(newIntent)
         setIntent(newIntent)
@@ -93,12 +98,24 @@ class ThreatAlertActivity : AppCompatActivity() {
             if (isDanger) getString(R.string.threat_prefix_dangerous)
             else getString(R.string.threat_prefix_suspicious)
 
-        binding.alertMessage.text =
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        binding.alertMessage.text = if (keyguard.isKeyguardLocked) {
+            getString(R.string.threat_alert_locked_message)
+        } else {
             getString(R.string.threat_alert_message, messagePrefix, result.senderInfo, appSource, result.url)
+        }
 
         binding.btnViewReport.setOnClickListener {
-            startActivity(ScanDetailActivity.newIntent(this, result))
-            finish()
+            if (keyguard.isKeyguardLocked) {
+                keyguard.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+                    override fun onDismissSucceeded() {
+                        if (!isFinishing && !isDestroyed) renderIntent(intent)
+                    }
+                })
+            } else {
+                startActivity(ScanDetailActivity.newIntent(this, result))
+                finish()
+            }
         }
         return true
     }

@@ -157,6 +157,7 @@
     <!-- Threat alert popup -->
     <string name="threat_alert_title">Threat Alert</string>
     <string name="suspicious_link_title">Suspicious Link</string>
+    <string name="threat_alert_locked_message">LinkGuard detected a potentially unsafe link. Unlock your device to view the report.</string>
     <string name="threat_alert_source_system">System</string>
     <string name="threat_prefix_dangerous">Dangerous</string>
     <string name="threat_prefix_suspicious">Suspicious</string>

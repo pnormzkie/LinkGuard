@@ -1058,3 +1058,25 @@ Provider-quality calibration remains deferred: Hybrid Analysis stale-result sele
 - [ ] Existing full-lint debt remains outside this bug-only release: stale `DismissReceiver` manifest entry, `UseAppTint`, and optional-camera ChromeOS declaration. No new v1.22 lint finding was introduced.
 - [ ] Verify staged APK hash/identity, then push and publish.
 - [ ] Push the scoped source branch/tag and publish `LinkGuard-v1.22.apk` with matching release notes.
+
+## 2026-09-18 — Approved v1.30 bug-fix batch and release
+
+Approved scope: F1–F6 plus the verified IDN fix; publish v1.30 only after release gates pass. Preserve unrelated working-tree files. Rollback: revert scoped source commit; retain v1.29 release.
+
+- [x] F1: incomplete redirects suspicious/uncached; focused orchestrator tests passed.
+- [ ] F2: sanitize external lookup userinfo/fragments; helper and existing provider tests passed; boundary regression/review pending.
+- [ ] F3: redact locked threat alert and notification content; test lock/unlock behavior.
+- [ ] F4: history failures must not suppress warnings; verify failure isolation.
+- [ ] F5: include InboxStyle/MessagingStyle text; pure tests passed; corrected direct Parcelable[] wiring needs Android regression.
+- [ ] F6: enforce full-call provider timeout; add regression.
+- [ ] Full JVM suite, device checks where available, signed release build, scoped diff review.
+- [ ] Verify version/signature/hash, commit scoped branch/tag, publish GitHub release, re-download and verify hash.
+
+## 2026-09-17 — Approved IDN hostname analysis fix
+
+Scope: local Unicode-sensitive hostname analysis and scanner regression tests only. Preserve network URLs, navigation, thresholds, providers, and UI. Revert the scoped patch for rollback.
+
+- [x] Add paired Unicode/punycode regression and legitimate-IDN negative cases; baseline: 51 scanner tests, 3 failures (missing mixed-script evidence, missing typo evidence, encoding-hyphen false positive on a legitimate IDN).
+- [x] Decode hostname once for mixed-script, brand/number lookalike, typo, and dash-count analysis; preserve original URL and trust checks.
+- [x] Scanner suite: 51/51 pass. Full JVM suite: 390 tests across 32 suites, 0 failures/errors/skips. Debug build successful. Scoped diff check passes.
+- [x] Verification: cached Gradle 8.9 + JDK 17; `:app:testDebugUnitTest --tests 'com.linkguard.app.scanner.HeuristicScannerTest' --offline`, then `:app:testDebugUnitTest :app:assembleDebug --offline`. No device/instrumentation, release build, or full lint run; no live threat requests. Existing build warnings: AGP compileSdk support, Room schema export, Kotlin warnings, native symbol stripping, Gradle deprecations. No commit/publication. Other audit findings remain outside scope.

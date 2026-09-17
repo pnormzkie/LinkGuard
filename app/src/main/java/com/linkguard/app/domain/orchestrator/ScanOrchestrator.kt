@@ -17,6 +17,7 @@ import com.linkguard.app.domain.scoring.ScoringEngine
 import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.DomainExtractor
 import com.linkguard.app.util.KnownDomains
+import com.linkguard.app.util.UrlPrivacy
 import kotlinx.coroutines.*
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -113,13 +114,16 @@ class ScanOrchestrator(
 
         // 3. Parallel API checks, each with its own timeout so one slow provider
         //    cannot starve the others. null means the check itself failed.
-        val results = if (allowNetworkChecks) {
-            val sbDeferred = async { guarded("SafeBrowsing", scanUrl, reputationProvider) }
+        //    Full-URL providers receive a sanitized copy (no userinfo, no fragment) —
+        //    URL credentials and browser-local fragments never leave the device.
+        val lookupUrl = UrlPrivacy.sanitizeForExternalLookup(scanUrl)
+        val results = if (allowNetworkChecks && lookupUrl != null) {
+            val sbDeferred = async { guarded("SafeBrowsing", lookupUrl, reputationProvider) }
             val dnsDeferred = async { guarded("NextDNS", domain, domainSignalProvider) }
-            val vtDeferred = async { guarded("VirusTotal", scanUrl, enrichmentProvider) }
-            val haDeferred = async { guarded("HybridAnalysis", scanUrl, hybridAnalysisProvider) }
+            val vtDeferred = async { guarded("VirusTotal", lookupUrl, enrichmentProvider) }
+            val haDeferred = async { guarded("HybridAnalysis", lookupUrl, hybridAnalysisProvider) }
             val daDeferred = async { guarded("DomainAge", domain, domainAgeProvider) }
-            val uhDeferred = async { guarded("URLhaus", scanUrl, urlHausProvider) }
+            val uhDeferred = async { guarded("URLhaus", lookupUrl, urlHausProvider) }
             listOf(sbDeferred, dnsDeferred, vtDeferred, haDeferred, daDeferred, uhDeferred).awaitAll()
         } else {
             // Automatic notification quotas protect network/API resources, never the cheap local
@@ -172,8 +176,13 @@ class ScanOrchestrator(
         )
 
         // Cache only fully vetted results. Partial provider outages must be retried on the next
-        // scan instead of preserving an overconfident clean verdict for the full TTL.
-        if (!externalCoverageMissing && !externalCoveragePartial) {
+        // scan instead of preserving an overconfident clean verdict for the full TTL. An
+        // incomplete redirect resolution (timeout/loop/hop limit) also stays uncached: the
+        // landing page was never verified, so the verdict may change on a retry.
+        val resolutionComplete = resolution == null ||
+            resolution.outcome == RedirectOutcome.NO_REDIRECT ||
+            resolution.outcome == RedirectOutcome.RESOLVED
+        if (resolutionComplete && !externalCoverageMissing && !externalCoveragePartial) {
             cachePut(cacheKey, CacheEntry(result, startedAt))
         }
         result
@@ -227,10 +236,12 @@ class ScanOrchestrator(
     private fun unresolvedSignal(finalUrl: String) = ScanSignal(
         ruleId = "REDIRECT_UNRESOLVED",
         title = "Redirect destination could not be verified",
-        description = "The link forwards through redirects that could not be fully followed.",
-        strength = SignalStrength.MEDIUM,
+        description = "The link forwards through redirects that could not be fully followed — the real destination is unknown.",
+        // STRONG, not MEDIUM: when the chain stops early the landing page was never checked.
+        // A 15-point MEDIUM signal scored SAFE and got cached as a vetted clean verdict.
+        strength = SignalStrength.STRONG,
         source = SignalSource.LOCAL_HEURISTIC,
-        score = 15,
+        score = 25,
         matchedValue = finalUrl
     )
 
