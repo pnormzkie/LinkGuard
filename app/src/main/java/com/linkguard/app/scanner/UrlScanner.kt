@@ -4,6 +4,7 @@ import com.linkguard.app.data.ScanResult
 import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.util.DomainExtractor
 import com.linkguard.app.util.KnownDomains
+import com.linkguard.app.util.TldRegistry
 import java.net.URI
 import java.util.regex.Pattern
 
@@ -78,11 +79,28 @@ object UrlExtractor {
         value = trimUnmatchedCloser(value, '[', ']')
         value = trimUnmatchedCloser(value, '{', '}')
         if (value.isBlank()) return null
+        if (addScheme && looksLikeProse(value)) return null
 
         val normalized = if (addScheme) "https://$value" else value
         val host = DomainExtractor.extract(normalized) ?: return null
         if (!host.contains('.') || host.startsWith('.') || host.endsWith('.')) return null
         return normalized
+    }
+
+    /**
+     * A scheme-less "word.Word" is usually a sentence missing a space ("3 PM.This"), not a link.
+     * Rejects an unregistered TLD, or a Title-case TLD on a bare host with no www/port/path.
+     * Explicit http(s):// URLs never reach this check.
+     */
+    private fun looksLikeProse(value: String): Boolean {
+        val authority = value.substringBefore('/')
+        val hostPart = authority.substringBefore(':')
+        val tld = hostPart.substringAfterLast('.')
+        if (!TldRegistry.isKnown(tld)) return true
+
+        val bareHost = authority.length == value.length && ':' !in authority
+        val titleCaseTld = tld.first().isUpperCase() && tld.drop(1).all { it.isLowerCase() }
+        return bareHost && titleCaseTld && !hostPart.startsWith("www.", ignoreCase = true)
     }
 
     private fun trimUnmatchedCloser(value: String, opener: Char, closer: Char): String {
@@ -579,8 +597,10 @@ object HeuristicScanner {
             }
         }
 
-        // 13. Smishing pattern
-        if (messageText != null) {
+        // 13. Smishing pattern. Message wording is context, not evidence about the link: like
+        //     every other rule it must not decide the verdict for a trusted domain (a bank's own
+        //     "your points expire" email would otherwise be flagged).
+        if (messageText != null && !isOfficialDomain) {
             var smishingMatched = false
             SMISHING_PATTERNS.forEach { pattern ->
                 if (!smishingMatched && pattern.containsMatchIn(messageText)) {

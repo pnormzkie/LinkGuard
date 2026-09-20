@@ -121,6 +121,28 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `scam-pattern message text alone does not flag a trusted domain`() {
+        val trusted = listOf(
+            "https://www.google.com" to "Your account will be suspended if you do not act.",
+            "https://mail.google.com/mail/u/0" to "Please verify within 24 hours to keep your mailbox."
+        )
+        trusted.forEach { (url, text) ->
+            val result = HeuristicScanner.scanWithContext(url, text)
+            assertEquals(url, ThreatLevel.SAFE, result.threatLevel)
+            assertFalse(url, result.flags.any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `same scam-pattern text still flags an untrusted domain`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://example.com",
+            "Your account will be suspended if you do not act."
+        )
+        assertEquals(ThreatLevel.SUSPICIOUS, result.threatLevel)
+    }
+
+    @Test
     fun `benign tagalog message is not flagged`() {
         val flags = flagsOf("https://example.com", "Kumusta, kita tayo bukas sa bahay")
         assertFalse(flags.any { it.contains("smishing", ignoreCase = true) })

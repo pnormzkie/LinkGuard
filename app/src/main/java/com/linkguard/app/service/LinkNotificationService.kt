@@ -12,6 +12,7 @@ import com.linkguard.app.data.ScanRepository
 import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.domain.mapper.toLegacy
 import com.linkguard.app.scanner.UrlExtractor
+import com.linkguard.app.util.AlertDeduper
 import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.DailyScanCounter
 import com.linkguard.app.util.MonitorPreferences
@@ -34,6 +35,8 @@ class LinkNotificationService : NotificationListenerService() {
     private val monitorPrefs by lazy { MonitorPreferences(applicationContext) }
     // Flood guard for the automatic path: caps scans/window to protect provider quotas.
     private val rateLimiter = ScanRateLimiter()
+    // Notification updates re-post the same link; alert once per link+level per cooldown.
+    private val alertDeduper = AlertDeduper()
     // Persistent daily cap (survives restarts) aligned with provider daily quotas.
     private val dailyCounter by lazy { DailyScanCounter.create(applicationContext) }
 
@@ -98,7 +101,9 @@ class LinkNotificationService : NotificationListenerService() {
 
                     if (legacyResult.threatLevel != ThreatLevel.SAFE) {
                         // Use central helper which now handles high-priority heads-up logic
-                        ThreatAlertHelper.alert(this@LinkNotificationService, legacyResult)
+                        if (alertDeduper.shouldAlert("${legacyResult.threatLevel}|${url.lowercase()}")) {
+                            ThreatAlertHelper.alert(this@LinkNotificationService, legacyResult)
+                        }
                     } else if (BuildConfig.DEBUG) {
                         Log.d(TAG, "Safe link from $appLabel: $url")
                     }

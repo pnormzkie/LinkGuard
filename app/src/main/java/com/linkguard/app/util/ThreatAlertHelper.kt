@@ -32,6 +32,8 @@ object ThreatAlertHelper {
         val channelId = if (isCritical) CHANNEL_DANGER_ID else CHANNEL_WARNING_ID
         
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // Stable per link, so a repeat alert replaces the existing one instead of stacking.
+        val alertId = result.url.lowercase().hashCode()
 
         // 1. Prepare Intent for the Popup Activity
         val popupIntent = ThreatAlertActivity.newIntent(context, result)
@@ -51,7 +53,7 @@ object ThreatAlertHelper {
         // 3. Prepare PendingIntents for the Notification
         val popupPendingIntent = PendingIntent.getActivity(
             context, 
-            result.hashCode() + 100, 
+            alertId + 100,
             popupIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -59,7 +61,7 @@ object ThreatAlertHelper {
         val detailIntent = ScanDetailActivity.newIntent(context, result)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val detailPendingIntent = PendingIntent.getActivity(
-            context, result.hashCode() + 200, detailIntent,
+            context, alertId + 200, detailIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -87,7 +89,7 @@ object ThreatAlertHelper {
             .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
             .addAction(android.R.drawable.ic_menu_view, "View Report", detailPendingIntent)
 
-        nm.notify(result.hashCode(), notificationBuilder.build())
+        nm.notify(alertId, notificationBuilder.build())
     }
 
     fun createNotificationChannels(context: Context) {

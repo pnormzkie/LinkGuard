@@ -1064,13 +1064,18 @@ Provider-quality calibration remains deferred: Hybrid Analysis stale-result sele
 Approved scope: F1–F6 plus the verified IDN fix; publish v1.30 only after release gates pass. Preserve unrelated working-tree files. Rollback: revert scoped source commit; retain v1.29 release.
 
 - [x] F1: incomplete redirects suspicious/uncached; focused orchestrator tests passed.
-- [ ] F2: sanitize external lookup userinfo/fragments; helper and existing provider tests passed; boundary regression/review pending.
-- [ ] F3: redact locked threat alert and notification content; test lock/unlock behavior.
-- [ ] F4: history failures must not suppress warnings; verify failure isolation.
-- [ ] F5: include InboxStyle/MessagingStyle text; pure tests passed; corrected direct Parcelable[] wiring needs Android regression.
-- [ ] F6: enforce full-call provider timeout; add regression.
-- [ ] Full JVM suite, device checks where available, signed release build, scoped diff review.
-- [ ] Verify version/signature/hash, commit scoped branch/tag, publish GitHub release, re-download and verify hash.
+- [x] F2: sanitize external lookup userinfo/fragments; fail-closed for unparseable input; boundary regressions prove providers never receive raw credentials/fragments.
+- [x] F3: redact locked threat alert and notification content; VISIBILITY_PRIVATE on builder + danger channel (new v4 channel IDs); locked-device message + unlock re-render in ThreatAlertActivity. (On-device lockscreen visual: not run — residual.)
+- [x] F4: history failures must not suppress warnings; cancellation rethrown.
+- [x] F5: include InboxStyle/MessagingStyle text via shared production Bundle adapter; case-sensitive dedupe regression (failed-first, then fixed). Device instrumentation test written; execution blocked (emulator certificate mismatch, then offline boot) — residual.
+- [x] F6: callTimeout(8000ms) enforced; client-config regression test.
+- [x] Full JVM suite: 404 tests, 35 suites, 0 failures/errors/skips (baseline 390). Signed release build (R8+shrink+lintVital): BUILD SUCCESSFUL.
+- [x] APK identity verified: versionCode 31, versionName 1.30, cert SHA-256 ead80ea1…74227357 (in-place update parity), 24,661,400 bytes, SHA-256 7cb8a7cc229ea08817ca5cb65099250200247c10470ccec9504b1812a2cbf762. Staged as release-staging/LinkGuard-v1.30.apk.
+- [x] Commit fb99b56 on release/v1.30-source + annotated tag v1.30 (scoped: 18 files; settings.local.json, APKs, screenshots excluded).
+- [x] Push branch + tag: origin/release/v1.30-source = fb99b56, origin/v1.30 = 382347c (verified via git ls-remote).
+- [x] Publish GitHub release: release id 391099916, tag v1.30 (draft=false, prerelease=false), asset LinkGuard-v1.30.apk 24,661,400 bytes state=uploaded; releases/latest = v1.30; re-downloaded asset SHA-256 7CB8A7CC…2CBF762 — hash-identical to staged APK. URL: https://github.com/pnormzkie/LinkGuard/releases/download/v1.30/LinkGuard-v1.30.apk
+- [ ] Residuals: device instrumentation (NotificationPayloadExtractorDeviceTest, ThreatAlertActivityIntentTest) and lockscreen visuals unverified — emulator blocked before test execution; gh CLI absent on host.
+
 
 ## 2026-09-17 — Approved IDN hostname analysis fix
 
@@ -1080,3 +1085,23 @@ Scope: local Unicode-sensitive hostname analysis and scanner regression tests on
 - [x] Decode hostname once for mixed-script, brand/number lookalike, typo, and dash-count analysis; preserve original URL and trust checks.
 - [x] Scanner suite: 51/51 pass. Full JVM suite: 390 tests across 32 suites, 0 failures/errors/skips. Debug build successful. Scoped diff check passes.
 - [x] Verification: cached Gradle 8.9 + JDK 17; `:app:testDebugUnitTest --tests 'com.linkguard.app.scanner.HeuristicScannerTest' --offline`, then `:app:testDebugUnitTest :app:assembleDebug --offline`. No device/instrumentation, release build, or full lint run; no live threat requests. Existing build warnings: AGP compileSdk support, Room schema export, Kotlin warnings, native symbol stripping, Gradle deprecations. No commit/publication. Other audit findings remain outside scope.
+
+## 2026-09-20 — Approved fix: prose run-ons (e.g. "PM.This") extracted as URLs
+
+Bug: `BARE_DOMAIN_PATTERN` accepts any letters as TLD, so notification text like "3 PM.This" became `https://PM.This` and raised a red alert. Approved: (1) IANA TLD allowlist for scheme-less candidates, (2) Title-case-TLD prose guard for bare candidates with no path/port/www. Explicit http(s):// URLs untouched. Rollback: revert the scoped patch (UrlScanner.kt, new TldRegistry.kt, UrlExtractorTest.kt).
+
+- [x] Add regression tests to UrlExtractorTest; baseline: 11 tests, 2 failed (PM.This, Mon.In).
+- [x] Add util/TldRegistry.kt (IANA 2026091802) + looksLikeProse in UrlScanner.normalizeCandidate (bare candidates only).
+- [x] Full JVM suite: 409 tests, 35 suites, 0 failures/errors/skips; assembleDebug OK. Not run: device, live Gmail notification, release build. Not committed.
+- [x] Emulator E2E (Pixel_7 API 34, `-read-only`, listener granted, scan-all-apps on; notifications posted via `cmd notification post`): fixed debug build — "3 PM.This", "Mon.In", "Thanks.Please" → no ScanOrchestrator/ThreatAlert activity; control "evil.xyz/login" → full scan + ThreatAlertActivity launch (BAL-blocked as in prior smokes). Old release v1.30 APK, same "3 PM.This" text → scanned + ThreatAlertActivity launched (bug reproduced). Real Gmail app/lock-screen not exercised (shell package used; Gmail is in the default scan scope).
+
+## 2026-09-20 — Approved: fix remaining audit findings, then commit
+
+Scope: F-A message-text smishing rule must not decide the verdict for trusted domains; F-B duplicate alerts for the same link must not stack. Rollback: revert the commits (UrlScanner.kt, ThreatAlertHelper.kt, LinkNotificationService.kt, new AlertDeduper.kt + tests).
+
+- [x] F-A tests: trusted domain + scam text stays SAFE; untrusted same text still SUSPICIOUS (baseline: 58 run, 1 failed).
+- [x] F-A fix: rule 13 skipped when isOfficialDomain.
+- [x] F-B tests: AlertDeduperTest (5).
+- [x] F-B fix: AlertDeduper (5 min, level+url key, bounded 200) in LinkNotificationService; stable per-URL notification id in ThreatAlertHelper.
+- [x] Full JVM suite: 416 tests, 36 suites, 0 failures/errors/skips; assembleDebug OK. Committed as one commit (UrlScanner.kt holds both the extraction and F-A changes). Not run: device check of F-B stacking.
+- Corrected residual: earlier claim "old v1.30 reproduced PM.This alert" is NOT supported (local score for pm.this is 0); the fixed-build result (no scan) stands.

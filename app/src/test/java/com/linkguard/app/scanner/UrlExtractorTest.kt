@@ -46,4 +46,32 @@ class UrlExtractorTest {
         assertEquals(listOf("https://evil.xyz/path"), urls)
         assertTrue(urls.distinct().size == urls.size)
     }
+
+    @Test
+    fun `prose run-on with non-tld word is not extracted`() {
+        assertEquals(emptyList<String>(), UrlExtractor.extractUrls("Your table is booked for 3 PM.This message is automated"))
+        assertEquals(emptyList<String>(), UrlExtractor.extractUrls("Thanks.Please reply soon"))
+    }
+
+    @Test
+    fun `prose run-on with real cctld but title case is not extracted`() {
+        assertEquals(emptyList<String>(), UrlExtractor.extractUrls("See you on Mon.In the morning"))
+    }
+
+    @Test
+    fun `less common real tlds are still extracted`() {
+        assertEquals(listOf("https://evil.zip"), UrlExtractor.extractUrls("Open evil.zip now"))
+        assertEquals(listOf("https://evil.mov"), UrlExtractor.extractUrls("Open evil.mov now"))
+    }
+
+    @Test
+    fun `lowercase or pathed bare hosts with word-like cctld are still extracted`() {
+        assertEquals(listOf("https://evil.in"), UrlExtractor.extractUrls("Open evil.in now"))
+        assertEquals(listOf("https://Evil.In/login"), UrlExtractor.extractUrls("Open Evil.In/login now"))
+    }
+
+    @Test
+    fun `explicit scheme url is not subject to tld allowlist`() {
+        assertEquals(listOf("https://PM.This"), UrlExtractor.extractUrls("Open https://PM.This"))
+    }
 }
