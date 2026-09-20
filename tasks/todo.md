@@ -1126,3 +1126,16 @@ F1 intent preserved: a chain that actually redirected is still suspicious + unca
       (F-C), not a scoring bug. Retraction in the prior entry stands corrected.
 - Residual: real Gmail app + lockscreen still not exercised (shell package used); timing-based
   evasion (server stalls the scanner's first hop but answers the browser) no longer warns.
+
+## 2026-09-20 — Approved: publish + release v1.31
+
+Scope: release the four false-positive fixes (be1649d, 5d365bf). Same signing key as v1.30 for
+in-place update parity. Rollback: v1.30 remains downloadable; delete/unpublish the v1.31 release
+and re-point releases/latest to v1.30 if a blocker appears.
+
+- [x] Bump versionCode 31 -> 32, versionName 1.30 -> 1.31.
+- [x] Signed release build (R8 + shrink + lintVital): BUILD SUCCESSFUL in 3m28s.
+- [x] APK identity: versionCode=32 versionName=1.31, cert SHA-256 ead80ea1...74227357 (v1.30 parity), 24,669,588 bytes, SHA-256 35D06B04...3670BD36; staged as release-staging/LinkGuard-v1.31.apk. Release-build smoke on Pixel_7: dead domain -> SAFE LINK 0%; evil.xyz/login -> SUSPICIOUS 25% ("Phishing keyword in URL path"); 0 LinkGuard crashes (a SystemUI ANR dialog on the emulator is unrelated).
+- [x] Release notes v1.31 + publish-v1.31.sh staged (release-staging stays untracked, matching v1.30).
+- [ ] Commit + annotated tag v1.31; push branch + tag.
+- [ ] Publish GitHub release via REST (upload_url), verify releases/latest + re-downloaded hash.
