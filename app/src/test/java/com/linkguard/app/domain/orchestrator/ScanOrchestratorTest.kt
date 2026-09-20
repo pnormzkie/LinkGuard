@@ -502,6 +502,27 @@ class ScanOrchestratorTest {
     }
 
     @Test
+    fun `unreachable site that never redirected is not an unresolved-redirect signal`() = runTest {
+        // A first-hop timeout means the site never answered — the user cannot reach it either,
+        // so it is an unreachable site, not a redirect chain whose destination stayed unknown.
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { original ->
+                RedirectResolution(
+                    finalUrl = original,
+                    hops = listOf(original),
+                    crossedDomains = false,
+                    outcome = RedirectOutcome.TIMEOUT
+                )
+            }
+        )
+
+        val result = orchestrator.scan("https://dead-domain.test/news")
+
+        assertEquals(emptySet<String>(), result.verdict.signals.map { it.ruleId }.toSet())
+        assertEquals(Verdict.SAFE, result.verdict.verdict)
+    }
+
+    @Test
     fun `redirect loop and hop exhaustion are suspicious not safe`() = runTest {
         val loopResolution = RedirectResolution(
             finalUrl = "https://loop.test/a",

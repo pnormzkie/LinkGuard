@@ -210,10 +210,10 @@ class ScanOrchestrator(
                     )
                 ) else emptyList()
 
-            RedirectOutcome.MAX_HOPS, RedirectOutcome.LOOP, RedirectOutcome.TIMEOUT ->
-                listOf(unresolvedSignal(resolution.finalUrl))
-            // A transport error mid-chain leaves the true destination unverified; a failure on
-            // the very first hop is just an unreachable site, not a redirect signal.
+            // A chain that stopped early leaves the true destination unverified; a failure or
+            // timeout on the very first hop is just an unreachable site, not a redirect signal.
+            // Warning about a dead link is noise: it never resolved for the user either.
+            RedirectOutcome.MAX_HOPS, RedirectOutcome.LOOP, RedirectOutcome.TIMEOUT,
             RedirectOutcome.ERROR ->
                 if (resolution.redirected) listOf(unresolvedSignal(resolution.finalUrl)) else emptyList()
 

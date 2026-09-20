@@ -1105,3 +1105,24 @@ Scope: F-A message-text smishing rule must not decide the verdict for trusted do
 - [x] F-B fix: AlertDeduper (5 min, level+url key, bounded 200) in LinkNotificationService; stable per-URL notification id in ThreatAlertHelper.
 - [x] Full JVM suite: 416 tests, 36 suites, 0 failures/errors/skips; assembleDebug OK. Committed as one commit (UrlScanner.kt holds both the extraction and F-A changes). Not run: device check of F-B stacking.
 - Corrected residual: earlier claim "old v1.30 reproduced PM.This alert" is NOT supported (local score for pm.this is 0); the fixed-build result (no scan) stands.
+
+## 2026-09-20 — Re-verification on device + F-C (dead link false alert)
+
+Found during re-verification: an unreachable host produced a red alert. `resolve()` returns
+outcome=TIMEOUT with a 1-entry chain when the FIRST hop never answers, and `redirectSignals`
+mapped TIMEOUT to REDIRECT_UNRESOLVED (STRONG, 25) unconditionally -> SUSPICIOUS. The ERROR
+branch already guarded this exact case; the guard now covers TIMEOUT/LOOP/MAX_HOPS too.
+F1 intent preserved: a chain that actually redirected is still suspicious + uncached.
+
+- [x] Failing-first test `unreachable site that never redirected is not an unresolved-redirect signal` (41 run, 1 failed), then passing.
+- [x] Full JVM suite: 417 tests, 36 suites, 0 failures/errors/skips; assembleDebug OK.
+- [x] Emulator E2E on the committed+fixed debug build (Pixel_7 API 34, `-read-only`, scan-all-apps on),
+      each case in its own cleared-logcat window:
+      A prose "3 PM.This" -> scans=0 alerts=0; B trusted google.com + "account will be suspended"
+      -> scans=1 alerts=0 ("Safe link from shell"); C evil.xyz/login -> scans=1 alerts=1;
+      D same URL re-posted -> scans=1 alerts=0 (deduped), 1 notification record total;
+      E dead domain -> before: alert; after: scans=1 alerts=0 ("Safe link").
+- [x] Earlier unexplained v1.30 alert for "PM.This" is now explained: the dead-host TIMEOUT path
+      (F-C), not a scoring bug. Retraction in the prior entry stands corrected.
+- Residual: real Gmail app + lockscreen still not exercised (shell package used); timing-based
+  evasion (server stalls the scanner's first hop but answers the browser) no longer warns.
