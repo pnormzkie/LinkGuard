@@ -107,11 +107,6 @@
             </intent-filter>
         </service>
 
-        <!-- Receiver for notification actions -->
-        <receiver
-            android:name=".util.DismissReceiver"
-            android:exported="false" />
-
     </application>
 
 </manifest>

@@ -29,6 +29,20 @@ object UpdateInstaller {
     const val NO_DOWNLOAD = -1L
 
     /**
+     * Completion receivers awaiting a download, keyed by id. DownloadManager broadcasts nothing
+     * when a download is removed, so a cancelled update would otherwise leave its receiver
+     * registered on the application context for the rest of the process's life. [cancel]
+     * unregisters through this map; [downloadAndInstall] clears its own entry on completion.
+     */
+    private val pendingReceivers = mutableMapOf<Long, BroadcastReceiver>()
+
+    private fun releaseReceiver(context: Context, downloadId: Long) {
+        val receiver = synchronized(pendingReceivers) { pendingReceivers.remove(downloadId) }
+            ?: return
+        runCatching { context.unregisterReceiver(receiver) }
+    }
+
+    /**
      * UI-facing snapshot of an in-progress update download. Derived purely from the
      * DownloadManager cursor columns (see [mapStatus]) so it can be unit-tested without
      * any Android framework objects. This drives the progress dialog only — it has no
@@ -123,7 +137,7 @@ object UpdateInstaller {
             override fun onReceive(ctx: Context, intent: Intent) {
                 val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
                 if (id == -1L || id != downloadId) return
-                appContext.unregisterReceiver(this)
+                releaseReceiver(appContext, downloadId)
 
                 val apkUri = downloadManager.getUriForDownloadedFile(downloadId)
                 if (apkUri == null) {
@@ -134,8 +148,12 @@ object UpdateInstaller {
                 // Verify the downloaded APK is signed by the same certificate as the
                 // running app before handing it to the system installer. This blocks a
                 // tampered/swapped APK even if it somehow reached the download directory.
-                val apkFile = appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                    ?.let { java.io.File(it, fileName) }
+                //
+                // The path comes from DownloadManager's own COLUMN_LOCAL_URI rather than being
+                // rebuilt from [fileName]: when the requested name already exists DownloadManager
+                // writes to a de-duplicated name instead, and a rebuilt path would then verify a
+                // DIFFERENT (older) file than the one apkUri installs.
+                val apkFile = localFileOf(downloadManager, downloadId)
                 if (apkFile == null || !apkFile.exists() ||
                     !signatureMatchesInstalledApp(appContext, apkFile.absolutePath)
                 ) {
@@ -172,7 +190,25 @@ object UpdateInstaller {
             .setDestinationInExternalFilesDir(appContext, Environment.DIRECTORY_DOWNLOADS, fileName)
 
         downloadId = downloadManager.enqueue(request)
+        synchronized(pendingReceivers) { pendingReceivers[downloadId] = receiver }
         return downloadId
+    }
+
+    /**
+     * The file DownloadManager actually wrote for [downloadId], read from COLUMN_LOCAL_URI so
+     * the file that gets signature-verified is the same one [getUriForDownloadedFile] installs.
+     * Null when the row is gone or exposes no local path.
+     */
+    private fun localFileOf(dm: DownloadManager, downloadId: Long): java.io.File? = try {
+        dm.query(DownloadManager.Query().setFilterById(downloadId))?.use { cursor ->
+            if (!cursor.moveToFirst()) return null
+            val idx = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
+            val localUri = if (idx < 0) null else cursor.getString(idx)
+            localUri?.let { Uri.parse(it).path }?.let { java.io.File(it) }
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not resolve downloaded file: ${e.message}")
+        null
     }
 
     /**
@@ -203,11 +239,13 @@ object UpdateInstaller {
     /** Cancels and removes an in-progress download (Cancel button). Safe to call with a stale id. */
     fun cancel(context: Context, downloadId: Long) {
         if (downloadId == NO_DOWNLOAD) return
+        val appContext = context.applicationContext
         runCatching {
-            val dm = context.applicationContext
-                .getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val dm = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             dm.remove(downloadId)
         }
+        // A removed download broadcasts no completion, so the receiver must be torn down here.
+        releaseReceiver(appContext, downloadId)
     }
 
     private fun android.database.Cursor.getIntOrZero(column: String): Int {

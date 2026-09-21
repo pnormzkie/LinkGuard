@@ -37,10 +37,11 @@ object AppConfig {
     // Minimum gap between automatic update checks (foreground returns re-check after this).
     const val UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000L
     const val SCAN_COMPLETE_ACTION = "com.linkguard.SCAN_COMPLETE"
-    
-    // Updated channel IDs to force High Importance for heads-up alerts
-    const val NOTIFICATION_CHANNEL_DANGER = "linkguard_danger_v2"
-    const val NOTIFICATION_CHANNEL_WARNING = "linkguard_warning_v2"
+
+    // Alert channel IDs deliberately live in ThreatAlertHelper, which owns channel creation.
+    // Channel settings are persisted by Android under the id, so the id and the configuration
+    // must be versioned together in one place — a stale copy here would post to a channel that
+    // was never created, and the notification would be dropped silently on API 26+.
 
     object Extras {
         const val URL = "url"

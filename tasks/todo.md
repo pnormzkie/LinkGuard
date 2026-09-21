@@ -1137,5 +1137,46 @@ and re-point releases/latest to v1.30 if a blocker appears.
 - [x] Signed release build (R8 + shrink + lintVital): BUILD SUCCESSFUL in 3m28s.
 - [x] APK identity: versionCode=32 versionName=1.31, cert SHA-256 ead80ea1...74227357 (v1.30 parity), 24,669,588 bytes, SHA-256 35D06B04...3670BD36; staged as release-staging/LinkGuard-v1.31.apk. Release-build smoke on Pixel_7: dead domain -> SAFE LINK 0%; evil.xyz/login -> SUSPICIOUS 25% ("Phishing keyword in URL path"); 0 LinkGuard crashes (a SystemUI ANR dialog on the emulator is unrelated).
 - [x] Release notes v1.31 + publish-v1.31.sh staged (release-staging stays untracked, matching v1.30).
-- [ ] Commit + annotated tag v1.31; push branch + tag.
-- [ ] Publish GitHub release via REST (upload_url), verify releases/latest + re-downloaded hash.
+- [x] Committed 4437240 + annotated tag v1.31; pushed (origin/release/v1.30-source = 4437240, origin/v1.31 = f3cb685) after first push was blocked by the permission classifier and re-confirmed by the user.
+- [x] Published GitHub release id 392387153 (tag v1.31, latest); asset LinkGuard-v1.31.apk 24,669,588 bytes; re-downloaded SHA-256 35D06B04...3670BD36 == staged APK. URL: https://github.com/pnormzkie/LinkGuard/releases/download/v1.31/LinkGuard-v1.31.apk. Residual: real Gmail app not exercised; the todo.md note itself is uncommitted.
+
+## 2026-09-21 — Approved: fix all findings from the deep evaluation audit
+
+Scope: F1 trusted-host user-content blind spot; F2 digit-substitution substring false positives;
+F3 query-only URLs skip path keywords; F4 duplicate-ruleId score inflation; F5 manifest declares a
+missing class; F6 dead channel constants; F7 update-installer receiver leak + verify/install handle
+mismatch. Rollback: revert the commits (UrlScanner.kt, AndroidManifest.xml, AppConfig.kt,
+UpdateInstaller.kt, HeuristicScannerTest.kt, UpdateInstallerUrlTest.kt).
+
+Deviation from the audit's literal recommendation, decided during implementation:
+- Rule 13 (smishing message text) stays GATED for trusted domains. Un-gating it would reintroduce
+  the v1.31 F-A bug (a bank's own "points expire" email alerting). Message wording is not evidence
+  about the URL.
+- Un-gating rule 4's path branch for ALL trusted hosts was rejected: it false-positives on
+  `chatgpt.com/advanced-account-security` (existing test asserts score 0, no flags). Scoped instead
+  to a USER_CONTENT_HOSTS set — the trusted hosts that serve attacker-authorable pages.
+- Added rule 17 (brand + phishing keyword glued inside ONE path segment) because un-gating rule 4
+  alone yields only 10 pts and leaves the proven Google Sites phish SAFE.
+
+- [x] Failing-first baseline: 60 tests in HeuristicScannerTest, 5 failures (one was my own wrong
+      assumption -- "1" maps to "i" not "l", so paypa1.com is caught by the Levenshtein typosquat
+      rule, not the digit rule; test corrected rather than the product).
+- [x] F2 fix: rules 6 and 6b use looksLikeBrandSpoof (token boundary) instead of raw contains.
+- [x] F3 fix: extractPath anchors on '/' OR '?' and drops the fragment, so the query is inspected.
+- [x] F4 fix: addFinding dedupes by ruleId before scoring; the trailing distinctBy is now removed.
+- [x] F1 fix: USER_CONTENT_HOSTS + rule 4 path branch un-gated for them + new rule 17
+      (brand glued to a phishing keyword inside ONE path segment, STRONG 40).
+- [x] F5/F6: DismissReceiver manifest entry and the dead _v2 channel constants removed.
+- [x] F7: pendingReceivers map so cancel() tears the receiver down; signature verification now
+      reads COLUMN_LOCAL_URI so the file verified is the file installed.
+- [x] Full JVM suite: 424 tests, 36 suites, 0 failures/errors/skips; assembleDebug OK.
+- [x] Verified behaviour, not just green tests: sites.google.com/view/bpi-verify-account/login
+      0% SAFE -> 50% SUSPICIOUS; gr0ups/st4rtups/pine4pple 45% SUSPICIOUS -> 0% SAFE;
+      evil-site.xyz?do=login 15% SAFE -> 25% SUSPICIOUS; g00gle-4pple.com 90% (1 flag) -> 45%.
+      Unchanged: chatgpt.com 0%, accounts.google.com 0%, github release .apk 10% SAFE,
+      google.com + scam text SAFE (v1.31 F-A intact).
+- Known cosmetic effect: a legitimate user-content URL whose path holds a keyword (e.g.
+  github.com/microsoft/vscode/issues/update) now shows a WEAK 10-pt path flag. Verdict stays SAFE.
+  Consistent with how rule 2 already flags abcd.xyz at 15 while staying SAFE.
+- Residual: no device/instrumentation run, no release build, no lint; F7's DownloadManager
+  filename-collision behaviour was never reproduced on a device -- the fix is defensive.
