@@ -1180,3 +1180,43 @@ Deviation from the audit's literal recommendation, decided during implementation
   Consistent with how rule 2 already flags abcd.xyz at 15 while staying SAFE.
 - Residual: no device/instrumentation run, no release build, no lint; F7's DownloadManager
   filename-collision behaviour was never reproduced on a device -- the fix is defensive.
+
+### Emulator smoke (2026-09-21, Pixel_7 API 34, `-read-only`, live providers, debug build)
+
+Both runtime paths exercised on device, not just the JVM suite.
+
+Intercept path (`am start VIEW -n .ui.LinkInterceptActivity`), verdicts read back from the
+persisted Room DB (`scan_history`) rather than the screen, so the evidence is the verdict the
+app actually stored. All 6 providers returned 0 signals on the F1/F2/F3 cases, so these verdicts
+are attributable to the local heuristic changes:
+
+| case | verdict | flags |
+|---|---|---|
+| sites.google.com/view/bpi-verify-account/login | SUSPICIOUS 50% | path keyword "login" + Page impersonates "BPI" |
+| github.com/bpi-verify-account/login | SUSPICIOUS 50% | same |
+| docs.google.com/document/d/abc123/edit | SAFE 0% | none (control) |
+| gr0ups.com | SAFE 0% | none (was SUSPICIOUS 45%) |
+| pine4pple.com | SAFE 0% | none (was SUSPICIOUS 45%) |
+| evil-site.xyz?action=verify&do=login | SUSPICIOUS 25% | .xyz + path keyword "login" (was SAFE 15%) |
+| chatgpt.com/advanced-account-security?... | SAFE 0% | none (control, unchanged) |
+| secure-google.com/login | DANGER 75% | brand spoofing + **2 Vendors Flagged** (VirusTotal agreed) |
+
+Notification path (listener granted, scan_all_apps=true, `cmd notification post`):
+
+| case | scans | LinkGuard alert |
+|---|---|---|
+| BPI phish on sites.google.com | 1 | **"Suspicious Link Detected"** (before the fix: SAFE, silent) |
+| gr0ups.com | 1 | none — "Safe link from shell" (before: false alarm) |
+| google.com + scam text (v1.31 F-A) | 1 | none — F-A fix intact |
+| secure-google.com/login | 1 | **"DANGEROUS LINK DETECTED"** |
+
+- Visual: `tasks/smoke-f1-google-sites-verdict.png` — SUSPICIOUS LINK / 50% RISK / Heuristic (2):
+  path keyword + Page impersonates "BPI" / Don't Open recommended.
+- Harness correction: the first notification run reported scans=0 for every case. That was MY bug,
+  not the app's — `cmd notification post` args are re-split by the device shell, so only the first
+  word ("Your") was posted and no URL ever reached the listener. Confirmed via
+  `dumpsys notification` extras, re-quoted, re-ran. The app was behaving correctly throughout.
+- Emulator artifact: a "System UI isn't responding" ANR dialog steals window focus (same as the
+  v1.31 smoke); dismissed with a tap. Unrelated to LinkGuard, 0 LinkGuard crashes.
+- Not run: real Gmail/messaging app, lock-screen visuals, release build, lint, F-B repeat-alert
+  dedupe re-check.
