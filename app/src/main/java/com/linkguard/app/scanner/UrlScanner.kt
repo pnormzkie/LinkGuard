@@ -243,6 +243,42 @@ object HeuristicScanner {
         '5' to 's', '6' to 'g', '7' to 't', '8' to 'b'
     )
 
+    /**
+     * Trusted hosts that publish pages written by their users. A reputable host vouches for
+     * itself, never for a page an attacker published on it — free page hosting is the most
+     * common delivery route for PH phishing. For these, path evidence is still inspected even
+     * though the host is trusted.
+     *
+     * Deliberately narrow: hosts whose paths are their OWN product (chatgpt.com,
+     * accounts.google.com, secure.indeed.com) are absent, because their paths are not
+     * attacker-chosen and reading them as evidence would be a false positive.
+     */
+    private val USER_CONTENT_HOSTS = listOf(
+        "sites.google.com", "docs.google.com", "drive.google.com",
+        "github.com", "raw.githubusercontent.com"
+    )
+
+    private fun isUserContentHost(domain: String): Boolean =
+        USER_CONTENT_HOSTS.any { domain == it || domain.endsWith(".$it") }
+
+    /**
+     * The brand impersonated by a hosted phishing slug — a SINGLE path segment that glues a
+     * brand name to a phishing keyword ("/view/bpi-verify-account/"). Requiring both inside
+     * the same segment is what keeps ordinary repository paths such as
+     * "/microsoft/vscode/issues/update" or "/paypal/paypal-checkout-sdk" from matching.
+     * Multi-word brands never equal a segment token and are skipped. Input is lowercased.
+     */
+    private fun brandPhishingSlug(pathAndQuery: String): String? {
+        pathAndQuery.split('/').forEach { segment ->
+            if (segment.isEmpty()) return@forEach
+            val tokens = segment.split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }
+            val brand = ALL_BRANDS.firstOrNull { brand -> tokens.any { it == brand } }
+                ?: return@forEach
+            if (PHISHING_KEYWORDS.any { containsKeyword(segment, it) }) return brand
+        }
+        return null
+    }
+
     private val PROTECTED_DOMAINS = listOf(
         "paymaya", "gcash", "bpi", "bdo", "metrobank",
         "landbank", "unionbank", "paypal", "amazon", "apple",
@@ -356,8 +392,13 @@ object HeuristicScanner {
 
     private fun analyze(url: String, messageText: String?): Analysis {
         val findings = mutableListOf<LocalHeuristicFinding>()
+        val seenRuleIds = mutableSetOf<String>()
         var score = 0
 
+        // A rule contributes its score exactly once. Several rules loop over every brand while
+        // emitting a single shared rule id; without this guard the score was added per matching
+        // brand while the displayed evidence was collapsed to one entry, so the number shown to
+        // the user had no finding behind it (and more matches could score lower than fewer).
         fun addFinding(
             ruleId: String,
             title: String,
@@ -365,6 +406,7 @@ object HeuristicScanner {
             strength: LocalHeuristicStrength,
             activeScore: Int
         ) {
+            if (!seenRuleIds.add(ruleId)) return
             findings += LocalHeuristicFinding(ruleId, title, strength, activeScore, legacyScore)
             score += legacyScore
         }
@@ -380,6 +422,9 @@ object HeuristicScanner {
         // The leading dot in ".$it" prevents suffix spoofing (e.g. "secure-google.com" is
         // NOT a subdomain of "google.com").
         val isOfficialDomain = KnownDomains.isTrusted(domain)
+        // Trust is a statement about the HOST. On a host that publishes user-authored pages the
+        // path is still attacker-chosen, so path evidence is not waived there.
+        val isUserContent = isOfficialDomain && isUserContentHost(domain)
 
         // 1. HTTP
         if (!isOfficialDomain && urlLower.startsWith("http://")) {
@@ -414,12 +459,16 @@ object HeuristicScanner {
 
         // 4. Phishing keywords (whole-token match so "login" doesn't fire on "/bloginfo"
         //    and "last" doesn't fire on "elastic")
-        if (!isOfficialDomain) {
-            // Keyword hits are one evidence family. A marketing URL containing several terms
-            // such as /promo/gift/reward must not accumulate enough duplicate evidence to turn
-            // suspicious by itself. Prefer the domain match because it is the stronger context.
-            val domainKeyword = PHISHING_KEYWORDS.firstOrNull { containsKeyword(domain, it) }
-            val pathKeyword = PHISHING_KEYWORDS.firstOrNull { containsKeyword(urlPath, it) }
+        // Keyword hits are one evidence family. A marketing URL containing several terms
+        // such as /promo/gift/reward must not accumulate enough duplicate evidence to turn
+        // suspicious by itself. Prefer the domain match because it is the stronger context.
+        // The domain branch is host evidence and stays waived for a trusted host; the path
+        // branch is not, so it still runs on a user-content host.
+        run {
+            val domainKeyword = if (isOfficialDomain) null
+            else PHISHING_KEYWORDS.firstOrNull { containsKeyword(domain, it) }
+            val pathKeyword = if (isOfficialDomain && !isUserContent) null
+            else PHISHING_KEYWORDS.firstOrNull { containsKeyword(urlPath, it) }
             when {
                 domainKeyword != null -> addFinding(
                     "PHISHING_KEYWORD_DOMAIN",
@@ -463,8 +512,11 @@ object HeuristicScanner {
         if (!isOfficialDomain) {
             val normalizedDomain = unicodeDomain.map { HOMOGRAPH_MAP[it] ?: it }.joinToString("")
             if (normalizedDomain != unicodeDomain) {
+                // Token-boundary match, exactly as rule 5 does. A raw substring test made
+                // "gr0ups"/"st4rtups"/"pine4pple" read as UPS/APPLE lookalikes once the digits
+                // were normalized away.
                 ALL_BRANDS.forEach { brand ->
-                    if (normalizedDomain.contains(brand)) {
+                    if (looksLikeBrandSpoof(normalizedDomain, brand)) {
                         addFinding(
                             "NUMBER_SUBSTITUTION_LOOKALIKE",
                             "Lookalike domain detected — uses numbers as letters",
@@ -489,7 +541,7 @@ object HeuristicScanner {
                     LocalHeuristicStrength.WEAK,
                     10
                 )
-                if (ALL_BRANDS.any { unicodeDomain.contains(it, ignoreCase = true) }) {
+                if (ALL_BRANDS.any { looksLikeBrandSpoof(unicodeDomain, it) }) {
                     addFinding(
                         "PUNYCODE_BRAND_LOOKALIKE",
                         "Lookalike domain — punycode mimics a known brand",
@@ -659,8 +711,24 @@ object HeuristicScanner {
             }
         }
 
+        // 17. Brand impersonation in the path of a host that publishes user-authored pages.
+        //     The host's reputation covers the host, never a page an attacker put on it — a
+        //     phishing slug on free page hosting otherwise scored zero, because every
+        //     host-scoped rule above is correctly waived for a trusted domain.
+        if (isUserContent) {
+            brandPhishingSlug(urlPath)?.let { brand ->
+                addFinding(
+                    "BRAND_SLUG_ON_USER_CONTENT_${brand.filter { it.isLetterOrDigit() }}",
+                    "Page impersonates \"${brand.uppercase()}\" on a public hosting site",
+                    40,
+                    LocalHeuristicStrength.STRONG,
+                    40
+                )
+            }
+        }
+
         score = score.coerceIn(0, 100)
-        return Analysis(findings.distinctBy { it.ruleId }, score)
+        return Analysis(findings, score)
     }
 
     internal fun findingsWithContext(url: String, messageText: String?): List<LocalHeuristicFinding> =
@@ -688,9 +756,14 @@ object HeuristicScanner {
         )
     }
 
+    /**
+     * The path AND query of [url] — both carry attacker-chosen text. Anchoring only on '/'
+     * meant "https://host?a=b" (a form browsers accept) read as pathless, so one missing
+     * slash hid every keyword in the query. The fragment is browser-local and excluded.
+     */
     private fun extractPath(url: String): String = try {
         val withoutScheme = url.removePrefix("http://").removePrefix("https://")
-        val idx = withoutScheme.indexOf('/')
-        if (idx != -1) withoutScheme.substring(idx) else ""
+        val idx = withoutScheme.indexOfFirst { it == '/' || it == '?' }
+        if (idx != -1) withoutScheme.substring(idx).substringBefore('#') else ""
     } catch (_: Exception) { "" }
 }

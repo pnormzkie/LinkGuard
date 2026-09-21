@@ -454,4 +454,112 @@ class HeuristicScannerTest {
         val flags = flagsOf("https://example.com", "Our IT policy explains remote desktop security.")
         assertFalse(flags.any { it.contains("smishing", ignoreCase = true) })
     }
+
+    // ─── F2: digit-substitution must match a brand token, not any substring ──────
+
+    @Test
+    fun `digit substitution inside an ordinary word is not a brand lookalike`() {
+        // "ups"/"apple" are brands AND substrings of everyday words. Rule 6 normalizes
+        // digits to letters, so these must not become STRONG lookalike evidence.
+        listOf(
+            "https://gr0ups.com",      // -> "groups"
+            "https://st4rtups.com",    // -> "startups"
+            "https://5ignup5.com",     // -> "signups"
+            "https://pine4pple.com"    // -> "pineapple"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertFalse(url, result.flags.any { it.contains("numbers as letters") })
+            assertEquals(url, ThreatLevel.SAFE, result.threatLevel)
+        }
+    }
+
+    @Test
+    fun `digit substitution on a real brand token is still a lookalike`() {
+        listOf("https://g00gle.com", "https://4mazon.com").forEach { url ->
+            val flags = flagsOf(url)
+            assertTrue(url, flags.any { it.contains("numbers as letters") })
+        }
+        // "1" maps to "i", not "l", so "paypa1" never normalizes to "paypal". The
+        // Levenshtein typosquat rule is what catches this one — assert it still does.
+        val flags = flagsOf("https://paypa1.com")
+        assertTrue(flags.any { it.contains("Lookalike domain", ignoreCase = true) })
+    }
+
+    // ─── F3: the query is attacker-controlled even without a path separator ──────
+
+    @Test
+    fun `phishing keyword in a query with no path separator is detected`() {
+        // Browsers accept "https://host?a=b"; dropping the query let one missing slash
+        // hide the keyword evidence entirely.
+        val withoutSlash = HeuristicScanner.scanWithContext(
+            "https://evil-site.xyz?action=verify&do=login", null
+        )
+        val withSlash = HeuristicScanner.scanWithContext(
+            "https://evil-site.xyz/?action=verify&do=login", null
+        )
+        assertTrue(withoutSlash.flags.any { it.contains("Phishing keyword in URL path") })
+        assertEquals(withSlash.threatLevel, withoutSlash.threatLevel)
+        assertEquals(withSlash.riskScore, withoutSlash.riskScore)
+    }
+
+    // ─── F4: one rule id must contribute its score exactly once ──────────────────
+
+    @Test
+    fun `a rule that matches several brands scores once and stays monotonic`() {
+        val twoBrands = HeuristicScanner.scanWithContext("https://g00gle-4pple.com", null)
+        val oneBrand = HeuristicScanner.scanWithContext("https://g00gle.com", null)
+        assertEquals(
+            1,
+            twoBrands.flags.count { it.contains("numbers as letters") }
+        )
+        // Score must match the evidence actually shown: a single 45-point finding.
+        assertEquals(45, twoBrands.riskScore)
+        // ...and a strictly smaller evidence set must not outscore a larger one.
+        assertTrue(oneBrand.riskScore >= twoBrands.riskScore)
+    }
+
+    // ─── F1: user-authored pages on trusted hosts are not vouched for by the host ─
+
+    @Test
+    fun `brand phishing slug on a user-content host is flagged`() {
+        val scam = "Your BPI account will be suspended. Verify within 24 hours."
+        listOf(
+            "https://sites.google.com/view/bpi-verify-account/login",
+            "https://docs.google.com/forms/d/e/1FA/viewform?usp=gcash-verify",
+            "https://github.com/bpi-verify-account/login"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, scam)
+            assertNotEquals(url, ThreatLevel.SAFE, result.threatLevel)
+            assertTrue(url, result.flags.any { it.contains("impersonat", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `ordinary pages on user-content hosts stay safe`() {
+        listOf(
+            "https://docs.google.com/document/d/abc123/edit",
+            "https://drive.google.com/file/d/abc123/view",
+            "https://github.com/microsoft/vscode/issues/update",
+            "https://github.com/paypal/paypal-checkout-sdk",
+            "https://github.com/apple/swift"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertEquals(url, ThreatLevel.SAFE, result.threatLevel)
+            assertFalse(url, result.flags.any { it.contains("impersonat", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `trusted hosts that are not user-content keep their clean verdict`() {
+        // Regression guard: these must NOT pick up path-keyword evidence.
+        listOf(
+            "https://chatgpt.com/advanced-account-security?originator=android_app_homepage_beacon",
+            "https://accounts.google.com/signin"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertEquals(url, ThreatLevel.SAFE, result.threatLevel)
+            assertEquals(url, 0, result.riskScore)
+            assertTrue(url, result.flags.isEmpty())
+        }
+    }
 }
