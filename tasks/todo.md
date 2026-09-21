@@ -1245,3 +1245,20 @@ v1.32 release and re-point releases/latest to v1.31 if a blocker appears.
   rewriting `/sdcard/ui.xml` into `C:/Program Files/Git/sdcard/ui.xml` (MSYS path conversion);
   fixed with MSYS_NO_PATHCONV=1. The app was correct throughout — focus was on
   LinkInterceptActivity and crashes were 0 the whole time.
+- [x] Committed 3569c5c + annotated tag v1.32; pushed (origin/release/v1.30-source = 3569c5c,
+      origin refs/tags/v1.32 = 8ce65e8).
+- [x] Published GitHub release id 393036021 (tag v1.32, latest, draft=false, prerelease=false);
+      asset LinkGuard-v1.32.apk 24,669,560 bytes; re-downloaded SHA-256
+      A014D960...CF6470ED == staged APK. URL:
+      https://github.com/pnormzkie/LinkGuard/releases/download/v1.32/LinkGuard-v1.32.apk
+- [x] Post-release check against the UNAUTHENTICATED API (what UpdateChecker on a user's device
+      actually sees): releases/latest returns tag v1.32 with the asset present.
+
+Observation for a later fix (NOT a v1.32 blocker, in-app update works today):
+`UpdateInstaller.ALLOWED_HOSTS` is {github.com, objects.githubusercontent.com}, but GitHub now
+302-redirects release assets to `release-assets.githubusercontent.com`. The update path is
+unaffected because `isTrustedUpdateUrl` gates the INITIAL browser_download_url — which is still
+on github.com (verified live) — and DownloadManager follows the redirect itself; the install is
+additionally gated on the signature check. But `objects.githubusercontent.com` is now stale, and
+if GitHub ever hands back an asset URL already pointing at release-assets.githubusercontent.com
+the check would fail closed and updates would silently stop. Worth re-pointing the allowlist.
