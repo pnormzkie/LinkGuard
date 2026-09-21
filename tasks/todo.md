@@ -1220,3 +1220,28 @@ Notification path (listener granted, scan_all_apps=true, `cmd notification post`
   v1.31 smoke); dismissed with a tap. Unrelated to LinkGuard, 0 LinkGuard crashes.
 - Not run: real Gmail/messaging app, lock-screen visuals, release build, lint, F-B repeat-alert
   dedupe re-check.
+
+## 2026-09-21 — Approved: push + release v1.32
+
+Scope: release the audit fixes (1ee6974 F1-F4 detection, a0357c4 installer/hygiene). Same signing
+key as v1.30/v1.31 for in-place update parity. Rollback: v1.31 remains downloadable; unpublish the
+v1.32 release and re-point releases/latest to v1.31 if a blocker appears.
+
+- [x] Pre-release cleanliness: no TODO/FIXME/println/printStackTrace in changed main sources, no
+      probe files left, no hardcoded secrets in the diff.
+- [x] Bump versionCode 32 -> 33, versionName 1.31 -> 1.32.
+- [x] Signed release build (R8 + shrinkResources + lintVital): BUILD SUCCESSFUL in 3m24s.
+- [x] APK identity: versionCode=33 versionName=1.32; cert SHA-256
+      ead80ea17110eb419e824a969807e2309bb11e5424e6eb81e0a07b1874227357 — byte-identical to the
+      v1.31 cert, so v1.31 users update in place; 24,669,560 bytes; SHA-256
+      A014D960A87223607594DB38E1F70EE40EB654BD4B87136EEAB82E11CF6470ED.
+- [x] Release-build (R8) smoke on Pixel_7 API 34, live providers, 0 crashes:
+      bpi slug on sites.google.com -> SUSPICIOUS 50%; gr0ups.com -> SAFE 0%;
+      evil-site.xyz?action=verify&do=login -> SUSPICIOUS 25%; chatgpt.com -> SAFE 0%;
+      secure-google.com/login -> DANGEROUS 75% ("Vendors flagged"). R8 did not break the
+      Room/Gson/heuristic paths.
+- [x] release-notes-v1.32.md + publish-v1.32.sh staged (release-staging stays untracked, as v1.30/31).
+- Harness correction #2: the first release smoke reported every verdict as <none>. Git Bash was
+  rewriting `/sdcard/ui.xml` into `C:/Program Files/Git/sdcard/ui.xml` (MSYS path conversion);
+  fixed with MSYS_NO_PATHCONV=1. The app was correct throughout — focus was on
+  LinkInterceptActivity and crashes were 0 the whole time.
