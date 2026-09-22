@@ -1507,3 +1507,67 @@ User-Agent fix. Three scans of untrusted domains (Notion.com, figma.com):
 - Residual: ~1.4s for the two-hop RDAP chain leaves headroom under PROVIDER_TIMEOUT_MS (8s) on
   a good connection, but a weak mobile connection can still exceed it. Do NOT raise the timeout
   on this evidence — the observed timeouts coincided with other providers failing too.
+
+## 2026-09-22 — v1.33 release-build smoke on the real device
+Galaxy A52s 5G (SM-A528B), `release-staging/LinkGuard-v1.33.apk` installed over v1.32 with
+`adb install -r`. `firstInstallTime` stayed 2026-08-16 — an in-place update, scan history kept.
+R8 + shrinkResources on; signing cert SHA-256 ead80ea1...74227357, identical to v1.32.
+
+| URL | badge | score | providers |
+|---|---|---|---|
+| www.notion.com | SAFE | 14% | SB 0, DNS 0, VT 0, HA 1, DA failed, UH failed |
+| secure-google.com/login | DANGEROUS | 75% | SB failed, DNS 0, VT 1, HA 0, DA failed, UH 0 |
+| www.gcash.com | SAFE | 0% | all six ok (DA skipped — trusted) |
+| www.figma.com | SAFE | 0% | SB 0, DNS 0, VT 0, HA failed, **DA 0**, UH failed |
+
+RESOLVED:
+- [x] The headline fix works on a release build: notion.com now renders SAFE at 14%. The same
+      device showed 14% + SUSPICIOUS on v1.32 an hour earlier.
+- [x] D1 works: with 4 of 6 providers answering, the screen said "Passed the checks that ran —
+      some online services didn't respond", not "local rules only".
+- [x] The "0% / local rules only" discrepancy DID NOT REPRODUCE. Screen matched the log exactly
+      on every run. It was an artifact of the ANR-ing emulator, as suspected but not assumed.
+- [x] RDAP fix confirmed in the field: **zero** `RDAP HTTP 403` across every post-install run,
+      and figma.com returned `DA: 0` — a real RDAP lookup completing on an untrusted domain.
+      On v1.32 the same device logged the 403.
+- [x] R8 did not break detection: secure-google.com/login still DANGEROUS 75%, matching the
+      v1.32 baseline, with VirusTotal contributing. No false positive on gcash.com.
+
+NEW, unresolved:
+- [ ] DomainAge now TIMES OUT often on this device (3 of 4 untrusted lookups) instead of
+      failing fast with a 403. Confounded: HybridAnalysis, URLhaus and SafeBrowsing also
+      dropped during those same runs, so the network was poor throughout — this cannot be
+      cleanly attributed to RDAP being slow. Do not raise PROVIDER_TIMEOUT_MS on this evidence.
+      If it persists on a good connection, the fix is to skip rdap.org's redirect and query the
+      registry directly via the IANA bootstrap (one hop instead of two; measured ~1.4s for the
+      two-hop chain from the dev machine).
+
+## 2026-09-23 — Autonomous exploratory session (Norman asleep)
+
+Brief: exploratory-test the app, fix what is found, and get it to a publishable state.
+Constraint discovered up front: the phone is connected but LOCKED, so scans run and logcat is
+readable, but the rendered screen is NOT. All device evidence below is pipeline-level
+(provider outcomes, redirect hops, exceptions), never a UI read. Anything needing a UI read is
+left open rather than guessed.
+
+Plan:
+- [ ] A. Measure the redirect-budget change at the hop level (the open question from last
+      night). Count `redirect hop failed` across repeated scans of a plain www-redirect.
+- [ ] B. Crash / exception hunt: drive adversarial URL inputs through the intercept activity
+      and watch logcat for uncaught exceptions, ANRs and FATAL lines. Logcat-observable, so the
+      lock screen does not block it.
+- [ ] C. Exploratory code audit for the defect family found on 2026-09-22: a fact about the
+      CHECK reported as a fact about the LINK, and a strength value overriding a numeric score.
+- [ ] D. Fix what is found, each with a regression test. Keep the diff small; no redesigns.
+- [ ] E. Build, then judge publishability against CLAUDE.md §14 on the evidence actually
+      collected. If the evidence does not support a release, say so and do not publish.
+
+### PHONE SETTINGS CHANGED FOR THIS SESSION — MUST BE RESTORED
+At Norman's request ("tanggalin mo nalang yung lock"), on RZCT10CY6ED:
+- `locksettings set-disabled true` — ALREADY REVERTED to false. `lockscreen.password_type`
+  read as null, but the device actually has a PIN ("Enter PIN" on the lock screen), so the
+  call had no effect and the phone could not be unlocked. Norman's PIN was never requested,
+  handled or stored. UI reads stayed unavailable for the whole session; every device finding
+  below is logcat-level.
+- `svc power stayon usb` — screen stays on while charging.
+RESTORE BOTH at end of session: `locksettings set-disabled false` and `svc power stayon false`.

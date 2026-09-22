@@ -101,6 +101,62 @@ internal object ScanCorpus {
         Case(
             "https://www.paypal.com/ph/signin", Expected.SAFE,
             "Another real sign-in page — the brand name here is the site's own"
+        ),
+
+        // The heuristics only ever see the URL string, so these are realistic PATH SHAPES on
+        // real legitimate hosts rather than links verified to exist. They are here because
+        // they carry the exact vocabulary the phishing rules hunt for — verify, login,
+        // confirm, secure, account, otp — on hosts that are not phishing. This is where a
+        // false positive actually costs a user: a real bank or delivery notice, dismissed.
+        Case(
+            "https://www.bdo.com.ph/personal/accounts/online-banking/login", Expected.SAFE,
+            "PH bank, real login path"
+        ),
+        Case(
+            "https://www.philhealth.gov.ph/services/konsulta/verify", Expected.SAFE,
+            "Government service with 'verify' in the path"
+        ),
+        Case(
+            "https://www.bir.gov.ph/index.php/eservices/efps.html", Expected.SAFE,
+            "Government e-service"
+        ),
+        Case(
+            "https://shopee.ph/user/purchase/order/2409221234567890", Expected.SAFE,
+            "Marketplace order link with a long numeric id"
+        ),
+        Case(
+            "https://www.lazada.com.ph/customer/order/detail/?tradeOrderId=987654321", Expected.SAFE,
+            "Marketplace order link with a query id"
+        ),
+        Case(
+            "https://accounts.google.com/AccountChooser?continue=https://mail.google.com/mail/u/0/",
+            Expected.SAFE,
+            "Trusted host with a redirect parameter to another trusted host"
+        ),
+        Case(
+            "https://myaccount.google.com/security-checkup", Expected.SAFE,
+            "Security-flavoured path on a trusted host"
+        ),
+        Case(
+            "https://www.facebook.com/login/identify?ctx=recover", Expected.SAFE,
+            "Real account-recovery path — recover + identify + login in one URL"
+        ),
+        Case(
+            "https://zoom.us/j/98765432109?pwd=aBcDeFgHiJkLmN", Expected.SAFE,
+            "Meeting link carrying a 'pwd' parameter"
+        ),
+        Case(
+            "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/view?usp=sharing",
+            Expected.SAFE,
+            "File share link with an opaque id"
+        ),
+        Case(
+            "https://www.linkedin.com/checkpoint/challenge/verify", Expected.SAFE,
+            "Real challenge/verify path on a trusted host"
+        ),
+        Case(
+            "https://github.com/pnormzkie/LinkGuard/security/advisories", Expected.SAFE,
+            "Security-flavoured path on a trusted host serving user content"
         )
     )
 
@@ -129,6 +185,20 @@ internal object ScanCorpus {
         Case(
             "http://192.0.2.1/login", Expected.FLAGGED,
             "Raw IP host serving a login path"
+        ),
+
+        // Trusted hosts that serve user-authored pages. These guard the 2026-09-21 fix: a
+        // trust signal about the HOST must not waive evidence about the PATH, because anyone
+        // can publish a page on these domains. If these ever pass, host trust has started
+        // silencing path rules again — the exact regression that made every attacker page on
+        // sites.google.com score zero.
+        Case(
+            "https://sites.google.com/view/gcash-verify-account/login", Expected.FLAGGED,
+            "Attacker page on a trusted host, PH wallet brand + verify + login"
+        ),
+        Case(
+            "https://docs.google.com/forms/d/e/1FAIpQL/viewform?bpi-online-verify=1", Expected.FLAGGED,
+            "Form on a trusted host carrying a bank brand and a verify parameter"
         )
     )
 

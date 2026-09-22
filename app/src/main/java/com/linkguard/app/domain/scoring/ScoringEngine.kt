@@ -20,6 +20,9 @@ class ScoringEngine {
         private const val SCORE_SUSPICIOUS_THRESHOLD = 25
         private const val SCORE_THREAT_THRESHOLD = 60 // Threshold adjusted from 70 to 60 for better threat detection
 
+        /** Owned here, not by the orchestrator, because the category wording keys on it. */
+        const val REDIRECT_UNRESOLVED_RULE_ID = "REDIRECT_UNRESOLVED"
+
         const val EXTERNAL_CHECKS_UNAVAILABLE_REASON =
             "External security checks unavailable — verdict based on local analysis only"
         const val EXTERNAL_CHECKS_PARTIAL_REASON =
@@ -61,6 +64,8 @@ class ScoringEngine {
         val sources = effectiveSignals.map { it.source }.distinct()
         val trackerOnly = effectiveSignals.isNotEmpty() &&
             effectiveSignals.all { it.title.contains("Tracker", ignoreCase = true) }
+        val unresolvedRedirectOnly = effectiveSignals.isNotEmpty() &&
+            effectiveSignals.all { it.ruleId == REDIRECT_UNRESOLVED_RULE_ID }
         val primaryReason = if (verdict == Verdict.SAFE) {
             "No risks detected"
         } else {
@@ -73,6 +78,12 @@ class ScoringEngine {
 
                 // Use the tracker category only when every effective signal is tracker-specific.
                 trackerOnly -> "Ad/Tracker Detected"
+
+                // "Could not check" is not "found something". When an unfollowable redirect is
+                // the only evidence, "Suspicious link behavior detected" states a finding the
+                // scan never made — the destination is unknown, not incriminated. The score is
+                // deliberately unchanged: an unseen destination still warrants the warning.
+                unresolvedRedirectOnly -> "Destination could not be verified"
 
                 // Case 4: Mixed signals
                 sources.size > 1 -> "Multiple security risks detected"

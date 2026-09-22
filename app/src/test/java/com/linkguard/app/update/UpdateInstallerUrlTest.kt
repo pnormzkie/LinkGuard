@@ -35,6 +35,34 @@ class UpdateInstallerUrlTest {
     }
 
     @Test
+    fun `accepts the host github actually redirects release downloads to`() {
+        // Measured 2026-09-23: browser_download_url on github.com 302s here. The old list
+        // would have failed closed if GitHub ever returned this URL directly, which stops
+        // updates silently rather than visibly.
+        assertTrue(
+            UpdateInstaller.isTrustedUpdateUrl(
+                "https://release-assets.githubusercontent.com/github-production-release-asset/1/x?sig=abc"
+            )
+        )
+    }
+
+    @Test
+    fun `the new host gets the same lookalike protection as the others`() {
+        // Subdomain trick.
+        assertFalse(
+            UpdateInstaller.isTrustedUpdateUrl("https://release-assets.githubusercontent.com.evil.com/x.apk")
+        )
+        // Substring trick: a different host that merely starts the same way.
+        assertFalse(
+            UpdateInstaller.isTrustedUpdateUrl("https://notrelease-assets.githubusercontent.com/x.apk")
+        )
+        // Widening the host list must not have widened the scheme rule.
+        assertFalse(
+            UpdateInstaller.isTrustedUpdateUrl("http://release-assets.githubusercontent.com/x.apk")
+        )
+    }
+
+    @Test
     fun `rejects plain http`() {
         assertFalse(
             UpdateInstaller.isTrustedUpdateUrl("http://github.com/x/releases/download/v1/x.apk")

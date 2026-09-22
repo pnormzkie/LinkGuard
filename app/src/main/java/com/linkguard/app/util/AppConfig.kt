@@ -23,9 +23,17 @@ object AppConfig {
 
     // Redirect/shortener resolution: follow a tapped link to its true destination before
     // scoring. Bounded so it can't wreck click-time UX or loop forever.
+    //
+    // These budgets decide WHICH url everything else then scans, so starving them is worse
+    // than starving one provider: an unresolved chain scores a 25-point STRONG signal and
+    // flips the whole verdict to SUSPICIOUS. Measured on a Galaxy A52s over mobile wifi on
+    // 2026-09-22, the old 1.5s per hop failed to resolve a plain `Notion.com` -> `www.` hop on
+    // 3 of 10 scans, and the same link returned 0%, 14%, 25% or 39% depending on the run. A
+    // single TLS handshake alone can cost most of 1.5s on mobile. Doubled; the total still
+    // lands under PROVIDER_TIMEOUT_MS so resolution cannot become the dominant cost.
     const val REDIRECT_MAX_HOPS = 5
-    const val REDIRECT_TOTAL_BUDGET_MS = 3_000L
-    const val REDIRECT_PER_HOP_TIMEOUT_MS = 1_500L
+    const val REDIRECT_TOTAL_BUDGET_MS = 6_000L
+    const val REDIRECT_PER_HOP_TIMEOUT_MS = 3_000L
 
     // Credential-form page inspection: a conditional, read-only GET of a borderline-suspicious
     // destination's HTML to detect a login/password form. Bounded for click-time UX and privacy.

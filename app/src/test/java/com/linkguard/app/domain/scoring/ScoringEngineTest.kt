@@ -204,6 +204,32 @@ class ScoringEngineTest {
         assertTrue(verdict.secondaryReasons.contains(ScoringEngine.EXTERNAL_CHECKS_UNAVAILABLE_REASON))
     }
 
+    // ── "Could not check" must not be worded as "found something" ────────────
+
+    @Test
+    fun `an unfollowable redirect is not reported as suspicious behavior`() {
+        // The scan found nothing about the link; it could not see the destination at all.
+        val verdict = engine.evaluate(listOf(
+            signal(25, SignalStrength.STRONG, SignalSource.LOCAL_HEURISTIC, "Redirect destination could not be verified")
+                .copy(ruleId = ScoringEngine.REDIRECT_UNRESOLVED_RULE_ID)
+        ))
+
+        assertEquals(Verdict.SUSPICIOUS, verdict.verdict) // the warning itself is unchanged
+        assertEquals("Destination could not be verified", verdict.primaryReason)
+    }
+
+    @Test
+    fun `a real finding alongside an unfollowable redirect wins the category`() {
+        // The unresolved-redirect wording must never mask evidence the scan did find.
+        val verdict = engine.evaluate(listOf(
+            signal(25, SignalStrength.STRONG, SignalSource.LOCAL_HEURISTIC, "Redirect destination could not be verified")
+                .copy(ruleId = ScoringEngine.REDIRECT_UNRESOLVED_RULE_ID),
+            signal(30, SignalStrength.WEAK, SignalSource.LOCAL_HEURISTIC, "Lookalike domain")
+        ))
+
+        assertEquals("Suspicious link behavior detected", verdict.primaryReason)
+    }
+
     // ── Coverage state (drives which reason line the safe screen shows) ──────
 
     @Test

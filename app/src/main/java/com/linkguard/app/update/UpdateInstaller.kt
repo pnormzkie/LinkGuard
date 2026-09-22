@@ -93,8 +93,20 @@ object UpdateInstaller {
      * be one of these exactly, or a subdomain of one. A substring/`contains` check is
      * deliberately avoided: it would accept lookalikes such as `github.com.evil.com`
      * (subdomain trick) or `evil.com/github.com` (path trick).
+     *
+     * `release-assets.githubusercontent.com` is where GitHub now 302s release downloads —
+     * measured 2026-09-23 against this repo's own latest asset. The check gates only the
+     * INITIAL `browser_download_url`, which is still on github.com, so updates work today;
+     * this entry keeps them working if GitHub ever hands back the redirect target directly,
+     * where the old list would fail closed and stop updates silently. Widening this list is
+     * safe because it is not the real gate: [signatureMatchesInstalledApp] refuses to install
+     * any APK not signed by the same certificate as the running app.
      */
-    private val ALLOWED_HOSTS = setOf("github.com", "objects.githubusercontent.com")
+    private val ALLOWED_HOSTS = setOf(
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com"
+    )
 
     /**
      * Returns true only when [apkUrl] is an HTTPS URL whose host is an allowed

@@ -234,7 +234,8 @@ class ScanOrchestrator(
     }
 
     private fun unresolvedSignal(finalUrl: String) = ScanSignal(
-        ruleId = "REDIRECT_UNRESOLVED",
+        // Shared with ScoringEngine, which keys the category wording on this id.
+        ruleId = ScoringEngine.REDIRECT_UNRESOLVED_RULE_ID,
         title = "Redirect destination could not be verified",
         description = "The link forwards through redirects that could not be fully followed — the real destination is unknown.",
         // STRONG, not MEDIUM: when the chain stops early the landing page was never checked.
