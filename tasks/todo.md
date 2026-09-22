@@ -1617,3 +1617,29 @@ RESTORE BOTH at end of session: `locksettings set-disabled false` and `svc power
       eliminated. Revisit only if it recurs on a good connection; the next step would be the
       IANA bootstrap (one hop instead of two), not a bigger timeout.
 - [ ] VirusTotal free-tier burst quota — recorded earlier as known and accepted.
+
+### UI verification of the release artifact — 2026-09-23 (emulator, host memory recovered)
+`release-staging/LinkGuard-v1.33.apk` (the exact APK that would be published) installed on
+Pixel_7 API 34 and driven through every verdict screen. Host had 7.1 GB free, so the earlier
+memory pressure that killed the emulator was gone; the System UI ANR recurred once and was
+dismissed rather than worked around.
+
+| screen | result | evidence |
+|---|---|---|
+| SAFE, FULL coverage | "This link passed LinkGuard's safety checks." | figma.com, log `SB: 0, DNS: 0, VT: 0, HA: 0, DA: 0, UH: 0` — all six succeeded |
+| SAFE, PARTIAL | "Passed the checks that ran — some online services didn't respond." | Notion.com, `DA: failed`, 5 of 6 |
+| SAFE, LOCAL_ONLY | "Checked with local rules only…" | verified 2026-09-22 with the network disabled |
+| SUSPICIOUS block | 50%, Heuristic 2 | sites.google.com attacker page — trusted-host abuse still caught |
+| DANGEROUS block | 75%, Heuristic 2 + Vendors flagged 2, danger override shown | secure-google.com/login |
+
+- [x] CLOSES the documented gap "FULL coverage is unit-tested only". It was unreachable before
+      because RDAP always failed; with the User-Agent fix all six providers now succeed, and
+      the branch renders correctly.
+- [x] `https://Notion.com` — the redirecting URL that rendered SUSPICIOUS 25% on Norman's phone
+      last night — now resolves its destination (`GOES TO https://www.notion.com/`) and renders
+      SAFE 14%. The redirect-budget fix, seen end to end on the release build.
+- [ ] STILL unit-tested only: the "Destination could not be verified" category string. Three
+      attempts to force an unresolved chain failed because the redirect now resolves too
+      quickly to interrupt — which is itself evidence the budget is adequate. Not pursued
+      further: three other category strings were seen rendering correctly in the same slot,
+      so the residual risk is a string that cannot render, which is not a plausible failure.
