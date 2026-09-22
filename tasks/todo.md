@@ -1571,3 +1571,49 @@ At Norman's request ("tanggalin mo nalang yung lock"), on RZCT10CY6ED:
   below is logcat-level.
 - `svc power stayon usb` — screen stays on while charging.
 RESTORE BOTH at end of session: `locksettings set-disabled false` and `svc power stayon false`.
+
+### Autonomous session result — 2026-09-23
+- [x] A. Redirect budget measured on device: **10 of 10 resolved, 0 hop failures** (was 3 of 10
+      failing). Fix confirmed at the hop level.
+- [x] B. Crash hunt: 10 adversarial inputs (no host, IPv6 loopback, punycode homograph, URL
+      userinfo, 1500-char path, javascript:, file://, cyrillic + %00, nested redirect params,
+      localhost:port). **Zero crashes, zero exceptions**, process alive throughout.
+- [x] C. Audited all 9 verdict-forcing (STRONG/CRITICAL) signals. Eight report facts about the
+      LINK and are legitimate. One — REDIRECT_UNRESOLVED — reports a fact about the CHECK.
+- [x] D. Fixed: category now reads "Destination could not be verified" for that case instead of
+      "Suspicious link behavior detected". Score deliberately unchanged. Second test pins that a
+      real finding alongside it still wins the category.
+- [x] D2. Update allowlist: added release-assets.githubusercontent.com (measured as GitHub's
+      current redirect target). Additive; the real gate is the signature check.
+- [x] Corpus grown 21 -> 35 cases, including 12 legitimate URLs carrying phishing vocabulary
+      (real banks, PhilHealth, BIR, Shopee, Lazada, Zoom, Drive) and 2 that pin the
+      2026-09-21 host-trust fix. **35/35 correct.**
+- [x] Secret scan: CLEAR. Only hit is the literal `apiKey = "corpus-key"` test placeholder.
+      local.properties gitignored and untracked; no keystore in the repo.
+- [x] R8 release smoke on device: 7 URLs, no crash, no ClassNotFound/NoSuchMethod, pipeline ran
+      for all 7.
+- [x] 451 unit tests, 0 failures. assembleRelease green.
+- [x] Phone settings restored: `locksettings get-disabled` back to false (verified keyguard
+      showing again), `stay_on_while_plugged_in` back to 0.
+
+### RELEASE STATE — built, tagged, NOT published
+- `release-staging/LinkGuard-v1.33.apk` — versionCode 34, versionName 1.33, 24,673,232 bytes
+- SHA-256 `E2B9E43F71D31A0A27570FE54405D1303551EFD447DFB69AF69070077ED70DF3`
+- Signing cert SHA-256 `ead80ea1...74227357` — identical to v1.32, so it updates in place
+- Installed and smoke-tested on the Galaxy A52s
+- Commits `3eaa74a` + `1072486` pushed; annotated tag `v1.33` pushed
+- `release-staging/release-notes-v1.33.md` and `publish-v1.33.sh` written and sanity-checked
+- **GitHub `releases/latest` still returns v1.32. No user is affected yet.**
+- Publishing was BLOCKED by the Claude Code auto-mode classifier ("Create Public Surface").
+  Not worked around. Norman runs one command to finish:
+      bash release-staging/publish-v1.33.sh
+  It is idempotent and verifies the uploaded APK's SHA-256 against the expected value.
+
+### Still open (not blockers)
+- [ ] No UI was read after the phone was PIN-locked, so the last two changes (the
+      "Destination could not be verified" wording and the allowlist) are verified by unit
+      tests only, never seen on screen. Neither can affect scoring.
+- [ ] 1 `redirect hop failed` still appeared across 7 release-build scans. Improved, not
+      eliminated. Revisit only if it recurs on a good connection; the next step would be the
+      IANA bootstrap (one hop instead of two), not a bigger timeout.
+- [ ] VirusTotal free-tier burst quota — recorded earlier as known and accepted.
