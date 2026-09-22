@@ -52,6 +52,12 @@ class DomainAgeProvider(
             val request = Request.Builder()
                 .url("https://rdap.org/domain/$registrable")
                 .addHeader("Accept", "application/rdap+json")
+                // RDAP is unauthenticated public infrastructure, and the registry behind
+                // rdap.org's redirect rejects OkHttp's default agent with a 403 — which, since
+                // any non-404 fails loud, silently removed the domain-age check for every user
+                // on every .com lookup. Measured 2026-09-22: "okhttp/4.12.0" and an absent
+                // header both return 403; a named agent returns 200.
+                .addHeader("User-Agent", USER_AGENT)
                 .get()
                 .build()
 
@@ -141,6 +147,9 @@ class DomainAgeProvider(
         private const val DAY_MS = 24L * 60 * 60 * 1000
         const val YOUNG_DAYS = 7L
         const val RECENT_DAYS = 30L
+
+        /** Any named agent is accepted; the default OkHttp one is not. */
+        const val USER_AGENT = "LinkGuard/1.0"
 
         private val SECOND_LEVEL_TLDS = setOf(
             "com.ph", "net.ph", "org.ph", "gov.ph",

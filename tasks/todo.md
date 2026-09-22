@@ -1412,3 +1412,52 @@ vendors ("Flagged by 1 security vendor") instead of hardcoding "multiple".
 - [ ] Open: run that device probe before changing any provider code. If it does 403 on a real
       device, the fix path is the IANA bootstrap (`data.iana.org/rdap/dns.json`, TLD -> registry
       base URL) rather than the rdap.org redirector; a direct registry hit already returns 200.
+
+## 2026-09-22 — VirusTotal free-tier quota: KNOWN AND ACCEPTED, not fixed
+
+Norman confirmed the VirusTotal key is the free public tier.
+
+Arithmetic (free-tier figures are from general knowledge, NOT verified against the account
+page — confirm there before acting on them):
+
+| | LinkGuard | VirusTotal free |
+|---|---|---|
+| per day | 400 (`DailyScanCounter.DEFAULT_MAX_PER_DAY`) | ~500 |
+| per minute | 15 (`ScanRateLimiter.DEFAULT_MAX_PER_WINDOW`) | ~4 |
+
+Both limiters apply ONLY to `LinkNotificationService` (see `LinkNotificationService.kt:81`);
+tapped, manual and QR scans are unthrottled. The daily budget looks deliberately calibrated —
+400 leaves headroom under 500 for manual scans. The per-minute burst does not: a burst of 5+
+notification links costs VirusTotal a 429 on everything past the fourth.
+
+DECISION: do not build a per-provider token bucket. Reasons:
+- SafeBrowsing and URLhaus — the actual phishing blocklists — are unaffected and still run.
+- VirusTotal's value is highest when many vendors agree, which is a persistent condition: the
+  link is still caught on the next scan and by the blocklists now. A 1-2 vendor VirusTotal hit
+  is the same weak-signal class that produced the notion.com false positive.
+- Since the D1 fix the UI reports this honestly ("some online services didn't respond") rather
+  than claiming local-only.
+- Lowering 15/min to 4/min would be worse: it throttles every provider to VirusTotal's pace and
+  loses SafeBrowsing on 11 of 15 scans.
+
+REVISIT IF: a scam link is observed getting through during a notification burst with a
+matching `VirusTotal.*429` in logcat. That is the signal that the weak-signal reasoning above
+is wrong.
+
+### RDAP — RESOLVED 2026-09-22 (supersedes the "diagnosis corrected" entry above)
+- [x] Root cause is NOT rate limiting and NOT emulator-specific. `DomainAgeProvider` sent no
+      `User-Agent`, so OkHttp sent its own and the registry behind rdap.org's redirect answered
+      403. Measured on the live endpoint, same URL, redirects followed:
+      `okhttp/4.12.0` -> 403 · absent header -> 403 · `LinkGuard/1.0` -> 200 · `Mozilla/5.0` -> 200.
+- [x] Fix: one header, plus `DomainAgeProvider.USER_AGENT`. Regression test captures the
+      outgoing request and asserts the header is actually sent, since the symptom of its
+      absence is a silently missing signal rather than an error.
+- Scope check: only `HybridAnalysisProvider` already set an agent ("Falcon/1.0"). The other
+  providers send none but are key-authenticated and demonstrably return 200 in the device logs,
+  so they were left alone — RDAP is the only unauthenticated public endpoint here.
+- Impact: this had removed the domain-age check for every user on every .com lookup. It is the
+  strongest signal against freshly registered look-alike domains (`gcash-verify.ph` class),
+  which is the threat this app exists for.
+- [ ] Still worth doing: one device scan of an untrusted domain to confirm the signal now
+      appears. The unit test proves the header is sent; only a device proves the registry
+      accepts it end to end.

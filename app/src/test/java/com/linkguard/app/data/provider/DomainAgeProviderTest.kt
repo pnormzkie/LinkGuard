@@ -2,6 +2,7 @@ package com.linkguard.app.data.provider
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,6 +27,31 @@ class DomainAgeProviderTest {
     private fun rdapBody(registrationDate: String): String =
         """{"events":[{"eventAction":"last changed","eventDate":"2024-01-09T00:00:00Z"},""" +
             """{"eventAction":"registration","eventDate":"$registrationDate"}]}"""
+
+    @Test
+    fun `the lookup names itself so the registry does not reject it`() = runTest {
+        // Regression: with no User-Agent header OkHttp sends its own, and the registry behind
+        // rdap.org's redirect answers 403. Because any non-404 fails loud, that removed the
+        // domain-age check for every user on every .com lookup — a silent detection loss, not
+        // a visible error. Measured 2026-09-22 against the live endpoint.
+        var sentAgent: String? = "unset"
+        val capturing = okhttp3.OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                sentAgent = chain.request().header("User-Agent")
+                okhttp3.Response.Builder()
+                    .request(chain.request())
+                    .protocol(okhttp3.Protocol.HTTP_1_1)
+                    .code(404)
+                    .message("stub")
+                    .body("".toResponseBody(null))
+                    .build()
+            }
+            .build()
+
+        provider(capturing).fetchSignals("phishy-example-site.net")
+
+        assertEquals(DomainAgeProvider.USER_AGENT, sentAgent)
+    }
 
     @Test
     fun `domain registered two days ago is a strong signal`() = runTest {
