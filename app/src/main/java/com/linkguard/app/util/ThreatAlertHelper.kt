@@ -107,7 +107,7 @@ object ThreatAlertHelper {
                 "Emergency Threat Alerts",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Critical alerts for confirmed malicious links"
+                description = "Alerts for links scored as dangerous"
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 800, 200, 800, 200, 1000)
                 setBypassDnd(true)

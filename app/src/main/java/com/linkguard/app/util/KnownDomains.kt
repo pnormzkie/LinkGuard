@@ -29,7 +29,16 @@ object KnownDomains {
         "googlesyndication.com", "googleadservices.com", "doubleclick.net"
     )
 
-    /** Domains known primarily for ads, tracking, or telemetry. */
+    /**
+     * Domains known primarily for ads, tracking, or telemetry.
+     *
+     * `doubleclick.net`, `googlesyndication.com` and `googleadservices.com` are deliberately
+     * in [TRUSTED_DOMAINS] as well: they are Google-operated, so they are not suspicious
+     * hosts, but they are also not destinations a user meant to open. A domain can therefore
+     * be both, and any caller that treats the two differently has to pick a winner — the
+     * providers check trusted first, so the stricter calibration applies. KnownDomainsTest
+     * locks that overlap so it isn't "tidied up" into a behavior change.
+     */
     val TRACKER_DOMAINS: Set<String> = setOf(
         "doubleclick.net", "googlesyndication.com", "googleadservices.com",
         "app-measurement.com", "crashlytics.com", "adjust.com", "appsflyer.com",

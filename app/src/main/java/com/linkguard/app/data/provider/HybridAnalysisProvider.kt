@@ -142,9 +142,16 @@ class HybridAnalysisProvider(
                         else -> score / 2
                     }
                     
-                    val finalStrength = if (isTrusted || isTracker) SignalStrength.WEAK 
-                                      else if (score >= 75) SignalStrength.CRITICAL 
-                                      else SignalStrength.STRONG
+                    // Strength follows the threat score, not the verdict label. A report
+                    // labelled "Suspicious" but scoring 28 is weak evidence; grading it STRONG
+                    // made ScoringEngine force the whole scan to SUSPICIOUS while the score
+                    // ring still read 14%, so the badge and the number contradicted each other.
+                    val finalStrength = when {
+                        isTrusted || isTracker -> SignalStrength.WEAK
+                        score >= 75 -> SignalStrength.CRITICAL
+                        score >= 50 -> SignalStrength.STRONG
+                        else -> SignalStrength.WEAK
+                    }
 
                     return listOf(
                         ScanSignal(

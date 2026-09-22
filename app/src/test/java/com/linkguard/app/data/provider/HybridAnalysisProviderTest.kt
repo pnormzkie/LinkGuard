@@ -52,6 +52,47 @@ class HybridAnalysisProviderTest {
         assertEquals(SignalStrength.STRONG, signals[0].strength) // 60 < 75
     }
 
+    // ── Strength follows the score, not the verdict label ─────────────────────
+
+    @Test
+    fun `a low-scoring suspicious report is only weak evidence`() = runTest {
+        // Regression: a "Suspicious" label with threat_score 28 used to be graded STRONG,
+        // which forced the scan verdict to SUSPICIOUS while the ring still read 14%.
+        val body = """{"count":1,"result":[{"verdict":"suspicious","threat_score":28}]}"""
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+
+        assertEquals(1, signals.size)
+        assertEquals("Falcon Sandbox: Suspicious", signals[0].title)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(14, signals[0].score) // 28 / 2 — the signal is kept, just not promoted
+    }
+
+    @Test
+    fun `strength boundary sits at a threat score of 50`() = runTest {
+        val weak = """{"count":1,"result":[{"verdict":"suspicious","threat_score":49}]}"""
+        val strong = """{"count":1,"result":[{"verdict":"suspicious","threat_score":50}]}"""
+
+        assertEquals(
+            SignalStrength.WEAK,
+            provider(clientReturning(200, weak)).fetchSignals(url)[0].strength
+        )
+        assertEquals(
+            SignalStrength.STRONG,
+            provider(clientReturning(200, strong)).fetchSignals(url)[0].strength
+        )
+    }
+
+    @Test
+    fun `a malicious label still cannot promote a low score`() = runTest {
+        // The label is the reason the report is reported at all (the score-50 gate is not
+        // met), but it must not by itself decide how heavily the scan weighs it.
+        val body = """{"count":1,"result":[{"verdict":"malicious","threat_score":20}]}"""
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+
+        assertEquals(1, signals.size)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+    }
+
     @Test
     fun `newer clean analysis supersedes an older malicious report`() = runTest {
         val body = """

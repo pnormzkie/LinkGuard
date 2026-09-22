@@ -9,6 +9,13 @@ import com.linkguard.app.domain.model.Verdict
 
 class ScoringEngine {
 
+    /**
+     * How much external coverage stood behind a verdict. The UI must tell these apart: a
+     * verdict backed by four of six providers is not the same claim as one backed by none,
+     * and reporting the first as "local rules only" understates what was actually checked.
+     */
+    enum class CoverageState { FULL, PARTIAL, LOCAL_ONLY }
+
     companion object {
         private const val SCORE_SUSPICIOUS_THRESHOLD = 25
         private const val SCORE_THREAT_THRESHOLD = 60 // Threshold adjusted from 70 to 60 for better threat detection
@@ -18,8 +25,15 @@ class ScoringEngine {
         const val EXTERNAL_CHECKS_PARTIAL_REASON =
             "Some external security checks unavailable — verdict based on partial coverage"
 
+        /** The coverage these reasons describe. "Local only" wins if both are somehow present. */
+        fun coverageStateOf(reasons: List<String>): CoverageState = when {
+            reasons.contains(EXTERNAL_CHECKS_UNAVAILABLE_REASON) -> CoverageState.LOCAL_ONLY
+            reasons.contains(EXTERNAL_CHECKS_PARTIAL_REASON) -> CoverageState.PARTIAL
+            else -> CoverageState.FULL
+        }
+
         fun isCoverageWarning(reason: String): Boolean =
-            reason == EXTERNAL_CHECKS_UNAVAILABLE_REASON || reason == EXTERNAL_CHECKS_PARTIAL_REASON
+            coverageStateOf(listOf(reason)) != CoverageState.FULL
     }
 
     /**
@@ -63,11 +77,28 @@ class ScoringEngine {
                 // Case 4: Mixed signals
                 sources.size > 1 -> "Multiple security risks detected"
                 
-                // Case 1: Safe Browsing (External Reputation)
-                sources.contains(SignalSource.EXTERNAL_REPUTATION) -> "Known phishing or malicious site"
+                // Case 1: Reputation blocklists. A CRITICAL hit is already handled above, so
+                // only a STRONG one earns the "known malicious" wording here — a weak record
+                // (e.g. a URLhaus entry whose tracked URLs are all offline) is supporting
+                // evidence and must not be stated as a confirmed verdict.
+                sources.contains(SignalSource.EXTERNAL_REPUTATION) -> {
+                    val strongReputation = effectiveSignals.any {
+                        it.source == SignalSource.EXTERNAL_REPUTATION &&
+                            it.strength == SignalStrength.STRONG
+                    }
+                    if (strongReputation) "Known phishing or malicious site"
+                    else "Reported on a security blocklist"
+                }
                 
-                // Case 2: VirusTotal (Enrichment)
-                sources.contains(SignalSource.ENRICHMENT) -> "Detected by multiple security vendors"
+                // Case 2: Enrichment (VirusTotal, Hybrid Analysis). Count the actual vendors —
+                // a single sandbox hit must not read as "multiple".
+                sources.contains(SignalSource.ENRICHMENT) -> {
+                    val vendors = effectiveSignals
+                        .filter { it.source == SignalSource.ENRICHMENT }
+                        .vendorCount()
+                    if (vendors == 1) "Flagged by 1 security vendor"
+                    else "Flagged by $vendors security vendors"
+                }
                 
                 // Case 3: Heuristic (Local)
                 sources.contains(SignalSource.LOCAL_HEURISTIC) -> "Suspicious link behavior detected"
@@ -107,4 +138,20 @@ class ScoringEngine {
             signals = effectiveSignals
         )
     }
+
+    /**
+     * How many distinct vendors these signals represent. VirusTotal names the engines that
+     * flagged it (metadata "vendor_names"); every other provider counts as one. Mirrors the
+     * grouping in [com.linkguard.app.domain.mapper.toLegacy] so the category line and the
+     * "Vendors flagged" count chip never disagree.
+     */
+    private fun List<ScanSignal>.vendorCount(): Int =
+        flatMap { signal ->
+            signal.metadata["vendor_names"]
+                ?.split("||")
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.takeIf { it.isNotEmpty() }
+                ?: listOf(signal.title)
+        }.distinct().size
 }

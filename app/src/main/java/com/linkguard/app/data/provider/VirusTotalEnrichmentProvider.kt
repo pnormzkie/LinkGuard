@@ -80,11 +80,15 @@ class VirusTotalEnrichmentProvider(
                     else -> 25
                 }
 
+                // A single detection is common, so the count must read as "1 Vendor", never
+                // "1 Vendors" — the title is shown verbatim in the flag list.
+                val vendorNoun = if (malicious == 1) "Vendor" else "Vendors"
+
                 listOf(
                     ScanSignal(
                         ruleId = "VT_MALICIOUS",
-                        title = "$malicious Vendors Flagged",
-                        description = "$malicious vendors flagged this URL as malicious on VirusTotal.",
+                        title = "$malicious $vendorNoun Flagged",
+                        description = "$malicious ${vendorNoun.lowercase()} flagged this URL as malicious on VirusTotal.",
                         strength = when {
                             malicious >= 5 -> SignalStrength.CRITICAL
                             malicious >= 3 -> SignalStrength.STRONG

@@ -1262,3 +1262,153 @@ on github.com (verified live) — and DownloadManager follows the redirect itsel
 additionally gated on the signature check. But `objects.githubusercontent.com` is now stale, and
 if GitHub ever hands back an asset URL already pointing at release-assets.githubusercontent.com
 the check would fail closed and updates would silently stop. Worth re-pointing the allowlist.
+
+---
+
+## 2026-09-22 — Evidence-vs-copy audit follow-ups
+
+Triggered by a scan of `https://Notion.com` that displayed "14% RISK SCORE" next to a
+"SUSPICIOUS LINK" badge and the category "Detected by multiple security vendors" while only
+one vendor had flagged it. The wording was a symptom; the audit found five more issues.
+
+Already fixed before this plan: `ScoringEngine` enrichment category now counts the real
+vendors ("Flagged by 1 security vendor") instead of hardcoding "multiple".
+
+### Batch A — copy that overclaims (no verdict changes)
+- [x] A1 `VirusTotalEnrichmentProvider` emits "1 Vendors Flagged" / "1 vendors flagged this
+      URL" whenever `malicious == 1` (the guard only rejects 0). Pluralize both strings.
+- [x] A2 `ScoringEngine` line 67 ("Known phishing or malicious site" for any
+      `EXTERNAL_REPUTATION` source) is unreachable today but would fire on a future 25+ point
+      non-critical reputation signal — including `URLHAUS_HISTORICAL_MALWARE`, whose own
+      description says every tracked URL is now offline. Gate it on signal strength.
+- [x] A3 `ThreatAlertHelper` DANGER channel is described as "confirmed malicious links" but
+      fires on any THREAT verdict, including a heuristics-only score with no external
+      confirmation. Reword.
+- [x] A4 Regression tests for A1 and A2.
+
+### Batch B — the verdict contradiction (BEHAVIOR CHANGE, higher risk)
+- [x] B1 `HybridAnalysisProvider` sets `SignalStrength.STRONG` from the sandbox verdict LABEL
+      ("Suspicious") regardless of `threat_score`. `ScoringEngine` then force-promotes the
+      verdict to SUSPICIOUS, so a threat_score of 28 renders as "14% / SUSPICIOUS LINK" — the
+      number and the badge contradict each other. Derive strength from the score instead:
+      >=75 CRITICAL, >=50 STRONG, else WEAK.
+- [x] B2 Regression tests per strength bucket (trusted, tracker, low/mid/high score).
+- [x] B3 Confirm no existing provider test depended on the old label-driven strength.
+- Rollback: single-expression revert of the `finalStrength` assignment; no schema, no
+  persisted data, no migration.
+- Deferred, needs a separate decision: `notion.com` and peer SaaS hosts are absent from
+  `KnownDomains.TRUSTED_DOMAINS`. That is calibration, not the root cause — not in scope here.
+
+### Batch C — cleanup
+- [x] C1 Delete the dead strings `link_safe_toast` and `link_unverified_toast` (zero
+      references anywhere in `app/src`).
+- [x] C2 `googlesyndication.com`, `googleadservices.com` and `doubleclick.net` sit in BOTH
+      `TRUSTED_DOMAINS` and `TRACKER_DOMAINS`. Do NOT change membership — `isTrusted` has 8
+      consumers (URLhaus skip, DomainAge skip, credential-form inspector, orchestrator,
+      UrlScanner), so moving a domain shifts behavior far outside this task. Instead make the
+      precedence explicit in the doc comment and lock it with a test.
+
+### Verification for all batches
+- [x] Full `:app:testDebugUnitTest` green (baseline before this work: 426 tests, 0 failures).
+- [ ] On-device smoke deferred at Norman's request — retest later via the intercept intent.
+
+### Result 2026-09-22
+- All three batches landed. `:app:testDebugUnitTest` = 438 tests, 0 failures (baseline 426);
+  `:app:assembleDebug` BUILD SUCCESSFUL. The two pre-existing Kotlin warnings in
+  HistoryActivity/ScanDetailActivity are untouched and unrelated.
+- B3 outcome: no existing test regressed. The three provider tests that assert a strength all
+  use threat_score 85 / 60 / 80-trusted, which land in the same buckets under the new rule.
+- C2 resolved WITHOUT changing list membership, as planned: precedence is now documented on
+  `TRACKER_DOMAINS` and pinned by the new `KnownDomainsTest`.
+- Still open: on-device smoke (deferred by Norman), and the separate `notion.com` /
+  TRUSTED_DOMAINS calibration decision.
+
+### On-device retest 2026-09-22 (Pixel_7 API 34, debug build, live providers)
+- [x] B1 verified live. `https://www.notion.com/` returns `HA Best Match: verdict=Suspicious
+      score=29` — the same provider response that produced Norman's screenshot — and now
+      renders **SAFE LINK / 14%** (green ring) instead of SUSPICIOUS at 14%. Screenshot:
+      `tasks/retest-notion-after.png`.
+- [x] No detection lost. All five baseline URLs match the v1.32 release smoke:
+      secure-google.com/login DANGEROUS 75%; evil-site.xyz?action=verify&do=login SUSPICIOUS
+      25%; gr0ups.com SAFE 0%; chatgpt.com SAFE 0%.
+- Harness note: `adb shell am start -d` needs the URL single-quoted for the DEVICE shell when
+  it contains `&`, otherwise the device shell backgrounds at the ampersand and the activity
+  receives a truncated URL (reads as `<none>`). Separate from the MSYS_NO_PATHCONV=1 trap.
+- Environment artifact, not a defect: scanning `https://Notion.com` (which redirects) adds a
+  25-point "Redirect destination could not be verified" heuristic on the emulator, because
+  `Credential-form inspection timed out` and RDAP returns 403 there. Norman's device did not
+  produce it. Scan the resolved URL to isolate provider behavior.
+
+### D1 — found by the retest, fixed 2026-09-22
+- [x] D1 `LinkInterceptActivity.kt:139-141` collapses BOTH coverage states into one string:
+      `val unvetted = result.flags.any(ScoringEngine::isCoverageWarning)` picks
+      `link_safe_local_only` ("Checked with local rules only — online verification was
+      unavailable") for partial coverage too. On the retest above, SafeBrowsing, NextDNS,
+      VirusTotal and Hybrid Analysis all ran (`Signals Found -> SB: 0, DNS: 0, VT: 0, HA: 1,
+      DA: failed, UH: failed`) — only 2 of 6 providers failed — yet the screen told the user
+      nothing online ran. `ScanOrchestrator:134-135` distinguishes missing (0 successes) from
+      partial correctly; the UI flattens it. Understates coverage, so it errs safe, but it is
+      false and it teaches users to discount a correct clean verdict.
+      Recommended: branch on the specific reason instead of `isCoverageWarning`, reusing the
+      existing `link_safe_local_only` / a new partial-coverage string.
+      NOTE: this contradicts the audit, where I inspected this exact line and cleared it.
+      I was wrong — collapsing the two states is what makes it lie in the partial case.
+
+#### D1 fix + verification
+- `ScoringEngine` gained `CoverageState { FULL, PARTIAL, LOCAL_ONLY }` and
+  `coverageStateOf(reasons)`. `isCoverageWarning` is now expressed in terms of it, so the two
+  coverage states have ONE derivation instead of two that can drift apart.
+- `LinkInterceptActivity.showSafeScreen` branches on that enum with an exhaustive `when`, so a
+  future coverage state cannot be silently folded into an existing string.
+- New string `link_safe_partial`: "Passed the checks that ran — some online services didn't
+  respond."
+- Verified BOTH branches on device, not just the fixed one:
+  * 5 of 6 providers answered (`SB: 0, DNS: 0, VT: 0, HA: 1, DA: failed, UH: 0`) ->
+    "Passed the checks that ran…" — screenshot `tasks/retest-d1-partial-coverage.png`
+  * network disabled, 6 of 6 failed -> "Checked with local rules only…" (unchanged)
+  * FULL coverage is unit-tested only; RDAP returns 403 on the emulator, so all six providers
+    never succeed there. Gap documented rather than claimed.
+- `:app:testDebugUnitTest` = 443 tests, 0 failures (438 before D1). `:app:assembleDebug` green.
+
+## 2026-09-22 — Accuracy corpus (advice item #2) + RDAP diagnosis (#1)
+
+### Corpus — DONE
+- [x] `app/src/test/java/com/linkguard/app/accuracy/ScanCorpus.kt` — 15 legitimate URLs
+      (deliberately weighted toward hosts NOT on `TRUSTED_DOMAINS`, since an un-calibrated
+      legitimate host is where a false positive hides) + 6 synthetic phishing shapes.
+- [x] `ScanAccuracyTest.kt` — runs the REAL `LegacyHeuristicEngine`, the REAL `ScoringEngine`
+      and, where a payload was recorded, the REAL provider parsing through `ScanOrchestrator`.
+      Prints a per-URL table with verdict, score, coverage and reason.
+- [x] Result: 15/15 legitimate SAFE, 6/6 phishing shapes caught, all at FULL coverage.
+- [x] PROVEN TO FAIL: temporarily reverting the HybridAnalysis strength fix turned the run red
+      with `False positive(s): https://www.notion.com/ -> SUSPICIOUS 14%` — the exact symptom
+      from the original screenshot. The fix was restored immediately afterwards and the full
+      suite re-run (446 tests, 0 failures).
+- Only ONE external payload is recorded (`NOTION_HYBRID_ANALYSIS_BODY`, captured on-device:
+  `verdict=Suspicious score=29`). Every other case runs with the external layer reporting
+  nothing, which is the genuine result for a URL no vendor has a report on. Inventing vendor
+  payloads was rejected: a hand-written fixture only proves the fixture matches the assertion.
+
+### Harness defect caught during its own construction
+- The first green run was FALSE. Under `runTest`'s virtual clock the 8s per-provider
+  `withTimeout` in `ScanOrchestrator.guarded` fires instantly while the provider's real work
+  sits on `Dispatchers.IO`, so the recorded sandbox report never landed and notion.com scored
+  0% instead of 14%. Switched to `runBlocking`, and the notion case now asserts
+  `CoverageState.FULL` and `score == 14` BEFORE asserting the verdict, so the test cannot pass
+  again by silently losing its own input.
+
+### RDAP / DomainAge — DIAGNOSIS CORRECTED, no code change
+- [x] Probed the endpoints directly from the dev machine:
+      * `https://rdap.org/domain/notion.com` -> 302 to `https://rdap.verisign.com/com/v1/domain/notion.com`
+      * that target -> 200
+      * following the redirect end to end -> 200
+- `ScannerProvider.okHttpClient` leaves OkHttp's `followRedirects` at its default (true), so
+  the app does follow that 302. The chain is therefore healthy from this network.
+- This CONTRADICTS the earlier claim in this session that DomainAge is "dead in the field".
+  The emulator's 403 is environment-specific — most likely rate limiting, matching the note
+  already recorded at todo.md:908 from an earlier session — not a permanent outage. Whether
+  real devices are affected is UNKNOWN and needs one probe on Norman's phone:
+  `adb logcat | grep DomainAge` during a single scan of an untrusted domain.
+- [ ] Open: run that device probe before changing any provider code. If it does 403 on a real
+      device, the fix path is the IANA bootstrap (`data.iana.org/rdap/dns.json`, TLD -> registry
+      base URL) rather than the rdap.org redirector; a direct registry hit already returns 200.

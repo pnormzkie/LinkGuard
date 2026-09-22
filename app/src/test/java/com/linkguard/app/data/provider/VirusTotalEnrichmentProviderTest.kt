@@ -70,6 +70,24 @@ class VirusTotalEnrichmentProviderTest {
     }
 
     @Test
+    fun `a single detection is described in the singular`() = runTest {
+        val body = """{"data":{"attributes":{"last_analysis_stats":{"malicious":1}}}}"""
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+
+        assertEquals("1 Vendor Flagged", signals[0].title)
+        assertEquals("1 vendor flagged this URL as malicious on VirusTotal.", signals[0].description)
+    }
+
+    @Test
+    fun `several detections are described in the plural`() = runTest {
+        val body = """{"data":{"attributes":{"last_analysis_stats":{"malicious":7}}}}"""
+        val signals = provider(clientReturning(200, body)).fetchSignals(url)
+
+        assertEquals("7 Vendors Flagged", signals[0].title)
+        assertEquals("7 vendors flagged this URL as malicious on VirusTotal.", signals[0].description)
+    }
+
+    @Test
     fun `engine names from last_analysis_results are captured (malicious only)`() = runTest {
         val body = """
             {"data":{"attributes":{

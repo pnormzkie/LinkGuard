@@ -136,9 +136,14 @@ class LinkInterceptActivity : AppCompatActivity() {
         binding.scoreFrame.visibility = View.VISIBLE
         setTappedLink(result.url, result.resolvedUrl, color)
 
-        val unvetted = result.flags.any(ScoringEngine::isCoverageWarning)
+        // Partial coverage is its own claim: some providers answered and the link passed them.
+        // Reporting that as "local rules only" would understate what was actually checked.
         binding.tvReason.text = getString(
-            if (unvetted) R.string.link_safe_local_only else R.string.link_safe_verified
+            when (ScoringEngine.coverageStateOf(result.flags)) {
+                ScoringEngine.CoverageState.LOCAL_ONLY -> R.string.link_safe_local_only
+                ScoringEngine.CoverageState.PARTIAL -> R.string.link_safe_partial
+                ScoringEngine.CoverageState.FULL -> R.string.link_safe_verified
+            }
         )
         binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.e_muted))
         binding.tvReason.visibility = View.VISIBLE

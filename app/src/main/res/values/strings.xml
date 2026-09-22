@@ -107,8 +107,6 @@
     <string name="btn_cancel_scan">Cancel</string>
     <string name="btn_dont_open">Don\'t Open</string>
     <string name="btn_open_anyway">Open Anyway</string>
-    <string name="link_safe_toast">✓ Link checked — safe</string>
-    <string name="link_unverified_toast">Opened without online verification — local checks only</string>
     <string name="link_unchecked_title">Couldn\'t verify this link</string>
     <string name="link_unchecked_reason">LinkGuard couldn\'t check this link — the scan didn\'t complete. Open it only if you trust the source.</string>
     <string name="link_tapped_label">Tapped Link</string>
@@ -119,6 +117,7 @@
     <string name="btn_close">Close</string>
     <string name="link_safe_verified">This link passed LinkGuard\'s safety checks.</string>
     <string name="link_safe_local_only">Checked with local rules only — online verification was unavailable.</string>
+    <string name="link_safe_partial">Passed the checks that ran — some online services didn\'t respond.</string>
     <string name="link_danger_override">I understand the risk — open anyway</string>
     <string name="danger_confirm_title">Open dangerous link?</string>
     <string name="danger_confirm_message">LinkGuard flagged this link as dangerous. Opening it may put your accounts or device at risk. Open it anyway?</string>
