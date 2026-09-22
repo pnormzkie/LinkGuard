@@ -1461,3 +1461,49 @@ is wrong.
 - [ ] Still worth doing: one device scan of an untrusted domain to confirm the signal now
       appears. The unit test proves the header is sent; only a device proves the registry
       accepts it end to end.
+
+### RDAP fix — on-device verification 2026-09-22 (Pixel_7 API 34, debug build with the fix)
+VERIFIED — the 403 is gone:
+- `RDAP HTTP 403` occurrences across every run after installing the fix: **0**. Before the fix
+  it appeared on every single scan of an untrusted domain.
+- `Signals Found -> SB: 0, DNS: 0, VT: 0, HA: 1, DA: 0, UH: 0` — DomainAge now SUCCEEDS
+  (0 signals is correct: notion.com is an old domain). Reproduced on 3 of 4 runs.
+
+NEW observation, not a regression of the fix:
+- One run showed `DomainAge timed out after 8000ms` (`Timed out waiting for 8000 ms`), NOT a
+  403. The RDAP path is two round trips (rdap.org -> 302 -> registry) and can exceed
+  `PROVIDER_TIMEOUT_MS` under emulator load. Unknown whether a real device is affected. Do not
+  raise the timeout blind — that would slow every provider at click time.
+
+UNRESOLVED — needs a re-check on a healthy device:
+- [ ] One UI read showed "SAFE / 0% / Checked with local rules only" while that run's log said
+      all six providers succeeded and HybridAnalysis returned a 14-point signal. Expected
+      "14% / passed LinkGuard's safety checks". Could not be reproduced: the emulator's
+      System UI began ANR-ing ("System UI isn't responding") on three consecutive attempts, so
+      every later UI dump captured the ANR dialog instead of the app. The host was already
+      under memory pressure — Claude Code had killed this emulator once for that reason.
+      This is EITHER a real display bug OR an artifact of the degraded emulator. It is not
+      safe to conclude either way from what was captured. Re-run on a real device or a rested
+      machine and read the screen against the same run's log.
+
+### RDAP 403 — CONFIRMED ON A REAL DEVICE 2026-09-22 (closes the open question)
+Samsung Galaxy A52s 5G (SM-A528B), stock v1.32 release build from GitHub — i.e. WITHOUT the
+User-Agent fix. Three scans of untrusted domains (Notion.com, figma.com):
+
+    run 1  RDAP lookup failed: RDAP HTTP 403
+    run 2  RDAP lookup failed: Timed out waiting for 8000 ms
+    run 3  RDAP lookup failed: Timed out waiting for 8000 ms
+    every run: Signals Found -> ... DA: failed ...
+
+- The 403 reproduces on real hardware. DomainAge was failing on EVERY scan of an untrusted
+  domain for real users, silently, as a missing signal.
+- The timeouts are network noise, not a second bug: the run that timed out also logged
+  `SB: failed` and `UH: failed`, i.e. three providers dropped at once.
+- Root cause measured again from the dev machine with the exact client headers:
+  `okhttp/4.12.0` -> **403 with redirects=0** in ~0.65s (rdap.org rejects at the front door,
+  it never even redirects); `LinkGuard/1.0` -> 302 -> 200 in ~1.4s.
+- CONCLUSION: the fix in bd7395b addresses the real field failure. The earlier retraction in
+  this file ("diagnosis corrected", "not dead in the field") was wrong and is superseded.
+- Residual: ~1.4s for the two-hop RDAP chain leaves headroom under PROVIDER_TIMEOUT_MS (8s) on
+  a good connection, but a weak mobile connection can still exceed it. Do NOT raise the timeout
+  on this evidence — the observed timeouts coincided with other providers failing too.
