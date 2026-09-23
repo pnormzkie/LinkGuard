@@ -1799,3 +1799,18 @@ Evidence (SM-A528B, home Wi-Fi, installed v1.33):
 #3 decision (nonexistent-domain 6s wait): no code change. The 9.5s is the OS resolver's
 first NXDOMAIN answer; any in-app lookup goes through the same resolver, and a shorter
 budget would turn slow-but-real domains into "could not verify" (the Mynimo symptom).
+
+## 2026-09-23 — v1.34 published (autonomous, Norman asleep; pre-approved)
+
+- versionCode 35 / 1.34, signed with the release key (cert SHA-256 ead80ea1..., same as v1.33).
+- Branch pushed (cd7eac7..7db9006); tag v1.34 -> 7db9006; release id 394792841, latest.
+- Asset LinkGuard-v1.34.apk 24,673,232 bytes; downloaded-back SHA-256
+  EF8FB057593F7E17078CDC1546035AC3D9F6B275CF42C731DC3F7523112BDE55 == local.
+- Norman's SM-A528B: genuine v1.33 restored (base.apk e2b9e43f...). Launching the app shows the
+  v1.34 dialog; screenshot confirms all 6 note lines and "Update now" visible without
+  scrolling (button y 1739-1891 of 2400). Dismissed with Later + force-stop; the throttle is
+  in-memory, so his next launch prompts again.
+- End-to-end on a throwaway-image emulator: v1.33 -> Update now -> DownloadManager -> installer
+  (first-time "install unknown apps" grant, expected on a fresh device) -> 1.34 installed,
+  base.apk ef8fb057... == published asset. Post-update: Mynimo SAFE 0%, Safe Browsing
+  phishing test page DANGEROUS 100%.
