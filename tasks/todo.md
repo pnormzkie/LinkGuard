@@ -1769,9 +1769,32 @@ Evidence (SM-A528B, home Wi-Fi, installed v1.33):
   ERROR with hops=1 -> REDIRECT_UNRESOLVED -> SUSPICIOUS 40%.
 - Published v1.33 on the IPv4-only emulator: 40% twice. On Norman's phone v1.33 showed 0% only
   because hop 1 died on the broken IPv6 path (first-hop failure scores nothing).
-- [ ] Decision needed (security trade-off): treating the http hop as the destination would
-      let an https->http->evil chain hide its real target; allowing cleartext for resolver
-      HEADs weakens the app-wide policy. Norman's call before any change.
+- [x] Resolved without touching the cleartext policy (commit 5ef28c2): a TIMEOUT/ERROR chain
+      that never left the tapped site no longer adds REDIRECT_UNRESOLVED; cross-site chains,
+      loops and hop exhaustion still do. kalibrr 40% -> SAFE 15% on the phone.
+
+## 2026-09-23 night — autonomous detection pass before v1.34 (Norman: fix until stable, release)
+
+- Heuristics-only sweep, 165 real PH/global hosts (home + /login) and 38 phishing shapes,
+  real heuristic + scoring engines, providers silent. Temporary test, not committed.
+  - Before: 9 home pages flagged (rappler/snapple TYPOSQUAT_apple 50, chinabank.ph and
+    paypal.me BRAND_SPOOF 40, dti.gov.ph BRAND_IN_SUBDOMAIN 50, lbcexpress/jtexpress/
+    wordpress GIBBERISH -> SUSPICIOUS on /login).
+  - After (744c133, 3cc2310): 0/165 flagged on home or /login; 36/38 phishing flagged.
+- [x] Typosquat: distance-2 matches containing the brand intact left to the brand-spoof rule.
+- [x] Official domains: chinabank.ph, dti.gov.ph, paypal.me; brand-in-subdomain root lookup
+      covers .net/.org/.gov.ph.
+- [x] Gibberish also needs a 5+ consonant run.
+- [x] Couriers + iCloud as brands (lbc, lbcexpress, jnt, jtexpress, ninjavan, phlpost, icloud).
+- [x] Same-site unfinished redirects no longer score (5ef28c2) — Mynimo, snapple, kalibrr.
+- Corpus 38/38 legitimate, 18/18 phishing; 456 unit tests green.
+- Phone (fix build, live providers): every previously flagged site SAFE; Safe Browsing
+  test pages DANGEROUS 100% (12 vendors); Mynimo 4/4, snapple 2/2, kalibrr 2/2,
+  notion 2/2 identical across cold scans.
+- [ ] Open: typosquat per hyphen token (appie-id.com, paypa1-secure.com missed by heuristics)
+      would also flag "apply"/"job-apply.com"; needs a word-list decision. Not started.
+- [ ] Open: DomainAge (rdap) still times out ~2/12 scans on Norman's Wi-Fi after the IPv4 fix.
+- [ ] Open: nonexistent domains still wait the full 6s budget (OS resolver, see above).
 
 #3 decision (nonexistent-domain 6s wait): no code change. The 9.5s is the OS resolver's
 first NXDOMAIN answer; any in-app lookup goes through the same resolver, and a shorter
