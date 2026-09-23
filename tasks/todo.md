@@ -1643,3 +1643,37 @@ dismissed rather than worked around.
       quickly to interrupt — which is itself evidence the budget is adequate. Not pursued
       further: three other category strings were seen rendering correctly in the same slot,
       so the residual risk is a string that cannot render, which is not a plausible failure.
+
+## 2026-09-23 — v1.33 PUBLISHED, and the update path verified end to end
+
+Published on Norman's explicit instruction (the earlier autonomous attempt was blocked by the
+auto-mode classifier and was not worked around).
+
+- Release id 394195606, tag `v1.33`, draft=false, prerelease=false, marked latest.
+- Asset `LinkGuard-v1.33.apk`, 24,673,232 bytes. Re-downloaded SHA-256
+  `E2B9E43F...7ED70DF3` == the staged APK.
+- Verified against the UNAUTHENTICATED API — what `UpdateChecker` on a user's device actually
+  sees — not just the authenticated view.
+
+### In-app update path: v1.32 -> v1.33, the last open gap, now CLOSED
+On a clean Pixel_7 emulator with the real v1.32 release installed:
+1. Launch -> "Update available / Version 1.33 / You're on 1.32" with the release notes.
+2. "Update now" -> downloaded the full 23.5 MB.
+3. `signatureMatchesInstalledApp` passed — zero "Refusing to install update" in logcat.
+4. Android's own "Do you want to update this app?" prompt shown.
+5. Google Play Protect interstitial ("Play Protect hasn't seen this app before"), then after
+   its scan: "This app looks safe. You can continue to install it."
+6. Installed: **versionCode=34, versionName=1.33**.
+
+### Two UX observations found by that test — NOT fixed, logged for the next version
+- [ ] The "Update now" button sits BELOW the release notes in a scrollable dialog. With notes
+      this long the user opens the app, sees a wall of text, and must scroll before they can
+      act. Either shorten the published notes (editable via the API without a new build) or
+      pin the buttons outside the scroll region.
+- [ ] `UpdateProgress` shows "Update paused — Waiting for connection…" at 99% while the
+      download is in fact COMPLETE (23.5 MB / 23.5 MB) and the installer is about to fire. It
+      sat in that state for ~50s before the install prompt appeared. The status mapping reads a
+      transient DownloadManager state as a stall and tells the user something is wrong when
+      nothing is. Cosmetic, but it reads as a failure mid-update.
+- Play Protect's interstitial is normal for a sideloaded APK Google has not seen before and is
+  not a LinkGuard defect. Worth knowing it is what users will meet on every release.
