@@ -138,13 +138,15 @@ object HeuristicScanner {
         "bpi", "bdo", "metrobank", "landbank", "pnb", "rcbc",
         "unionbank", "security bank", "eastwest", "chinabank",
         "gcash", "maya", "paymaya", "grab", "shopee", "lazada",
-        "sss", "pagibig", "philhealth", "dti", "bir"
+        "sss", "pagibig", "philhealth", "dti", "bir",
+        // Couriers: the most impersonated senders in PH delivery-scam texts.
+        "lbc", "lbcexpress", "jnt", "jtexpress", "ninjavan", "phlpost"
     )
 
     private val GLOBAL_BRANDS = listOf(
         "paypal", "amazon", "apple", "microsoft", "google",
         "netflix", "facebook", "instagram", "twitter",
-        "dhl", "fedex", "ups", "visa", "mastercard"
+        "dhl", "fedex", "ups", "visa", "mastercard", "icloud"
     )
 
     private val ALL_BRANDS = PH_BRANDS + GLOBAL_BRANDS
@@ -180,7 +182,14 @@ object HeuristicScanner {
         "pagibig"     to listOf("pagibig.gov.ph", "www.pagibig.gov.ph", "hdmf.gov.ph"),
         "philhealth"  to listOf("philhealth.gov.ph", "www.philhealth.gov.ph"),
         "bir"         to listOf("bir.gov.ph", "www.bir.gov.ph"),
-        "dti"         to listOf("dti.gov.ph", "www.dti.gov.ph")
+        "dti"         to listOf("dti.gov.ph", "www.dti.gov.ph"),
+        "lbc"         to listOf("lbcexpress.com", "www.lbcexpress.com"),
+        "lbcexpress"  to listOf("lbcexpress.com", "www.lbcexpress.com"),
+        "jnt"         to listOf("jtexpress.ph", "www.jtexpress.ph"),
+        "jtexpress"   to listOf("jtexpress.ph", "www.jtexpress.ph"),
+        "ninjavan"    to listOf("ninjavan.co", "www.ninjavan.co"),
+        "phlpost"     to listOf("phlpost.gov.ph", "www.phlpost.gov.ph"),
+        "icloud"      to listOf("icloud.com", "www.icloud.com")
     )
 
     private val PHISHING_KEYWORDS = listOf(

@@ -167,7 +167,10 @@ internal object ScanCorpus {
         Case("https://www.dti.gov.ph/", Expected.SAFE, "Government agency named in the brand list"),
         Case("https://www.lbcexpress.com/login", Expected.SAFE, "PH courier; consonant-heavy compound, not random"),
         Case("https://www.jtexpress.ph/login", Expected.SAFE, "PH courier; consonant-heavy compound, not random"),
-        Case("https://wordpress.com/log-in", Expected.SAFE, "Consonant-heavy compound with a login path")
+        Case("https://wordpress.com/log-in", Expected.SAFE, "Consonant-heavy compound with a login path"),
+        Case("https://www.phlpost.gov.ph/", Expected.SAFE, "Courier brand's own government domain"),
+        Case("https://www.ninjavan.co/en-ph/tracking", Expected.SAFE, "Courier brand's own domain"),
+        Case("https://www.icloud.com/find", Expected.SAFE, "iCloud's own domain")
     )
 
     /** Synthetic URL shapes the scanner must keep catching. Not real sites. */
@@ -202,6 +205,12 @@ internal object ScanCorpus {
         Case("https://paypall.com/login", Expected.FLAGGED, "Typosquat: brand plus one doubled letter"),
         Case("https://chinabank-verify.com/login", Expected.FLAGGED, "PH bank brand glued to a phishing word"),
         Case("https://xkqjzvbtw.com/login", Expected.FLAGGED, "Random consonant string with a login path"),
+        // Delivery-scam shapes: couriers are the most impersonated senders in PH smishing.
+        Case("https://lbc-express-delivery.com/track", Expected.FLAGGED, "LBC brand in a look-alike host"),
+        Case("https://lbcexpress-ph.com/track", Expected.FLAGGED, "LBC's own name glued to -ph"),
+        Case("https://jnt-express-ph.xyz/", Expected.FLAGGED, "J&T brand on a high-abuse TLD"),
+        Case("https://phlpost-parcel.com/fee", Expected.FLAGGED, "PHLPost brand in a look-alike host"),
+        Case("https://icloud-verify.com/", Expected.FLAGGED, "iCloud brand glued to a phishing word"),
 
         // Trusted hosts that serve user-authored pages. These guard the 2026-09-21 fix: a
         // trust signal about the HOST must not waive evidence about the PATH, because anyone
