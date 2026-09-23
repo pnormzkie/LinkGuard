@@ -523,6 +523,31 @@ class ScanOrchestratorTest {
     }
 
     @Test
+    fun `a same-site chain that stalls or fails is not an unresolved-redirect signal`() = runTest {
+        // Seen on-device 2026-09-23: Mynimo.com -> www.mynimo.com and www.snapple.com ->
+        // snapple.com timed out on slow servers; www.kalibrr.com -> http://www.kalibrr.com/home
+        // failed on the cleartext policy. The last URL reached is scanned either way, and the
+        // chain never left the tapped site.
+        for (outcome in listOf(RedirectOutcome.TIMEOUT, RedirectOutcome.ERROR)) {
+            val orchestrator = orchestrator(
+                redirect = FakeRedirectResolver { original ->
+                    RedirectResolution(
+                        finalUrl = "https://www.same-site.test/",
+                        hops = listOf(original, "https://www.same-site.test/"),
+                        crossedDomains = false,
+                        outcome = outcome
+                    )
+                }
+            )
+
+            val result = orchestrator.scan("https://same-site.test/")
+
+            assertEquals("$outcome", emptySet<String>(), result.verdict.signals.map { it.ruleId }.toSet())
+            assertEquals("$outcome", Verdict.SAFE, result.verdict.verdict)
+        }
+    }
+
+    @Test
     fun `redirect loop and hop exhaustion are suspicious not safe`() = runTest {
         val loopResolution = RedirectResolution(
             finalUrl = "https://loop.test/a",

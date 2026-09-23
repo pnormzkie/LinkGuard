@@ -561,6 +561,17 @@ class HttpRedirectResolverTest {
     }
 
     @Test
+    fun `apex to www in a different case is the same site`() = runBlocking {
+        // The Gmail-tapped link that started the 2026-09-23 investigation was "https://Mynimo.com".
+        val resolver = HttpRedirectResolver(
+            routingClient(mapOf("https://site.test/" to (301 to "https://www.site.test/")))
+        )
+        val res = resolver.resolve("https://Site.test/")
+        assertEquals("https://www.site.test/", res.finalUrl)
+        assertFalse(res.crossedDomains)
+    }
+
+    @Test
     fun `network error returns best-known url without throwing`() = runBlocking {
         val resolver = HttpRedirectResolver(clientFailing())
         val res = resolver.resolve("https://a.test/x")

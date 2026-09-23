@@ -213,9 +213,16 @@ class ScanOrchestrator(
             // A chain that stopped early leaves the true destination unverified; a failure or
             // timeout on the very first hop is just an unreachable site, not a redirect signal.
             // Warning about a dead link is noise: it never resolved for the user either.
-            RedirectOutcome.MAX_HOPS, RedirectOutcome.LOOP, RedirectOutcome.TIMEOUT,
-            RedirectOutcome.ERROR ->
+            RedirectOutcome.MAX_HOPS, RedirectOutcome.LOOP ->
                 if (resolution.redirected) listOf(unresolvedSignal(resolution.finalUrl)) else emptyList()
+
+            // A slow or failed hop that never left the tapped site is that site's own redirect
+            // (www/apex, http/https) on a slow server; the last URL reached is still scanned.
+            // Stalling on the first hop already scores nothing, so this opens no new evasion.
+            RedirectOutcome.TIMEOUT, RedirectOutcome.ERROR ->
+                if (resolution.redirected && resolution.crossedDomains) {
+                    listOf(unresolvedSignal(resolution.finalUrl))
+                } else emptyList()
 
             RedirectOutcome.BLOCKED_SCHEME, RedirectOutcome.BLOCKED_PRIVATE_HOST -> listOf(
                 ScanSignal(
