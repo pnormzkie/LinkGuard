@@ -1678,3 +1678,59 @@ On a clean Pixel_7 emulator with the real v1.32 release installed:
       nothing is. Cosmetic, but it reads as a failure mid-update.
 - Play Protect's interstitial is normal for a sideloaded APK Google has not seen before and is
   not a LinkGuard defect. Worth knowing it is what users will meet on every release.
+
+## 2026-09-23 — Mynimo.com SUSPICIOUS 25% (via Gmail, 18:09) — investigation, no code change
+
+Screenshot: one Gmail-tap scan of `https://Mynimo.com` showed SUSPICIOUS 25% "Destination could
+not be verified"; later manual scans were SAFE 0%. Phone (SM-A528B) was already on v1.33
+(lastUpdateTime 00:44, after the redirect-budget fix 3eaa74a) — so the 3s/6s budgets did not
+prevent it.
+
+- Host replay of the resolver's HEAD/HEAD/range-GET chain (LinkGuard UA): 43 runs, 1 run at
+  6.33s total (> 6s REDIRECT_TOTAL_BUDGET_MS; hop-1 ttfb 4.57s), 1 hop-1 at 2.6s. DNS/TCP/TLS
+  flat ~0.25s — the spikes are server-side (Cloudflare + Nuxt SSR even for the 301).
+- Device: 20 cold scans (force-stop + intercept intent) on the same phone -> 20/20 SAFE 0%,
+  redirect resolved to `https://www.mynimo.com/`, zero RedirectResolver errors. NOT reproduced.
+- Root cause therefore NOT confirmed on device. Best-supported hypothesis: rare server-side
+  latency spike on the first request pushes the chain past the 6s budget after hop 1 redirected.
+- [ ] Diagnosability gap: a TIMEOUT outcome logs nothing in release builds (only ERROR does),
+      so the next occurrence cannot be classified from logcat.
+- [ ] Separate finding (unrelated to the redirect): in those 20 cold scans, 20/20 had at least
+      one provider time out at 8s (SafeBrowsing 14/20, DomainAge 14/20, HybridAnalysis 10/20),
+      so every cold scan rendered "some online services didn't respond" and was never cached.
+      Not yet investigated — could be cold-process network warm-up on this phone.
+
+### Plan — make redirect-resolution outcomes diagnosable in release builds (Norman: "proceed")
+- [x] One release-safe log line per resolution in HttpRedirectResolver.resolve: outcome, hop
+      count, elapsed ms. NO URL/host in release (privacy — matches the existing DEBUG gating).
+- [x] Unit tests: existing HttpRedirectResolverTest suite still green (log-only change).
+      `:app:testDebugUnitTest` -> 451 tests, 0 failures/errors (HttpRedirectResolverTest 23/23).
+- [x] Build: testDebugUnitTest + assembleRelease -> exit 0, app-release.apk 21:35.
+- [x] Verified on the Pixel_7 AVD booted with a throwaway `-data` image in the session scratchpad
+      (Norman's phone was not connected; his v1.33 install untouched). Release APK, cold
+      intercept scans, `logcat -s RedirectResolver`:
+      - `https://Mynimo.com` -> `resolved: RESOLVED, hops=1, 3406ms`, SAFE 0%.
+      - `https://www.google.com/` -> no line: trusted hosts skip the resolver by design
+        (ScanOrchestrator 1b gate), SAFE 0%.
+      - `https://no-such-host-lg-verify.invalid/` -> `resolved: TIMEOUT, hops=0, 6003ms`, SUSPICIOUS 25%.
+      - `https://lg-verify-nx-9f3k2q.com/` twice -> 1st `TIMEOUT, 6007ms`; 2nd
+        `redirect hop failed: Host address could not be validated` + `ERROR, hops=0, 340ms`.
+        Cause: the emulator's DNS takes ~9.3s on a first NXDOMAIN (`ping` alone), then caches
+        the negative answer. Environment, not app. TIMEOUT and ERROR score the same
+        (ScanOrchestrator:216), so the verdict is unaffected. The line tells them apart, as intended.
+      - No URL/host in any release line (checked all five).
+- Diagnosability gap above: closed by this change once it ships (not yet committed/released).
+- [ ] Still open: the cold-scan provider-timeout finding above (not investigated).
+- [x] Re-run on Norman's SM-A528B (21:48, his approval: install over v1.33 with -r, then restore).
+      Pre-check: installed base.apk sha256 == release-staging/LinkGuard-v1.33.apk (e2b9e43f...).
+      - Mynimo.com x3 cold -> `RESOLVED, hops=1` at 1872 / 1715 / 2135ms, SAFE 0% each.
+      - google.com -> no line (trusted skip), SAFE 0%.
+      - `.invalid` host -> `TIMEOUT, 6002ms`; NXDOMAIN `.com` 1st -> `TIMEOUT, 6003ms`,
+        2nd -> `ERROR, 48ms`; all SUSPICIOUS 25%.
+      - Restored v1.33: `install -r`, base.apk sha256 e2b9e43f... again, versionName 1.33.
+- CORRECTION to the emulator note above: the slow first NXDOMAIN is NOT emulator-only. Phone
+  `ping` of a fresh nonexistent host took 9501ms, then 174ms once cached (Private DNS off).
+  So on real networks a scan of a nonexistent domain spends the full 6s redirect budget
+  before the verdict. Verdict is unchanged (TIMEOUT scores like ERROR); the cost is latency.
+- [ ] Open (not started): decide whether a DNS-failure-dominated TIMEOUT is worth
+      short-circuiting (e.g. resolve the host first with a shorter budget). Needs Norman's call.

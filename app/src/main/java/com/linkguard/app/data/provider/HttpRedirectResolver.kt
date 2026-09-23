@@ -47,9 +47,15 @@ class HttpRedirectResolver(
 
     override suspend fun resolve(url: String): RedirectResolution {
         val state = RedirectState(mutableListOf(url), url)
-        return withTimeoutOrNull(totalBudgetMs) {
+        // Wall time for the log only; the injected [now] drives the budget and tests script it.
+        val startedNs = System.nanoTime()
+        val resolution = withTimeoutOrNull(totalBudgetMs) {
             withContext(Dispatchers.IO) { resolveWithinBudget(state) }
         } ?: result(state.chain, state.current, RedirectOutcome.TIMEOUT)
+        // Release-safe (no URL): an unresolved chain adds a 25-point signal, so every outcome
+        // must be classifiable from logcat — a budget TIMEOUT otherwise leaves no trace.
+        Log.i(TAG, "resolved: ${resolution.outcome}, hops=${resolution.hops.size - 1}, ${(System.nanoTime() - startedNs) / 1_000_000}ms")
+        return resolution
     }
 
     private suspend fun resolveWithinBudget(state: RedirectState): RedirectResolution {

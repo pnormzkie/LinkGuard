@@ -109,3 +109,9 @@
 **Context:** Diagnosing the `DomainAge check failed: RDAP HTTP 403` seen throughout the on-device retest, which an earlier session had already written off as a pre-existing rate limit (todo.md:908).
 **Rule:** When reproducing a client's network failure outside the client, replicate the REQUEST, not just the URL: method, headers (especially User-Agent and Accept), redirect policy and auth. A bare curl is a different client and its result is evidence about curl. Diff the real request against the probe before trusting either outcome. Corollary: an inherited "known issue" note is a hypothesis someone else stopped testing, not a finding — `todo.md:908` had already mislabelled this as rate limiting, and repeating it kept a dead provider dead. Corollary 2: retracting a correct claim is as costly as making a wrong one; hold a reversal to the same evidentiary standard as the original, especially when the reversal is the comfortable answer.
 **Status:** active
+
+## 2026-09-23 — An emulator-only result is not an "environment, not app" verdict
+**Mistake:** I saw a first NXDOMAIN lookup take ~9s on the Pixel_7 emulator, and a scan of a nonexistent host spend the full 6s redirect budget. I reported it to Norman as "the emulator's DNS, not the app". The same check on his SM-A528B the same evening gave 9501ms for the first NXDOMAIN and a 6003ms TIMEOUT. It is ordinary resolver behaviour that real users hit.
+**Context:** Verifying the release-safe redirect-resolution log line (HttpRedirectResolver.resolve).
+**Rule:** Before calling a network timing "environment only", reproduce it on at least one real device on a real network. If that isn't possible, say "seen on the emulator; real-device behaviour unknown". Never write "not the app" on emulator evidence alone.
+**Status:** active
