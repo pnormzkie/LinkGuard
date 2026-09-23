@@ -1666,10 +1666,11 @@ On a clean Pixel_7 emulator with the real v1.32 release installed:
 6. Installed: **versionCode=34, versionName=1.33**.
 
 ### Two UX observations found by that test — NOT fixed, logged for the next version
-- [ ] The "Update now" button sits BELOW the release notes in a scrollable dialog. With notes
-      this long the user opens the app, sees a wall of text, and must scroll before they can
-      act. Either shorten the published notes (editable via the API without a new build) or
-      pin the buttons outside the scroll region.
+- [x] FIXED 2026-09-23 without a new build: the published release body was shortened via the
+      API from ~3,600 characters to 538 (9 lines). Re-verified on a clean emulator running the
+      real v1.32 — the dialog now has NO scrollable node at all, every bullet renders, and
+      "Update now" (y 1897-2039) and "Later" (y 2055-2172) both sit inside the 2400px screen.
+      The user can act without scrolling.
 - [ ] `UpdateProgress` shows "Update paused — Waiting for connection…" at 99% while the
       download is in fact COMPLETE (23.5 MB / 23.5 MB) and the installer is about to fire. It
       sat in that state for ~50s before the install prompt appeared. The status mapping reads a
