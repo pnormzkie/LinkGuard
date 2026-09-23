@@ -155,7 +155,7 @@ object HeuristicScanner {
         "gcash"       to listOf("gcash.com", "www.gcash.com", "globe.com.ph"),
         "maya"        to listOf("maya.ph", "www.maya.ph", "paymaya.com", "www.paymaya.com"),
         "paymaya"     to listOf("paymaya.com", "www.paymaya.com", "maya.ph", "www.maya.ph"),
-        "paypal"      to listOf("paypal.com", "www.paypal.com"),
+        "paypal"      to listOf("paypal.com", "www.paypal.com", "paypal.me"),
         "google"      to listOf("google.com", "www.google.com", "google.com.ph", "googlesyndication.com", "googleadservices.com", "doubleclick.net"),
         "apple"       to listOf("apple.com", "www.apple.com"),
         "microsoft"   to listOf("microsoft.com", "www.microsoft.com"),
@@ -165,6 +165,7 @@ object HeuristicScanner {
         "landbank"    to listOf("landbank.com", "www.landbank.com", "lbp-eservices.com"),
         "unionbank"   to listOf("unionbankph.com", "www.unionbankph.com"),
         "rcbc"        to listOf("rcbc.com", "www.rcbc.com"),
+        "chinabank"   to listOf("chinabank.ph", "www.chinabank.ph"),
         "shopee"      to listOf("shopee.ph", "www.shopee.ph", "shopee.com"),
         "lazada"      to listOf("lazada.com.ph", "www.lazada.com.ph", "lazada.com"),
         "grab"        to listOf("grab.com", "www.grab.com"),
@@ -178,7 +179,8 @@ object HeuristicScanner {
         "sss"         to listOf("sss.gov.ph", "www.sss.gov.ph"),
         "pagibig"     to listOf("pagibig.gov.ph", "www.pagibig.gov.ph", "hdmf.gov.ph"),
         "philhealth"  to listOf("philhealth.gov.ph", "www.philhealth.gov.ph"),
-        "bir"         to listOf("bir.gov.ph", "www.bir.gov.ph")
+        "bir"         to listOf("bir.gov.ph", "www.bir.gov.ph"),
+        "dti"         to listOf("dti.gov.ph", "www.dti.gov.ph")
     )
 
     private val PHISHING_KEYWORDS = listOf(
@@ -577,8 +579,9 @@ object HeuristicScanner {
         // 8. Brand in subdomain
         if (!isOfficialDomain && parts.size >= 3) {
             val rootDomain = parts.takeLast(2).joinToString(".")
+            // Not just .com.ph: "dti.gov.ph" read as brand "dti" in front of the domain "gov.ph".
             val rootDomainPh = if (parts.size >= 3
-                && parts[parts.size - 2] == "com"
+                && parts[parts.size - 2] in setOf("com", "net", "org", "gov")
                 && parts.last() == "ph"
             ) parts.takeLast(3).joinToString(".") else null
             val subdomain = parts.dropLast(2).joinToString(".")
@@ -638,7 +641,11 @@ object HeuristicScanner {
             val domainName = parts.firstOrNull().orEmpty()
             val consonantRatio = domainName.count { it in "bcdfghjklmnpqrstvwxyz" }.toFloat() /
                     domainName.length.coerceAtLeast(1)
-            if (domainName.length > 6 && consonantRatio > 0.75f) {
+            // Ratio alone flagged real compounds ("lbcexpress", "jtexpress", "wordpress"): a
+            // random string also has a long unbroken consonant run, an English word rarely does.
+            val longestConsonantRun = Regex("[bcdfghjklmnpqrstvwxyz]+").findAll(domainName)
+                .maxOfOrNull { it.value.length } ?: 0
+            if (domainName.length > 6 && consonantRatio > 0.75f && longestConsonantRun >= 5) {
                 addFinding(
                     "GIBBERISH_DOMAIN",
                     "Domain appears randomly generated",
@@ -685,7 +692,10 @@ object HeuristicScanner {
             val domainName = cleanDomain.split(".").firstOrNull().orEmpty()
             PROTECTED_DOMAINS.forEach { brand ->
                 val distance = levenshtein(domainName, brand)
-                if (domainName.length >= 4 && distance in 1..2 && domainName != brand) {
+                // Two extra letters around an intact brand is a different word ("rappler",
+                // "snapple"), not a misspelling; brand-plus-affix glue is rule 5's job.
+                val brandPlusTwoLetters = distance == 2 && domainName.contains(brand)
+                if (domainName.length >= 4 && distance in 1..2 && domainName != brand && !brandPlusTwoLetters) {
                     addFinding(
                         "TYPOSQUAT_${brand.filter { it.isLetterOrDigit() }}",
                         "Lookalike domain — very similar to \"${brand.uppercase()}\" (possible typosquatting)",

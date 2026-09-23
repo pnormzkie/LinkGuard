@@ -157,7 +157,17 @@ internal object ScanCorpus {
         Case(
             "https://github.com/pnormzkie/LinkGuard/security/advisories", Expected.SAFE,
             "Security-flavoured path on a trusted host serving user content"
-        )
+        ),
+
+        // Found by a 164-host sweep on 2026-09-23; rappler.com was also seen at 50% on-device.
+        Case("https://www.rappler.com/", Expected.SAFE, "PH news; 'apple' plus two letters is not a typosquat"),
+        Case("https://www.snapple.com/", Expected.SAFE, "Same shape as rappler, global brand"),
+        Case("https://www.chinabank.ph/login", Expected.SAFE, "PH bank's real domain, with a login path"),
+        Case("https://paypal.me/someuser", Expected.SAFE, "PayPal's own short domain"),
+        Case("https://www.dti.gov.ph/", Expected.SAFE, "Government agency named in the brand list"),
+        Case("https://www.lbcexpress.com/login", Expected.SAFE, "PH courier; consonant-heavy compound, not random"),
+        Case("https://www.jtexpress.ph/login", Expected.SAFE, "PH courier; consonant-heavy compound, not random"),
+        Case("https://wordpress.com/log-in", Expected.SAFE, "Consonant-heavy compound with a login path")
     )
 
     /** Synthetic URL shapes the scanner must keep catching. Not real sites. */
@@ -186,6 +196,12 @@ internal object ScanCorpus {
             "http://192.0.2.1/login", Expected.FLAGGED,
             "Raw IP host serving a login path"
         ),
+        // Guards the 2026-09-23 narrowing of the typosquat and gibberish rules.
+        Case("https://arnazon.com/signin", Expected.FLAGGED, "Typosquat at distance 2: 'rn' for 'm'"),
+        Case("https://appel.com/verify", Expected.FLAGGED, "Typosquat at distance 2: swapped letters"),
+        Case("https://paypall.com/login", Expected.FLAGGED, "Typosquat: brand plus one doubled letter"),
+        Case("https://chinabank-verify.com/login", Expected.FLAGGED, "PH bank brand glued to a phishing word"),
+        Case("https://xkqjzvbtw.com/login", Expected.FLAGGED, "Random consonant string with a login path"),
 
         // Trusted hosts that serve user-authored pages. These guard the 2026-09-21 fix: a
         // trust signal about the HOST must not waive evidence about the PATH, because anyone
