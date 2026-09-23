@@ -1734,3 +1734,45 @@ prevent it.
   before the verdict. Verdict is unchanged (TIMEOUT scores like ERROR); the cost is latency.
 - [ ] Open (not started): decide whether a DNS-failure-dominated TIMEOUT is worth
       short-circuiting (e.g. resolve the host first with a shorter budget). Needs Norman's call.
+
+## 2026-09-23 — Online checks time out on Norman's phone: broken IPv6 path (Norman: "proceed all")
+
+Evidence (SM-A528B, home Wi-Fi, installed v1.33):
+- 12 scans on distinct URLs: 7 had >=1 provider/inspection timeout, COLD and WARM alike, so
+  last session's "cold-process warm-up" hypothesis is refuted.
+- Phone-shell curl to every provider endpoint: 0.26-1.29s total, DNS ~5ms. Network and
+  servers are fine; the delay is in how the app connects.
+- `curl -4` vs `-6`: hybrid-analysis.com IPv6 no connect in 10s (IPv4 0.46s); rdap.org IPv6
+  connect 6.3s (IPv4 0.55s); safebrowsing/virustotal fine on both. DNS servers: router IPv6
+  link-local + 192.168.1.1; phone has ULA fda2::/64 addresses.
+- Root cause: OkHttp 4.12.0 has no happy-eyeballs; it tries addresses in DNS order (IPv6
+  first here). Main client connectTimeout 15s > callTimeout 8s, so a black-holed IPv6 route
+  consumes the whole provider budget and IPv4 is never tried.
+
+### Plan
+- [x] `Ipv4FirstDns`: stable-partition DNS answers IPv4-first; never drops addresses
+      (IPv6-only / NAT64 networks keep working). Unit tests (3).
+- [x] Wire into all three clients (main client `.dns`, HostSafetyValidator delegate).
+- [x] Main client connectTimeout 15s -> 4s so one dead address leaves budget for the next.
+- [x] testDebugUnitTest 454/454 + assembleRelease (22:06). Commit 2e4706f.
+- [x] Phone A/B (12 scans each): HybridAnalysis timeouts 6 -> 0, SafeBrowsing 5 -> 0,
+      DomainAge 7 -> 2, content inspection 3 -> 2; scans with any timeout 7/12 -> 4/12.
+      Verdict A/B (6 URLs, screen woken before each read): unchanged except kalibrr (below).
+      "Some online services didn't respond" shown on 4/6 with v1.33, 0/6 with the fix.
+      v1.33 restored, base.apk sha256 e2b9e43f... verified.
+- Gotcha: with the phone screen off, uiautomator dumps only the status bar ("66%" was the
+  BATTERY). Send KEYCODE_WAKEUP and filter nodes on package="com.linkguard.app".
+
+### Found: https->http downgrade redirects score as "could not verify" (pre-existing, v1.33)
+- `https://www.kalibrr.com/` -> 301 `http://www.kalibrr.com/home`. The resolver's next hop is
+  refused by the network security policy ("CLEARTEXT communication ... not permitted") ->
+  ERROR with hops=1 -> REDIRECT_UNRESOLVED -> SUSPICIOUS 40%.
+- Published v1.33 on the IPv4-only emulator: 40% twice. On Norman's phone v1.33 showed 0% only
+  because hop 1 died on the broken IPv6 path (first-hop failure scores nothing).
+- [ ] Decision needed (security trade-off): treating the http hop as the destination would
+      let an https->http->evil chain hide its real target; allowing cleartext for resolver
+      HEADs weakens the app-wide policy. Norman's call before any change.
+
+#3 decision (nonexistent-domain 6s wait): no code change. The 9.5s is the OS resolver's
+first NXDOMAIN answer; any in-app lookup goes through the same resolver, and a shorter
+budget would turn slow-but-real domains into "could not verify" (the Mynimo symptom).
