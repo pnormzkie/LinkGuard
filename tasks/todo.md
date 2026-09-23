@@ -1793,7 +1793,7 @@ Evidence (SM-A528B, home Wi-Fi, installed v1.33):
   notion 2/2 identical across cold scans.
 - [ ] Open: typosquat per hyphen token (appie-id.com, paypa1-secure.com missed by heuristics)
       would also flag "apply"/"job-apply.com"; needs a word-list decision. Not started.
-- [ ] Open: DomainAge (rdap) still times out ~2/12 scans on Norman's Wi-Fi after the IPv4 fix.
+- [x] ~~Open: DomainAge (rdap) still times out ~2/12 scans~~ — investigated 2026-09-24, see below.
 - [ ] Open: nonexistent domains still wait the full 6s budget (OS resolver, see above).
 
 #3 decision (nonexistent-domain 6s wait): no code change. The 9.5s is the OS resolver's
@@ -1814,3 +1814,20 @@ budget would turn slow-but-real domains into "could not verify" (the Mynimo symp
   (first-time "install unknown apps" grant, expected on a fresh device) -> 1.34 installed,
   base.apk ef8fb057... == published asset. Post-update: Mynimo SAFE 0%, Safe Browsing
   phishing test page DANGEROUS 100%.
+
+## 2026-09-24 — DomainAge timeouts (open item #2): not reproducible, no code change
+
+- Phone-shell curl, the app's exact request (GET, `Accept: application/rdap+json`,
+  `User-Agent: LinkGuard/1.0`, IPv4), 8 domains x 3 rounds: rdap.org 302 in 0.77-1.57s,
+  registry (rdap.verisign.com / rdap.publicinterestregistry.org) 200 in 0.30-0.88s. 24/24 OK.
+- In-app: temporary OkHttp EventListener on the provider client (never committed), test APK
+  at versionCode 34 so v1.33 could be restored. Same 12-scan protocol as 2026-09-23 plus 30
+  cold scans on 30 domains: 42/42 RDAP calls succeeded, 0.47-2.83s (jobstreet.com.ph slowest),
+  every connect IPv4, zero DomainAge timeouts. Typical chain: DNS+TCP+TLS ~0.5-0.8s to
+  rdap.org, 302, fresh DNS+TLS to the registry, 200.
+- Conclusion: the systematic cause (IPv6 black hole) is fixed in v1.34; the 2/12 seen on
+  2026-09-23 night do not reproduce and fit a transient network/server stall. 8s budget has
+  >5s headroom. When it does happen the scan says "some online services didn't respond",
+  which is accurate. No change.
+- Phone restored to published v1.33 (base.apk e2b9e43f...) so the v1.34 in-app update still
+  reaches Norman.
