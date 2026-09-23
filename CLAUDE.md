@@ -30,6 +30,18 @@ Rollback method:
 
 <!-- Add project-specific rules below -->
 
+- **Commit the release notes.** `release-staging/release-notes-v<X>.md` is tracked from v1.33
+  onward, so what was announced to users lives in history alongside the commits it describes.
+  v1.30–v1.32 predate this and stay untracked; do not backfill them. The APKs and the
+  `publish-v<X>.sh` scripts keep their existing treatment.
+
+- **The in-app update dialog renders the published release body above its buttons, inside a
+  scroll view.** Keep the body short — roughly 9 lines / 550 characters fits a 1080x2400
+  screen with "Update now" visible without scrolling. v1.33 originally shipped ~3,600
+  characters and buried the button under a wall of text. The body is editable through the
+  GitHub API after publishing, so this is fixable without a new build — but verify it on a
+  device rather than assuming, because "present in the UI dump" is not "visible on screen".
+
 ## Skills
 
 - **`/create-expert [expertise]`** — Analyzes this repo and generates scoped, invocable
