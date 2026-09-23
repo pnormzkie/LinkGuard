@@ -4,6 +4,7 @@ import com.linkguard.app.data.provider.DomainAgeProvider
 import com.linkguard.app.data.provider.HttpCredentialFormInspector
 import com.linkguard.app.data.provider.HttpRedirectResolver
 import com.linkguard.app.data.provider.HostSafetyValidator
+import com.linkguard.app.data.provider.Ipv4FirstDns
 import com.linkguard.app.data.provider.HybridAnalysisProvider
 import com.linkguard.app.data.provider.NextDnsDomainSignalProvider
 import com.linkguard.app.data.provider.RetryInterceptor
@@ -22,12 +23,14 @@ import java.util.concurrent.TimeUnit
  */
 object ScannerProvider {
 
-    private val hostSafetyValidator: HostSafetyValidator by lazy { HostSafetyValidator() }
+    private val hostSafetyValidator: HostSafetyValidator by lazy { HostSafetyValidator(Ipv4FirstDns()) }
 
     val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .dns(Ipv4FirstDns())
             .callTimeout(AppConfig.PROVIDER_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            .connectTimeout(15, TimeUnit.SECONDS)
+            // Well under the call budget, so a dead address still leaves time for the next one.
+            .connectTimeout(4, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             // One retry on transient 5xx / connection failures; never on 4xx (esp. 429 quota).
             .addInterceptor(RetryInterceptor())
