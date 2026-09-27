@@ -14,7 +14,7 @@ object KnownDomains {
      * redirect to an unsafe destination. A match also covers subdomains.
      */
     val TRUSTED_DOMAINS: Set<String> = setOf(
-        "google.com", "youtube.com", "facebook.com", "microsoft.com",
+        "google.com", "youtube.com", "facebook.com", "microsoft.com", "microsoftonline.com",
         "apple.com", "amazon.com", "netflix.com", "google.com.ph",
         "gcash.com", "globe.com.ph", "maya.ph", "paymaya.com", "bpi.com.ph",
         "bpiexpressonline.com", "bdo.com.ph", "metrobank.com.ph",

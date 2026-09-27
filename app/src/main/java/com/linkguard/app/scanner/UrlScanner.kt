@@ -160,7 +160,7 @@ object HeuristicScanner {
         "paypal"      to listOf("paypal.com", "www.paypal.com", "paypal.me"),
         "google"      to listOf("google.com", "www.google.com", "google.com.ph", "googlesyndication.com", "googleadservices.com", "doubleclick.net"),
         "apple"       to listOf("apple.com", "www.apple.com"),
-        "microsoft"   to listOf("microsoft.com", "www.microsoft.com"),
+        "microsoft"   to listOf("microsoft.com", "www.microsoft.com", "microsoftonline.com"),
         "facebook"    to listOf("facebook.com", "www.facebook.com", "fb.com"),
         "amazon"      to listOf("amazon.com", "www.amazon.com"),
         "metrobank"   to listOf("metrobank.com.ph", "www.metrobank.com.ph"),

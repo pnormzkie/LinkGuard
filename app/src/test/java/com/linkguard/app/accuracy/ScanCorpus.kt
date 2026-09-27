@@ -102,6 +102,19 @@ internal object ScanCorpus {
             "https://www.paypal.com/ph/signin", Expected.SAFE,
             "Another real sign-in page — the brand name here is the site's own"
         ),
+        Case(
+            "https://login.microsoftonline.com/", Expected.SAFE,
+            "Microsoft 365 sign-in. Scored DANGER 75 in the 2026-09-27 live run (brand spoof on a " +
+                "domain missing from the Microsoft list)"
+        ),
+        Case(
+            "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=4765445b-32c6-" +
+                "49b0-83e6-1d93765276ca&redirect_uri=https%3A%2F%2Fwww.office.com%2Flandingv2&response_" +
+                "type=code%20id_token&scope=openid%20profile%20https%3A%2F%2Fwww.office.com%2Fv2%2F" +
+                "OfficeHome.All&response_mode=form_post&ui_locales=en-US",
+            Expected.SAFE,
+            "Where that sign-in page redirected in the live run: long and heavily encoded"
+        ),
 
         // The heuristics only ever see the URL string, so these are realistic PATH SHAPES on
         // real legitimate hosts rather than links verified to exist. They are here because
