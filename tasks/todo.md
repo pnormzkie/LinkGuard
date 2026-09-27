@@ -2188,3 +2188,47 @@ payment fallbacks ("6304" anywhere, any 50+ chars without spaces).
   download seen at 22% had not installed yet.
 - 21:05: in-app update completed on the SM-A528B: versionName 1.39 / code 40; installed base.apk SHA-256
   a0b0d2fe...783200 == the published v1.39 asset. The 1.38 -> 1.39 update path is verified end to end.
+
+## 2026-09-27 — Repro: denying camera blocks gallery upload (open item S3, Norman couldn't reproduce)
+
+- Norman's phone had CAMERA granted, so the path never ran. Repro on SM-A528B v1.39: pm revoke CAMERA +
+  clear user-set/user-fixed -> Home -> QR Code Scanner -> system dialog -> "Don't allow" -> scanner closes,
+  back on Home (toast only), "Upload QR from Gallery" never shown. 2nd open: dialog again -> deny -> Home.
+  3rd open: no dialog (permanently denied) -> straight back to Home. Gallery upload is unreachable for good.
+  Cause: QrScannerActivity cameraPermissionLauncher calls finish() when not granted (QrScannerActivity.kt:52),
+  though gallery upload needs no camera permission. tasks/qr-camera-denied-before.png.
+- Restored afterwards: CAMERA granted=true, flags back to USER_SET (as before the test).
+- Mockup tasks/mockup-qr-camera-denied.png; Norman chose option A.
+- [x] QrScannerActivity: denial no longer finish()es -> showCameraOff(): overlay cameraOff mode (grey brackets,
+      dark frame, no laser), "Camera is off" + "You can still scan a QR from a screenshot or photo." in the frame,
+      "Allow camera" link, "Upload QR from Gallery" becomes the solid blue main button. "Allow camera" re-asks while
+      a rationale is due, else opens the app's settings page; onResume switches back to the camera once granted.
+      New ic_camera_off vector, 3 strings; removed the now-unused camera_permission_denied string.
+- [x] 488/488 unit tests (no unit-testable logic added; behaviour verified on device); assembleRelease OK
+- [x] Device (SM-A528B, CAMERA revoked + flags cleared): deny -> scanner stays, camera-off screen matches mockup A
+      (tasks/qr-camera-off-after.png); Upload QR from Gallery -> system photo picker opens, back returns to the
+      scanner; Allow camera -> dialog again -> deny -> still camera-off; Allow camera again (permanently denied) ->
+      Settings > App info opens; grant + back -> scanner shows the live camera ("ALIGN QR CODE INSIDE THE FRAME").
+      Camera-on screenshot deleted unviewed (it showed Norman's surroundings).
+- Restored: CAMERA granted=true, flags USER_SET (as before).
+- Committed: 859aa59 (camera), 5311559 (fake .com), f536633 (payee name), f6b278b (snackbar).
+
+## 2026-09-27 — v1.40: all pending items in one release (Norman: "isama muna lahat ng pending")
+
+- [x] Camera denied keeps the scanner open (entry above; device-verified)
+- [x] Fake-.com host trick: rule 19 FAKE_COM_LABEL (MEDIUM 30, regex "\.com-[letter/digit]", not on trusted hosts)
+      + "roblox" added to GLOBAL_BRANDS. 3 HeuristicScannerTest cases (2 fail on old code; the "ordinary hosts"
+      guard passes before and after: roblox.com, mycompany.com.au, shop.telecom-ph.net, globe.com.ph, comelec.gov.ph).
+      Device: flipkart.com-nw.in DANGEROUS 95% with 'Fake ".com" in the address' under Heuristic
+      (tasks/v140-fake-com-flag.png); www.roblox.com.am DANGEROUS 100% incl. "Brand name used in subdomain";
+      www.roblox.com SAFE 0%.
+- [x] Bad-checksum payment QR: PaymentQrValidator now returns merchantName/City on CRC mismatch; test fails on old
+      code. Device: tampered synthetic QR -> history "Payment QR: FAKE STORE" / "Invalid Payment QR" (was "Unknown").
+- [x] Payment QR snackbar: mockup tasks/mockup-payment-qr-snackbar.png, Norman chose B -> two lines
+      "₱ This QR pays <b>NAME</b> (CITY)" / "Check the name before you pay." (name added as plain text + StyleSpan,
+      never markup); 4 old strings removed. Device: synthetic valid QR -> snackbar text exactly those two lines
+      (uiautomator); invalid QR snackbar unchanged ("⚠ Suspicious or invalid payment QR / CRC Mismatch ...").
+- [x] Full suite 492/492; assembleRelease OK; all test images removed from the phone and MediaStore.
+- Committed: 859aa59 (camera), 5311559 (fake .com), f536633 (payee name), f6b278b (snackbar).
+- Not in scope unless asked: exploratory S4 items (config-change duplicate row, ongoing DANGER alert,
+  unused SetupActivity); publish-release skill file keeps disappearing (not app code).
