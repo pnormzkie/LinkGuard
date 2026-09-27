@@ -1831,3 +1831,82 @@ budget would turn slow-but-real domains into "could not verify" (the Mynimo symp
   which is accurate. No change.
 - Phone restored to published v1.33 (base.apk e2b9e43f...) so the v1.34 in-app update still
   reaches Norman.
+
+## 2026-09-27 — Exploratory test pass on published v1.34 (read-only; no code changed)
+
+Env: Pixel_7 AVD, API 34, throwaway `-data` image (user AVD untouched); APK
+release-staging/LinkGuard-v1.34.apk (sha256 ef8fb057..., app code == HEAD). Live providers.
+Real SMS via `adb emu sms send` into Google Messages for the notification path.
+
+Findings (open, not fixed):
+- [ ] S2/P2 Notification re-scan storm. Messages posts each notification twice, and its
+      MessagingStyle carries earlier messages, so every new message in a thread re-scans
+      old links. Cache key is `url + messageText` (ScanOrchestrator.kt:74), and the text
+      grows, so every repeat is a full provider scan. 1 link + 2 plain replies -> 6 scans,
+      6 identical history rows. Burns VT quota + rate-limiter/daily tokens.
+- [ ] S2/P2 `https://google.com` -> SUSPICIOUS 25% "Don't Open" (manual + tap). VT has 2
+      detections (0xSI_f33d, Fortra); VirusTotalEnrichmentProvider has no trusted-domain
+      calibration (HA/URLhaus/DomainAge do), and 1-2 hits = 25 = SUSPICIOUS threshold.
+      www.google.com and 12 other majors were SAFE.
+- [ ] S3/P2 Scan report "Source" is "Manual Scan" for everything except QR
+      (ScanDetailActivity.kt:99): SMS alerts and link taps are mislabeled; sender unused.
+- [ ] S3/P3 History screen reuses MainViewModel -> getRecentScans(50); counters count all
+      rows. Seen: THREATS 7, Threats tab lists 6; older rows unreachable.
+- [ ] S3/P3 QR: denying camera calls finish() (QrScannerActivity.kt:52), so gallery upload
+      (no permission needed) is unreachable; after 2 denials QR bounces home with a toast.
+- [ ] S3/P3 Valid payment QR snackbar truncates at 2 lines: "Always verify merchant details
+      before paying." is never visible.
+- [ ] S4/P3 Config change (night-mode toggle) on the intercept verdict relaunches the
+      activity, re-runs the scan and saves a duplicate history row (15 -> 17 for one tap).
+- [ ] S4/P4 DANGER alert is ongoing: stays after "View Report", survives "Clear all";
+      swipeable on API 34, API <= 33 not verified.
+- [ ] S4/P4 Bad-checksum payment QR saved as "Payment QR: Unknown" though payee parsed.
+- [ ] S4/P4 SetupActivity is declared in the manifest but never launched.
+
+Passed: manual-input validation (email/filename/javascript: rejected); intercept drops
+javascript:/file:; punycode apple DANGER; 3000/6000-char URLs ellipsize, buttons reachable;
+DANGER override confirm-gated, Cancel keeps verdict; 1.3x font + 480dpi DANGER card scrolls to
+buttons; offline -> ~5s verdict with "local rules only"; exclusions exact (case/#fragment
+normalized, path/query variants still scanned); long-press delete; manual update check
+("latest version (1.34)"); FSI alert over PIN lock shows no URL/sender; alert dedup (1 alert
+per link); release logs carry no URL.
+
+Not covered: live camera QR (emulator scene), URL QR via upload (picker automation flaky;
+same path as manual scan), real phone, API <= 33, WhatsApp/Telegram payload shapes,
+process death mid-scan.
+
+## 2026-09-27 — Fix exploratory findings #1 and #2 (Norman: "Proceed Next Action")
+
+Approach (conservative defaults, stated to Norman; no answer on alternatives was given):
+- #1 In LinkNotificationService, gate each URL through a per-(app, url) cooldown BEFORE the
+  rate-limiter/daily tokens and the scan launch. onNotificationPosted runs on the main
+  thread, so the twin post is suppressed synchronously. Orchestrator cache key untouched
+  (message text feeds the smishing rules).
+- #2 VirusTotalEnrichmentProvider: 1-2 detections on the BARE ROOT of a trusted host
+  (path "/" and no query) -> WEAK 10 instead of 25. Paths/queries on trusted hosts keep 25
+  (lesson 2026-09-21: host trust never waives path evidence). 3+ detections unchanged.
+
+### Plan
+- [x] Baseline: testDebugUnitTest green before edits.
+- [x] #2 tests first: google.com root 2 hits -> 10/WEAK (fails on old code); trusted path
+      1 hit -> 25; trusted root 3 hits -> 45; untrusted root 2 hits -> 25; userinfo spoof
+      `https://google.com@evil.example/` -> 25.
+- [x] #2 implement; tests green.
+- [x] #1 implement (reuse AlertDeduper as a keyed cooldown gate; update its KDoc).
+- [x] Full testDebugUnitTest + assembleRelease.
+- [x] Device: throwaway Pixel_7 image, repeat the SMS thread repro (expect 1 scan / 1 row,
+      was 6/6) and google.com tap (expect SAFE, was SUSPICIOUS 25%).
+
+Results:
+- Baseline 456/456. New VT tests: 2 failed on old code (expected 10, was 25), 4 guards passed;
+  after the fix 462/462. assembleRelease OK (sha256 d52b91e7..., not published).
+- Device (fresh throwaway Pixel_7 image, fix APK): SMS link + 2 plain replies -> 1 scan, then
+  0, 0 (was 2, 2, 2) and 1 history row (was 6). DANGER link by SMS: 1 scan, danger-channel
+  alert posted; follow-up message 0 scans. https://google.com tap -> SAFE 10% (was
+  SUSPICIOUS 25%); logcat "VT: 1" confirms the report still arrived. Safe Browsing
+  phishing test page still DANGEROUS 100%.
+- Gotcha: on a freshly wiped image `adb emu sms send` says OK but nothing is delivered for the
+  first several minutes; wait until Messages actually posts a notification before testing.
+- Residual: #1 has no JVM regression test (service wiring is Android-only); covered by the
+  device repro above. Within the 5-min cooldown a repost is not rescanned even if the first
+  scan was local-only (e.g. offline). Not committed/released — awaiting Norman.
