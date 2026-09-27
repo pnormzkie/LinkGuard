@@ -645,4 +645,40 @@ class HeuristicScannerTest {
             assertNotEquals(url, ThreatLevel.SAFE, result.threatLevel)
         }
     }
+
+    // ─── Fake ".com" hosts (2026-09-27 live run: both scored SAFE with no blocklist) ─
+
+    @Test
+    fun `a label starting with com- after a brand is flagged`() {
+        listOf(
+            "https://flipkart.com-nw.in/index.html",
+            "http://paypal.com-secure-login.info/",
+            "https://gcash.com-verify.top/claim"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertNotEquals(url, ThreatLevel.SAFE, result.threatLevel)
+            assertTrue(url, result.flags.any { it.contains("fake \".com\"", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `roblox on a country ending it does not own is flagged`() {
+        listOf("https://www.roblox.com.am/users/186279419962/profile", "http://roblox.com.ml/users/1/profile")
+            .forEach { url -> assertNotEquals(url, ThreatLevel.SAFE, HeuristicScanner.scanWithContext(url, null).threatLevel) }
+    }
+
+    @Test
+    fun `ordinary hosts containing com are not read as fake com`() {
+        listOf(
+            "https://www.roblox.com/games",
+            "https://mycompany.com.au/about",
+            "https://shop.telecom-ph.net/plans",
+            "https://www.globe.com.ph/",
+            "https://comelec.gov.ph/"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertEquals(url, ThreatLevel.SAFE, result.threatLevel)
+            assertFalse(url, result.flags.any { it.contains("fake \".com\"", ignoreCase = true) })
+        }
+    }
 }

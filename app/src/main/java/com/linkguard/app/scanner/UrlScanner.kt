@@ -146,7 +146,9 @@ object HeuristicScanner {
     private val GLOBAL_BRANDS = listOf(
         "paypal", "amazon", "apple", "microsoft", "google",
         "netflix", "facebook", "instagram", "twitter",
-        "dhl", "fedex", "ups", "visa", "mastercard", "icloud"
+        "dhl", "fedex", "ups", "visa", "mastercard", "icloud",
+        // Five Roblox look-alikes in the 2026-09-27 OpenPhish sample (roblox.com.am, roblox.com.ml, ...).
+        "roblox"
     )
 
     private val ALL_BRANDS = PH_BRANDS + GLOBAL_BRANDS
@@ -345,6 +347,8 @@ object HeuristicScanner {
             }
         }
     }
+
+    private val FAKE_COM_LABEL = Regex("""\.com-[\p{L}\p{N}]""")
 
     private val PROTECTED_DOMAINS = listOf(
         "paymaya", "gcash", "bpi", "bdo", "metrobank",
@@ -816,6 +820,18 @@ object HeuristicScanner {
                     40
                 )
             }
+        }
+
+        // 19. Fake ".com": a label that starts with "com-" right after another label
+        //     ("flipkart.com-nw.in"). The eye stops at ".com"; the real domain is what follows.
+        if (!isOfficialDomain && FAKE_COM_LABEL.containsMatchIn(unicodeDomain)) {
+            addFinding(
+                "FAKE_COM_LABEL",
+                "Fake \".com\" in the address — the real site is what comes after it",
+                30,
+                LocalHeuristicStrength.MEDIUM,
+                30
+            )
         }
 
         score = score.coerceIn(0, 100)
