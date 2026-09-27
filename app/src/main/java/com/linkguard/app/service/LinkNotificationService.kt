@@ -37,6 +37,10 @@ class LinkNotificationService : NotificationListenerService() {
     private val rateLimiter = ScanRateLimiter()
     // Notification updates re-post the same link; alert once per link+level per cooldown.
     private val alertDeduper = AlertDeduper()
+    // Messaging apps post each message twice and carry earlier messages in every later
+    // notification, so without this gate one link in a chat was rescanned (and saved to
+    // history) on every new message. Scan once per app+link per cooldown.
+    private val scanDeduper = AlertDeduper()
     // Persistent daily cap (survives restarts) aligned with provider daily quotas.
     private val dailyCounter by lazy { DailyScanCounter.create(applicationContext) }
 
@@ -76,6 +80,11 @@ class LinkNotificationService : NotificationListenerService() {
         val sender = title.ifBlank { "Unknown" }
 
         urls.forEach { url ->
+            // Runs on the main thread before the launch below, so a twin post arriving
+            // milliseconds later is dropped here rather than racing a second scan. Checked
+            // before the quota tokens so repeats don't spend them.
+            if (!scanDeduper.shouldAlert("${sbn.packageName}|${url.lowercase()}")) return@forEach
+
             // Quotas limit only network/API enrichment. Local heuristics always run so flooding
             // cannot push a later malicious URL completely past protection.
             val allowNetworkChecks = rateLimiter.tryAcquire() && dailyCounter.tryAcquire()

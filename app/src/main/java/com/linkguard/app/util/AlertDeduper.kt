@@ -5,8 +5,9 @@ package com.linkguard.app.util
  *
  * Messaging apps and Gmail re-post a notification on every update, and the orchestrator's
  * verdict cache is skipped whenever a provider fails, so the same link could otherwise
- * stack a new alarm (and re-launch the full-screen alert) each time. Scans still run; this
- * only limits how often the user is alerted about one key within [cooldownMs].
+ * stack a new alarm (and re-launch the full-screen alert) each time. It is a plain keyed
+ * cooldown gate: LinkNotificationService also uses a second instance to scan each app+link
+ * once per [cooldownMs].
  *
  * `now` is injected so expiry is testable without real time passing.
  */
