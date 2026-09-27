@@ -1964,3 +1964,23 @@ Results:
   OkHttp on the emulator gets the page: curl is a different client (lesson 2026-09-22).
 - Residual: a phishing page whose only brand mention or only "sign in" text sits inside a
   link, nav or footer no longer earns those two signals. Not committed / not released.
+
+## 2026-09-27 — v1.36 published (Norman: "yes commit and /publish-release")
+
+First run of the reusable flow (stage-release.sh + publish.sh).
+- Commits 229cc68 (JobStreet false-DANGER fix), ac9757f (record), 473ea83 (bump to 1.36 /
+  versionCode 37), 80dad40 (release notes, 7 lines / 340 chars).
+- stage-release.sh 1.36: 467/467 tests, release-key cert, badge 37/1.36, SHA-256
+  4736962EABAF42F5A4E9D425124CF7D88434214FA287C2EE426A96528C68CD23, 24,673,236 bytes.
+- publish.sh 1.36: release id 397474613 created, asset uploaded, marked latest, tag v1.36 ->
+  80dad40. The script's own check then FAILED: it read public releases/latest immediately and
+  still got v1.35 (endpoint is `Cache-Control: max-age=60`). Release itself was fine. Fixed
+  publish.sh to wait up to ~105s for the cache; rerun (idempotent) ->
+  RESULT: PUBLISHED_AND_VERIFIED, downloaded SHA-256 == staged. The waiting loop itself was not
+  exercised (cache had already turned over).
+- Throwaway-image emulator: v1.35 shows the v1.36 dialog, all 5 note lines and "Update now"
+  visible without scrolling (emulator's own "Process system isn't responding" ANR under load
+  had to be dismissed first). Update now -> installer -> 1.36 installed, base.apk
+  4736962e... == asset. Post-update: JobStreet URL SAFE 0%, Safe Browsing phishing page
+  DANGEROUS 100%, google.com SAFE 10%.
+- Not done: Norman's SM-A528B not attached; it gets the in-app prompt on next launch.

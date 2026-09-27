@@ -95,8 +95,24 @@ curl -s -X PATCH -H "$AUTH" -H "Content-Type: application/json" \
     -d '{"draft":false,"prerelease":false,"make_latest":"true"}' "$API/releases/$REL_ID" > /dev/null
 echo "RELEASE_PUBLISHED id=$REL_ID"
 
-# Verify through the same public path the app uses.
-curl -s "$API/releases/latest" > "$TMP/latest.json"
+# Verify through the same public path the app uses. That endpoint is served with
+# "Cache-Control: max-age=60", so right after publishing it can still show the previous
+# release (seen on v1.36); wait for the cache to turn over before calling it a failure.
+URL=""
+for attempt in 1 2 3 4 5 6 7; do
+    curl -s "$API/releases/latest" > "$TMP/latest.json"
+    URL=$(python - "$TMP/latest.json" "$TAG" "$ASSET" 2>/dev/null <<'EOF'
+import json, sys
+r = json.load(open(sys.argv[1], encoding="utf-8"))
+a = [x for x in r.get("assets", []) if x.get("name") == sys.argv[3]]
+if r.get("tag_name") == sys.argv[2] and a and a[0]["state"] == "uploaded":
+    print(a[0]["browser_download_url"])
+EOF
+    ) || true
+    [ -n "$URL" ] && break
+    echo "WAITING for releases/latest to show $TAG (public cache, attempt $attempt)"
+    sleep 15
+done
 URL=$(python - "$TMP/latest.json" "$TAG" "$ASSET" <<'EOF'
 import json, sys
 r = json.load(open(sys.argv[1], encoding="utf-8"))
