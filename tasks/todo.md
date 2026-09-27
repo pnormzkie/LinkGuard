@@ -2232,3 +2232,14 @@ payment fallbacks ("6304" anywhere, any 50+ chars without spaces).
 - Committed: 859aa59 (camera), 5311559 (fake .com), f536633 (payee name), f6b278b (snackbar).
 - Not in scope unless asked: exploratory S4 items (config-change duplicate row, ongoing DANGER alert,
   unused SetupActivity); publish-release skill file keeps disappearing (not app code).
+
+## 2026-09-27 — v1.40 published (Norman: "publish muna")
+
+- Commits 859aa59 (camera-off scanner), 5311559 (fake .com), f536633 (tampered QR payee name), f6b278b (payment QR
+  snackbar), record commit, bump to 1.40 / versionCode 41, 42a54b2 (release notes, 8 lines / 419 chars).
+- stage-release.sh 1.40: 492/492 tests, release-key cert, badge 41/1.40, 24,683,356 bytes,
+  SHA-256 7CFE4D5B3FBF4B0DC3E8CC3E198F581CEC70E2D55BE610F7F8A78221FBE81B31.
+- publish.sh 1.40: release id 397676833, tag v1.40 -> 42a54b2, RESULT: PUBLISHED_AND_VERIFIED.
+- Device: SM-A528B on the pre-bump test build (1.39 / code 40) shows "Update available · Version 1.40 · You're on
+  1.39", all 6 note lines and "Update now" visible without scrolling (tasks/v140-update-dialog.png; the two lines
+  with quotes are missing from the uiautomator grep but present on screen). Install left to Norman.
