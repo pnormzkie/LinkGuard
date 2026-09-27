@@ -2091,3 +2091,21 @@ Results (v1.37 code, live providers, run 2026-09-27):
     shopee2178.blogspot.com DANGEROUS 100% (14 vendors, 1 heuristic)
 - Not verified: live re-run of the eval after fix A (unit-level only).
 - Committed: b1fcb5a (Microsoft), 1eb3dcc (rule 18), 3b69c82 (blog/BDO + github.io). The publish-release skill folder (.claude/skills/publish-release) was found EMPTY after the laptop died; released manually with stage-release.sh + publish.sh.
+
+## 2026-09-27 — v1.38 published (Norman: "uu tuloy muna", then "publish muna")
+
+- Commits b1fcb5a (Microsoft sign-in), 1eb3dcc (rule 18 free hosting), 3b69c82 (blog/BDO +
+  github.io), a record commit, bump to 1.38 / versionCode 39, 7c997f4 (release notes, 6 lines / 465 chars).
+- stage-release.sh 1.38: 478/478 tests, release-key cert, badge 39/1.38, 24,674,132 bytes,
+  SHA-256 28A260138E19993782C6809BEDBE6B0AE02E384C678040FD999B267D466D6567.
+- First push+publish attempt was blocked by the auto-mode permission check after "uu tuloy muna";
+  ran after Norman's explicit "publish muna". publish.sh 1.38: release id 397561718, tag v1.38 ->
+  7c997f4, published 2026-09-27T08:09:52Z, RESULT: PUBLISHED_AND_VERIFIED (downloaded SHA-256 == staged).
+- Device: the fixes were verified on Norman's SM-A528B with the pre-bump build (see the v1.38
+  candidate entry). NOT verified: the in-app 1.37 -> 1.38 update dialog. The phone was in use
+  (notification shade open) when the app was launched, so no dialog screenshot was taken; the
+  phone holds the pre-bump test build (versionName 1.37, code 38) and should get the prompt.
+- publish-release skill: .claude/skills/publish-release/SKILL.md is deleted within ~5 s of every
+  write (Bash, python, Write tool; a 1-byte SKILL.md and a same-content notes.md survive), which
+  is also why ffb2047 recorded it as deleted this morning. Cause not found. Updated text saved at
+  tasks/publish-release-SKILL.md; needs Norman to find what removes it.
