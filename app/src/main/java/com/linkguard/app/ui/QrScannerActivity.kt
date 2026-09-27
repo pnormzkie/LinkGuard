@@ -3,12 +3,18 @@ package com.linkguard.app.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,6 +45,12 @@ class QrScannerActivity : AppCompatActivity() {
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private var cameraBarcodeScanner: com.google.mlkit.vision.barcode.BarcodeScanner? = null
 
+    private lateinit var overlayView: QrScannerOverlayView
+    private lateinit var instructionText: TextView
+    private lateinit var cameraOffPanel: LinearLayout
+    private lateinit var allowCameraLink: TextView
+    private lateinit var uploadBtn: MaterialButton
+
     private var isProcessing = false
     private var scanCompleted = false
 
@@ -46,11 +58,9 @@ class QrScannerActivity : AppCompatActivity() {
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) startCamera()
-            else {
-                Toast.makeText(this, getString(R.string.camera_permission_denied), Toast.LENGTH_SHORT).show()
-                finish()
-            }
+            // Denied: stay open. Gallery upload needs no camera, and closing here made it
+            // unreachable for good once Android stopped showing the permission dialog.
+            if (granted) showCameraOn() else showCameraOff()
         }
 
     private val galleryLauncher =
@@ -79,7 +89,7 @@ class QrScannerActivity : AppCompatActivity() {
         root.addView(previewView)
 
         // 1. Add Custom Overlay View (Scanner frame and laser)
-        val overlayView = QrScannerOverlayView(this).apply {
+        overlayView = QrScannerOverlayView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -88,7 +98,7 @@ class QrScannerActivity : AppCompatActivity() {
         root.addView(overlayView)
 
         // 2. Add Instruction Text
-        val instructionText = TextView(this).apply {
+        instructionText = TextView(this).apply {
             text = getString(R.string.qr_align_instruction)
             setTextColor(Color.WHITE)
             textSize = 12f
@@ -105,8 +115,60 @@ class QrScannerActivity : AppCompatActivity() {
         }
         root.addView(instructionText)
 
+        // 2b. Camera-off message inside the frame and "Allow camera" below it (hidden until denied)
+        cameraOffPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            layoutParams = FrameLayout.LayoutParams(
+                (resources.displayMetrics.widthPixels * 0.62f).toInt(),
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply { gravity = Gravity.CENTER }
+            addView(ImageView(this@QrScannerActivity).apply {
+                setImageResource(R.drawable.ic_camera_off)
+                imageTintList = ColorStateList.valueOf(getColor(R.color.e_muted))
+                layoutParams = LinearLayout.LayoutParams(36.dpToPx(), 36.dpToPx()).apply {
+                    bottomMargin = 12.dpToPx()
+                }
+            })
+            addView(TextView(this@QrScannerActivity).apply {
+                text = getString(R.string.qr_camera_off_title)
+                setTextColor(Color.WHITE)
+                textSize = 17f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+            })
+            addView(TextView(this@QrScannerActivity).apply {
+                text = getString(R.string.qr_camera_off_body)
+                setTextColor(getColor(R.color.e_muted))
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setPadding(0, 6.dpToPx(), 0, 0)
+            })
+        }
+        root.addView(cameraOffPanel)
+
+        allowCameraLink = TextView(this).apply {
+            text = getString(R.string.qr_allow_camera)
+            setTextColor(getColor(R.color.e_blue_soft))
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            setPadding(24.dpToPx(), 12.dpToPx(), 24.dpToPx(), 12.dpToPx())
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER
+                topMargin = 220.dpToPx() // where the instruction sits while the camera is on
+            }
+            setOnClickListener { onAllowCameraClicked() }
+        }
+        root.addView(allowCameraLink)
+
         // 3. Add Upload Button Overlay
-        val uploadBtn = MaterialButton(this).apply {
+        uploadBtn = MaterialButton(this).apply {
             text = getString(R.string.qr_upload_from_gallery)
             setBackgroundColor(getColor(R.color.e_card))
             setTextColor(getColor(R.color.e_blue))
@@ -142,9 +204,7 @@ class QrScannerActivity : AppCompatActivity() {
 
         setContentView(root)
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (hasCameraPermission()) {
             startCamera()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -152,6 +212,49 @@ class QrScannerActivity : AppCompatActivity() {
     }
 
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
+
+    override fun onResume() {
+        super.onResume()
+        // Back from app settings with the camera now allowed.
+        if (overlayView.cameraOff && hasCameraPermission()) showCameraOn()
+    }
+
+    private fun hasCameraPermission() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+    private fun showCameraOn() {
+        overlayView.cameraOff = false
+        instructionText.visibility = View.VISIBLE
+        cameraOffPanel.visibility = View.GONE
+        allowCameraLink.visibility = View.GONE
+        uploadBtn.setBackgroundColor(getColor(R.color.e_card))
+        uploadBtn.setTextColor(getColor(R.color.e_blue))
+        uploadBtn.strokeWidth = 2
+        startCamera()
+    }
+
+    /** Option A (approved mockup): scanner stays, frame says "Camera is off", gallery is the main action. */
+    private fun showCameraOff() {
+        overlayView.cameraOff = true
+        instructionText.visibility = View.GONE
+        cameraOffPanel.visibility = View.VISIBLE
+        allowCameraLink.visibility = View.VISIBLE
+        uploadBtn.setBackgroundColor(getColor(R.color.e_blue))
+        uploadBtn.setTextColor(Color.WHITE)
+        uploadBtn.strokeWidth = 0
+    }
+
+    private fun onAllowCameraClicked() {
+        // After a denial Android still asks while a rationale is due; once it stops asking
+        // (denied twice, or "don't ask again"), only the app's settings page can grant it.
+        if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        } else {
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+            )
+        }
+    }
 
     private fun startCamera() {
         cameraProviderFuture = ProcessCameraProvider.getInstance(this)

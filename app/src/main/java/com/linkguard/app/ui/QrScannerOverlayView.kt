@@ -37,6 +37,26 @@ class QrScannerOverlayView @JvmOverloads constructor(
 
     private val rect = RectF()
 
+    // Fills the frame when there is no camera feed to show through it.
+    private val emptyFramePaint = Paint().apply {
+        isAntiAlias = true
+        color = Color.parseColor("#10131A")
+    }
+
+    /**
+     * Camera permission denied: grey brackets, a dark empty frame and no laser, so the screen
+     * reads as "camera off" while keeping the scanner's shape (gallery upload still works).
+     */
+    var cameraOff: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            cornerPaint.color = Color.parseColor(if (value) "#3A404D" else "#0089FF")
+            if (value) laserAnimator.cancel() else if (isAttachedToWindow) laserAnimator.start()
+            if (width > 0 && height > 0) buildScrim(width, height)
+            invalidate()
+        }
+
     // The scrim + punched hole + corner brackets never change once the view is sized, so
     // pre-render them to a bitmap once. onDraw then blits the cached bitmap and draws only
     // the moving laser line — no per-frame software-layer recomposite.
@@ -82,6 +102,7 @@ class QrScannerOverlayView @JvmOverloads constructor(
         // 1. Dark scrim, then punch a rounded transparent hole in the middle.
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), scrimPaint)
         canvas.drawRoundRect(rect, 40f, 40f, clearPaint)
+        if (cameraOff) canvas.drawRoundRect(rect, 40f, 40f, emptyFramePaint)
 
         // 2. Static corner brackets.
         val cornerLength = 60f
@@ -103,12 +124,12 @@ class QrScannerOverlayView @JvmOverloads constructor(
         super.onDraw(canvas)
         val bitmap = scrimBitmap ?: return
         canvas.drawBitmap(bitmap, 0f, 0f, null)
-        canvas.drawLine(rect.left + 20f, laserY, rect.right - 20f, laserY, laserPaint)
+        if (!cameraOff) canvas.drawLine(rect.left + 20f, laserY, rect.right - 20f, laserY, laserPaint)
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (!laserAnimator.isStarted) laserAnimator.start()
+        if (!cameraOff && !laserAnimator.isStarted) laserAnimator.start()
     }
 
     override fun onDetachedFromWindow() {

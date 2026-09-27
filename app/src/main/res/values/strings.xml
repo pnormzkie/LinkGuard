@@ -136,9 +136,11 @@
     <string name="no_items_for_category">No items found for this category</string>
 
     <!-- QR scanner -->
-    <string name="camera_permission_denied">Camera permission denied</string>
     <string name="qr_align_instruction">ALIGN QR CODE INSIDE THE FRAME</string>
     <string name="qr_upload_from_gallery">Upload QR from Gallery</string>
+    <string name="qr_camera_off_title">Camera is off</string>
+    <string name="qr_camera_off_body">You can still scan a QR from a screenshot or photo.</string>
+    <string name="qr_allow_camera">Allow camera</string>
     <string name="qr_none_in_image">No QR code found in image</string>
     <string name="qr_read_failed">Failed to read QR code</string>
     <string name="qr_image_open_error">Error opening image</string>
