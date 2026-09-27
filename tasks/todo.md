@@ -2011,3 +2011,83 @@ First run of the reusable flow (stage-release.sh + publish.sh).
   again: SHA-256 matches the staged APK. Body matches release-notes-v1.37.md.
 - Not verified: the in-app update from 1.36 to 1.37 on an emulator or device. The session died
   before that step was recorded. Norman's SM-A528B gets the prompt on next launch.
+
+## 2026-09-27 — Detection test with fresh real phishing links (Norman: "sige"; read-only, no product change)
+
+Goal: measure how many fresh phishing URLs v1.37's pipeline catches (a) with all providers and
+(b) "zero-hour", i.e. blocklist providers (Safe Browsing, VirusTotal, Hybrid Analysis, URLhaus,
+NextDNS) returning nothing, leaving heuristics + redirect + domain age + credential form. Also
+measure false alarms on legit PH/global sites. The result decides whether AI detection is worth it.
+
+- [x] Sample: OpenPhish public feed (downloaded 2026-09-27, 300 URLs / 239 hosts), 50 hosts
+      picked (seed 20260927; 5 Shopee look-alikes + 45 random); legit control set of 30
+- [x] Temporary harness LiveFeedEvaluation (production wiring + recording wrappers), paced 16s/URL
+- [x] Harness deleted after the run. Inputs + per-URL TSVs kept in tasks/eval-2026-09-27/ (untracked)
+
+Results (v1.37 code, live providers, run 2026-09-27):
+- Phishing, all providers: 50/50 flagged DANGER, but VirusTotal hit all 50. Bias: OpenPhish is
+  itself a VirusTotal engine, so every sampled URL was already listed. This number says nothing
+  about zero-hour links.
+- Phishing, zero-hour (blocklist signals removed, re-scored by ScoringEngine): 15/50 flagged
+  (14 SUSPICIOUS, 1 DANGER), 35/50 SAFE. 27 of the 35 misses are on free hosting platforms
+  (vercel.app, pages.dev, blogspot.com, github.io, replit.app, gitbook.io); 34/50 of the sample
+  was platform-hosted. Domain age cannot help there (parent domain is old). Caught ones mostly by
+  domain age (very new .shop/.ink/.beauty), typosquat/brand-in-subdomain, dash-heavy + http.
+- Page check barely contributed: 31/50 redirect resolutions TIMEOUT/ERROR (sites already down or
+  slow within 12h), credential form found on 2. So zero-hour is likely UNDER-estimated for
+  pages that are still live when the user taps them.
+- Legit: 29/30 SAFE. FALSE POSITIVE: https://login.microsoftonline.com/ -> THREAT 75 in both modes
+  (LOCAL_BRAND_SPOOF_microsoft 40 STRONG + phishing keyword + long URL + URL encoding after the
+  redirect to the OAuth URL). Cause: microsoftonline.com is not in BrandRegistry's Microsoft
+  domains (BrandRegistry.kt:13) nor KnownDomains. Real Microsoft/Office 365 sign-in links would be
+  blocked by Link Shield. Not fixed (read-only task) -> open item.
+
+## 2026-09-27 — v1.38 candidate: Microsoft false alarm (#1) + free-hosting impersonation rule (#2) (Norman: "cge")
+
+#1
+- [x] Regression cases in ScanCorpus.LEGITIMATE: login.microsoftonline.com (SUSPICIOUS 50 on old code)
+      and its OAuth redirect URL (THREAT 75 on old code) -> both failed before the fix
+- [x] microsoftonline.com added to KnownDomains.TRUSTED_DOMAINS, UrlScanner.OFFICIAL_DOMAINS["microsoft"],
+      BrandRegistry Microsoft. Both cases SAFE 0%; full suite 471/471
+#2
+- [x] Held-out phishing set: 50 OpenPhish hosts NOT used for design (heldout.txt; not read before the run)
+- [x] Legit control: 30-site set + 3 live platform-hosted (microsoft.github.io, facebookresearch.github.io,
+      googleblog.blogspot.com) + 8 name-only unit cases (maya-portfolio, pineapple-recipes, ...)
+- [x] Rule 18 BRAND_ON_FREE_HOSTING in UrlScanner (STRONG 40): free page host subdomain + brand
+      (>=6 letters anywhere, digits ignored; crypto brands also 1 typo; short brands need a phishing
+      word). github.io excluded; Google exempt on blogspot/web.app/firebaseapp; skipped when rule 8 fired
+- [x] Tests: 3 new HeuristicScannerTest cases (flagging one fails on old code) + 2 corpus cases; 474/474
+- [x] Live re-run with the rule (tasks/eval-2026-09-27/v138-*.tsv), harness deleted afterwards:
+      held-out zero-hour 19/50 flagged (~14 without the rule, re-scored offline from the same signals);
+      rule fired on 4 held-out hosts (cryptotrezorvault.gitbook.io, coinbaseprologinv.gitbook.io,
+      facebookbfacebook.blogspot.com, helps-desktop-ledgrer.pages.dev). Tuning set 15 -> 26/50 (biased,
+      shown only for comparison). Legit 30/30 SAFE (Microsoft fix confirmed live). Rule fired on 0 legit.
+- PRE-EXISTING false positives found by the platform control (not caused by this change, rule 18 silent):
+  * microsoft.github.io -> THREAT 90 (rules 5 + 8: brand spoof + brand in subdomain on github.io)
+  * googleblog.blogspot.com -> redirects to blog.google -> THREAT 100: BRAND_SPOOF_google (blog.google
+    not an official Google domain) + TYPOSQUAT_bdo, because rule 15 compares the FIRST label "blog" to
+    "bdo" (distance 2). Any blog.<anything> host likely gets the BDO typosquat flag. Open item.
+- Follow-up, not in scope: "brand.com-xyz.tld" / "brand.com.am" fake-.com trick (flipkart.com-nw.in, roblox.com.am)
+- [x] A (Norman: "ayusin mo muna ang A"): both pre-existing false alarms fixed
+  * Typosquat rule 15: brands under 5 letters (bdo, bpi) now allow 1 edit, not 2. "blog" no longer
+    reads as BDO; "bdoo" still does; 5+ letter brands keep distance 2 (arnazon, appel still flagged).
+    In all eval TSVs the only TYPOSQUAT_bdo hit was the googleblog false alarm.
+  * KnownDomains: blog.google + 7 github.io org pages, each confirmed a GitHub Organization via
+    api.github.com/users on 2026-09-27 (microsoft, google, facebook, apple, paypal, netflix, twitter).
+    amazon on GitHub is a personal account -> left out, and a test pins amazon.github.io as flagged.
+    BrandRegistry Google += blog.google.
+  * Tests first: 4 HeuristicScannerTest + 2 corpus cases; 3 failed on the pre-fix code
+    (blog.google DANGER 90, microsoft.github.io DANGER 90). After: 478/478; assembleRelease OK.
+- Emulator: 2 boots stuck adb "offline", then Claude Code reaped it for low RAM (4 GB free of 16). Not used.
+- Device (Norman's SM-A528B, had v1.34; test build = assembleRelease of the working tree, release key
+  ead80ea1..., installed with install -r over 1.34 -> versionName still 1.37 / code 38, not bumped),
+  cold intercept scans via am start:
+  * BEFORE (v1.34): login.microsoftonline.com -> DANGEROUS 75% (tasks/v138-phone-ms-before-v134.png)
+  * AFTER: login.microsoftonline.com SAFE 10% (tasks/v138-phone-ms-after.png); microsoft.github.io SAFE 0%;
+    googleblog.blogspot.com -> goes to blog.google, SAFE 10%; blog.google SAFE 0%;
+    gcash.com SAFE 0%; bdo.com.ph SAFE 0%
+  * helps-desktop-ledgrer.pages.dev DANGEROUS 100% (11 vendors) with the new flag shown in the UI:
+    'Uses the name "LEDGER" on a free website host' (tasks/v138-phone-free-host-flag.png);
+    shopee2178.blogspot.com DANGEROUS 100% (14 vendors, 1 heuristic)
+- Not verified: live re-run of the eval after fix A (unit-level only).
+- Committed: b1fcb5a (Microsoft), 1eb3dcc (rule 18), 3b69c82 (blog/BDO + github.io). The publish-release skill folder (.claude/skills/publish-release) was found EMPTY after the laptop died; released manually with stage-release.sh + publish.sh.
