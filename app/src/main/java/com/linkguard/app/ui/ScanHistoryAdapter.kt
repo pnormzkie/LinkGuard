@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.linkguard.app.R
 import com.linkguard.app.data.ScanResult
 import com.linkguard.app.data.ThreatLevel
+import com.linkguard.app.data.isUnverifiedPaymentQr
 import com.linkguard.app.databinding.ItemScanBinding
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -85,12 +86,22 @@ class ScanHistoryAdapter(
                 R.string.scan_meta_format, scan.sourceApp, dateFormat.format(Date(scan.scannedAt))
             )
             binding.tvScore.text = "${scan.riskScore}%"
+            binding.tvScore.textSize = 12f  // reset: rows are recycled and a payment QR row enlarges it
             binding.tvCategory.text = scan.category
 
-            val (label, colorRes) = when (scan.threatLevel) {
+            val (label, colorRes) = when {
+                // Not a finding: shown like its scan report, as a payee name to check.
+                scan.isUnverifiedPaymentQr -> {
+                    binding.tvScore.text = "₱"
+                    binding.tvScore.textSize = 20f
+                    binding.tvCategory.text = ctx.getString(R.string.payment_qr_category)
+                    ctx.getString(R.string.status_badge_check_name) to R.color.e_blue
+                }
+                else -> when (scan.threatLevel) {
                 ThreatLevel.DANGER     -> ctx.getString(R.string.status_badge_danger)     to R.color.e_red
                 ThreatLevel.SUSPICIOUS -> ctx.getString(R.string.status_badge_suspicious) to R.color.e_amber
                 ThreatLevel.SAFE       -> ctx.getString(R.string.status_badge_safe)       to R.color.e_green
+                }
             }
 
             val color = ContextCompat.getColor(ctx, colorRes)

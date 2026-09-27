@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.linkguard.app.R
 import com.linkguard.app.data.ScanResult
+import com.linkguard.app.data.matchesHistoryFilter
 import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.databinding.ActivityHistoryBinding
 import java.text.SimpleDateFormat
@@ -149,7 +150,7 @@ class HistoryActivity : AppCompatActivity() {
 
     private fun updateList(scans: List<ScanResult>) {
         val filteredScans = if (activeFilter != null) {
-            scans.filter { it.threatLevel.name == activeFilter }
+            scans.filter { it.matchesHistoryFilter(activeFilter) }
         } else {
             scans
         }

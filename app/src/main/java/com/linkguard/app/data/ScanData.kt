@@ -14,6 +14,26 @@ import kotlinx.parcelize.Parcelize
 enum class ThreatLevel { SAFE, SUSPICIOUS, DANGER }
 
 /**
+ * Stored category of a payment QR whose format and checksum are valid (MainActivity). Such a
+ * scan is stored SUSPICIOUS because nothing proves whose account it pays, but it is not a finding:
+ * the UI shows it as "check the payee name" and it is left out of the Suspicious count and tab.
+ */
+const val PAYMENT_QR_UNVERIFIED_CATEGORY = "Payment QR — Payee unverified"
+
+/** MainActivity stores a payment QR's "url" as this prefix plus the merchant name. */
+const val PAYMENT_QR_URL_PREFIX = "Payment QR: "
+
+/** True for a valid-format payment QR scan, the only kind shown as "check the payee". */
+fun isUnverifiedPaymentQr(app: String, category: String): Boolean =
+    app == "QR" && category == PAYMENT_QR_UNVERIFIED_CATEGORY
+
+val ScanResult.isUnverifiedPaymentQr: Boolean get() = isUnverifiedPaymentQr(sourceApp, category)
+
+/** Scan History tab filter: a valid payment QR shows under "All" only, never under Suspicious. */
+fun ScanResult.matchesHistoryFilter(filter: String?): Boolean =
+    filter == null || (threatLevel.name == filter && !isUnverifiedPaymentQr)
+
+/**
  * Flags grouped by the signal source/category ("Heuristic", "Vendors flagged", …) for the
  * collapsible verdict UI. Derived in [com.linkguard.app.domain.mapper.toLegacy] for fresh
  * scans only — intentionally NOT persisted to Room, so history-loaded results have it empty
@@ -92,7 +112,11 @@ interface ScanDao {
     @Query("SELECT COUNT(*) FROM scan_history WHERE threatLevel = 'DANGER'")
     suspend fun getDangerCount(): Int
 
-    @Query("SELECT COUNT(*) FROM scan_history WHERE threatLevel = 'SUSPICIOUS'")
+    // A valid payment QR is stored SUSPICIOUS but is not a finding (see PAYMENT_QR_UNVERIFIED_CATEGORY).
+    @Query(
+        "SELECT COUNT(*) FROM scan_history WHERE threatLevel = 'SUSPICIOUS' " +
+            "AND NOT (sourceApp = 'QR' AND category = '$PAYMENT_QR_UNVERIFIED_CATEGORY')"
+    )
     suspend fun getSuspiciousCount(): Int
 
     @Query("SELECT COUNT(*) FROM scan_history WHERE threatLevel = 'SAFE'")

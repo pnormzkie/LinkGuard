@@ -148,6 +148,14 @@
     <string name="invalid_scan_data">Invalid scan data</string>
     <string name="status_dangerous_link">DANGEROUS LINK</string>
     <string name="status_suspicious_link">SUSPICIOUS LINK</string>
+    <!-- Scan report for a payment QR whose format and checksum are valid: the payee can't be
+         verified, so it is shown as a name to check rather than as a risk score. -->
+    <string name="payment_qr_status">CHECK PAYEE NAME</string>
+    <string name="payment_qr_ring_label">PAYMENT QR</string>
+    <string name="payment_qr_pays_to">PAYS TO</string>
+    <string name="payment_qr_category">Payment QR — valid format</string>
+    <string name="payment_qr_before_you_pay">BEFORE YOU PAY</string>
+    <string name="payment_qr_check_note">Make sure this is the person or store you mean to pay. LinkGuard can\'t check whose account a QR pays.</string>
     <string name="status_safe_link">SAFE LINK</string>
     <string name="source_qr_scan">QR Scan</string>
     <string name="source_manual_scan">Manual Scan</string>
@@ -168,6 +176,7 @@
     <string name="scan_meta_format">via %1$s · %2$s</string>
     <string name="status_badge_danger">⚠ DANGER</string>
     <string name="status_badge_suspicious">⚡ SUSPICIOUS</string>
+    <string name="status_badge_check_name">₱ CHECK NAME</string>
     <string name="status_badge_safe">✓ SAFE</string>
 
     <!-- Payment QR snackbar (manual handling) -->

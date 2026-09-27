@@ -44,6 +44,7 @@
     <color name="e_red_soft">#FF6376</color>
     <color name="e_amber_soft">#FFB020</color>
     <color name="e_green_soft">#2BD183</color>
+    <color name="e_blue_soft">#6FB3FF</color>
 
     <!-- ═══ Material theme required ═══ -->
     <color name="purple_200">#00E5FF</color>

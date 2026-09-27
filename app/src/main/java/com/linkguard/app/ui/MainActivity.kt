@@ -34,6 +34,8 @@ import com.google.android.material.snackbar.Snackbar
 import com.linkguard.app.BuildConfig
 import com.linkguard.app.R
 import com.linkguard.app.ScannerProvider
+import com.linkguard.app.data.PAYMENT_QR_UNVERIFIED_CATEGORY
+import com.linkguard.app.data.PAYMENT_QR_URL_PREFIX
 import com.linkguard.app.data.ScanResult
 import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.databinding.ActivityMainBinding
@@ -340,12 +342,12 @@ class MainActivity : AppCompatActivity() {
             QrType.PAYMENT_QR -> {
                 val validation = PaymentQrValidator.validate(qr)
                 val result = ScanResult(
-                    url = "Payment QR: ${validation.merchantName ?: "Unknown"}",
+                    url = PAYMENT_QR_URL_PREFIX + (validation.merchantName ?: "Unknown"),
                     // A valid EMV checksum proves format integrity, not that the recipient account
                     // belongs to the person or merchant the user intended to pay.
                     threatLevel = ThreatLevel.SUSPICIOUS,
                     riskScore = if (validation.isValid) 25 else 50,
-                    category = if (validation.isValid) "Payment QR — Payee unverified" else "Invalid Payment QR",
+                    category = if (validation.isValid) PAYMENT_QR_UNVERIFIED_CATEGORY else "Invalid Payment QR",
                     flags = if (validation.isValid) {
                         listOf("QR format and checksum are valid, but the recipient account was not verified")
                     } else {

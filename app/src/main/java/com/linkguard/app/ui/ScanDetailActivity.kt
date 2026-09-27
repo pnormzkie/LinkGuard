@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Typeface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -13,6 +14,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.getSystemService
 import com.linkguard.app.R
 import com.linkguard.app.data.FlagGroup
+import com.linkguard.app.data.PAYMENT_QR_URL_PREFIX
+import com.linkguard.app.data.isUnverifiedPaymentQr
 import com.linkguard.app.data.ScanResult
 import com.linkguard.app.databinding.ActivityScanDetailBinding
 import com.linkguard.app.databinding.ItemFlagBinding
@@ -110,6 +113,36 @@ class ScanDetailActivity : AppCompatActivity() {
         // Buttons
         binding.btnCopy.setOnClickListener { copyUrl(url) }
         binding.btnBack.setOnClickListener { finish() }
+
+        if (isUnverifiedPaymentQr(app, category)) showAsPaymentQr(url)
+    }
+
+    /**
+     * A payment QR with a valid format and checksum is stored as SUSPICIOUS 25 because nothing can
+     * prove whose account it pays (a scammer's sticker over a real QR is just as valid). Shown as a
+     * suspicious LINK with a score, it looked like an accusation of the user's own QR. Here the
+     * report instead asks the one question that matters: is this the payee you meant?
+     * Display only — the stored verdict is unchanged, so existing history rows render this way too.
+     */
+    private fun showAsPaymentQr(url: String) {
+        val blue = getColor(R.color.e_blue)
+        binding.statusCard.setCardBackgroundColor(blue)
+        binding.scoreRing.progress = 0
+        binding.tvScoreLarge.text = "₱"
+        binding.tvScoreLabel.text = getString(R.string.payment_qr_ring_label)
+        binding.tvStatus.text = getString(R.string.payment_qr_status)
+        binding.ivStatusIcon.setImageResource(R.drawable.ic_stat_payee)
+
+        binding.tvUrlLabel.text = getString(R.string.payment_qr_pays_to)
+        binding.tvUrl.text = url.removePrefix(PAYMENT_QR_URL_PREFIX)
+        binding.tvUrl.typeface = Typeface.DEFAULT_BOLD
+        binding.tvUrl.textSize = 26f
+        binding.tvUrl.setTextColor(getColor(R.color.e_text))
+        binding.btnCopy.visibility = View.GONE
+
+        binding.tvCategory.text = getString(R.string.payment_qr_category)
+        binding.tvFlagsLabel.text = getString(R.string.payment_qr_before_you_pay)
+        setupFlags(arrayOf(getString(R.string.payment_qr_check_note)), emptyList(), getColor(R.color.e_blue_soft))
     }
 
     private fun setupFlags(flags: Array<String>, groups: List<FlagGroup>, color: Int) {

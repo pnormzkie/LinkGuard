@@ -98,6 +98,7 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/tvScoreLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/risk_score"
@@ -159,6 +160,7 @@
                 android:padding="18dp">
 
                 <TextView
+                    android:id="@+id/tvUrlLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/scanned_url"
@@ -327,6 +329,7 @@
                 android:padding="18dp">
 
                 <TextView
+                    android:id="@+id/tvFlagsLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/risk_flags"
