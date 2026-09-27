@@ -40,6 +40,65 @@ class VirusTotalEnrichmentProviderTest {
 
         assertEquals(1, signals.size)
         assertEquals(trustedUrl, signals[0].matchedValue)
+        // A path on a trusted host can be attacker-authored, so it keeps full weight.
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(25, signals[0].score)
+    }
+
+    // ── Trusted site root calibration ───────────────────────────────────────────
+
+    private fun maliciousBody(count: Int) =
+        """{"data":{"attributes":{"last_analysis_stats":{"malicious":$count}}}}"""
+
+    @Test
+    fun `two detections on a trusted site root stay below the suspicious threshold`() = runTest {
+        // Reproduced on-device 2026-09-27: VirusTotal lists 2 engines for https://google.com,
+        // and at 25 that alone made the tap screen say "Don't Open".
+        val signals = provider(clientReturning(200, maliciousBody(2))).fetchSignals("https://google.com")
+
+        assertEquals(1, signals.size)
+        assertEquals(SignalStrength.WEAK, signals[0].strength)
+        assertEquals(10, signals[0].score)
+        assertEquals("2 Vendors Flagged", signals[0].title)
+    }
+
+    @Test
+    fun `trusted root calibration also covers a trailing slash and a trusted subdomain`() = runTest {
+        listOf("https://www.google.com/", "https://maps.google.com").forEach { root ->
+            val signals = provider(clientReturning(200, maliciousBody(1))).fetchSignals(root)
+            assertEquals(root, 10, signals.single().score)
+        }
+    }
+
+    @Test
+    fun `a query on a trusted host keeps full weight`() = runTest {
+        val signals = provider(clientReturning(200, maliciousBody(2)))
+            .fetchSignals("https://www.google.com/?q=login")
+
+        assertEquals(25, signals.single().score)
+    }
+
+    @Test
+    fun `three detections on a trusted site root are not calibrated`() = runTest {
+        val signals = provider(clientReturning(200, maliciousBody(3))).fetchSignals("https://google.com")
+
+        assertEquals(SignalStrength.STRONG, signals.single().strength)
+        assertEquals(45, signals.single().score)
+    }
+
+    @Test
+    fun `an untrusted site root keeps full weight`() = runTest {
+        val signals = provider(clientReturning(200, maliciousBody(2))).fetchSignals("https://evil.example/")
+
+        assertEquals(25, signals.single().score)
+    }
+
+    @Test
+    fun `a trusted name in the userinfo does not earn the calibration`() = runTest {
+        val signals = provider(clientReturning(200, maliciousBody(2)))
+            .fetchSignals("https://google.com@evil.example/")
+
+        assertEquals(25, signals.single().score)
     }
 
     // ── Success path ──────────────────────────────────────────────────────────
