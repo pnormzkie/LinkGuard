@@ -2163,3 +2163,15 @@ payment fallbacks ("6304" anywhere, any 50+ chars without spaces).
   newest picker tile; use /data/local/tmp. Removed lg.png + all LinkGuardTest images from the phone and
   its MediaStore (query returns no rows).
 - Committed (see commits 3d0bc94 + fb6f2cd).
+
+## 2026-09-27 — v1.39 published (Norman: "commit, release and publish muna")
+
+- Commits 3d0bc94 (payment QR shown as payee to check), fb6f2cd (links inside QR text; strict EMV
+  detection), record commit, bump to 1.39 / versionCode 40, 9d392fc (release notes, 6 lines / 387 chars).
+- stage-release.sh 1.39: 488/488 tests, release-key cert, badge 40/1.39, 24,682,132 bytes,
+  SHA-256 A0B0D2FE1CB40553035A922BCDCF8615205F262DF8D90817D2E7111E73783200.
+- publish.sh 1.39 (ran first try after the explicit "publish muna"): release id 397639133, tag v1.39 ->
+  9d392fc, RESULT: PUBLISHED_AND_VERIFIED (downloaded SHA-256 == staged).
+- Device: SM-A528B on the pre-bump test build (1.38 / code 39) showed "Update available · Version 1.39 ·
+  You're on 1.38", all 4 note lines and "Update now" on screen without scrolling
+  (tasks/v139-update-dialog.png). "Update now" not tapped; the install itself is left to Norman.
