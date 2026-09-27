@@ -50,6 +50,16 @@ class PaymentQrValidatorTest {
     }
 
     @Test
+    fun `tampered payload still names the payee it claims`() {
+        // The history row read "Payment QR: Unknown" although the name was right there; the user
+        // needs it to see who a tampered QR would have paid.
+        val result = PaymentQrValidator.validate(validPayload().replace("TEST STORE", "FAKE STORE"))
+        assertFalse(result.isValid)
+        assertEquals("FAKE STORE", result.merchantName)
+        assertEquals("MANILA", result.merchantCity)
+    }
+
+    @Test
     fun `too short payload is rejected`() {
         val result = PaymentQrValidator.validate("000201")
         assertFalse(result.isValid)

@@ -69,15 +69,18 @@ object PaymentQrValidator {
         val payloadWithoutCrcValue = text.substring(0, crcIndex + 4)
         val computedCrc = computeCrc16Ccitt(payloadWithoutCrcValue)
 
-        if (!computedCrc.equals(crcValue, ignoreCase = true)) {
-            return PaymentQrValidationResult(
-                isValid = false,
-                message = "CRC Mismatch (Data might be tampered)"
-            )
-        }
-
         val merchantName = tags["59"]
         val merchantCity = tags["60"]
+
+        if (!computedCrc.equals(crcValue, ignoreCase = true)) {
+            // Keep the payee it claims: the history showed "Payment QR: Unknown" otherwise.
+            return PaymentQrValidationResult(
+                isValid = false,
+                message = "CRC Mismatch (Data might be tampered)",
+                merchantName = merchantName,
+                merchantCity = merchantCity
+            )
+        }
 
         return PaymentQrValidationResult(
             isValid = true,
