@@ -333,7 +333,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleQrResult(qr: String) {
         when (QrTypeDetector.detect(qr)) {
             QrType.URL -> {
-                val url = UrlInputNormalizer.normalize(qr) ?: run {
+                val url = UrlInputNormalizer.normalize(QrTypeDetector.linkIn(qr) ?: qr) ?: run {
                     showSnackbar(getString(R.string.error_invalid_url_qr))
                     return
                 }
