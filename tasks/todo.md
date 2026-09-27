@@ -2175,3 +2175,16 @@ payment fallbacks ("6304" anywhere, any 50+ chars without spaces).
 - Device: SM-A528B on the pre-bump test build (1.38 / code 39) showed "Update available · Version 1.39 ·
   You're on 1.38", all 4 note lines and "Update now" on screen without scrolling
   (tasks/v139-update-dialog.png). "Update now" not tapped; the install itself is left to Norman.
+
+## 2026-09-27 — Built-in camera QR scan goes through Link Shield (Norman's question; no code change)
+
+- SM-A528B default browser for VIEW https = com.linkguard.app/.ui.LinkInterceptActivity (cmd package resolve-activity).
+- Test: URL QR of https://testsafebrowsing.appspot.com/s/phishing.html shown on the laptop screen, scanned by Norman
+  with the phone's built-in camera, link tapped -> LinkGuard report DANGEROUS LINK 100%, Source "Tapped link",
+  11 vendors (Norman's screenshot, 20:59). So the built-in scanner hands URLs to the default browser here.
+- Limits (not tested): text-with-link QRs via the built-in scanner (it may show text only); other scanners
+  (Google Lens, in-app scanners) may use their own browser; payment QRs are scanned inside GCash/Maya/bank apps.
+- Note: at 21:00 adb still reported versionName 1.38 / code 39 (test build) on RZCT10CY6ED; the v1.39 in-app
+  download seen at 22% had not installed yet.
+- 21:05: in-app update completed on the SM-A528B: versionName 1.39 / code 40; installed base.apk SHA-256
+  a0b0d2fe...783200 == the published v1.39 asset. The 1.38 -> 1.39 update path is verified end to end.
