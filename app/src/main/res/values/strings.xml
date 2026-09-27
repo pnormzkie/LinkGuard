@@ -182,9 +182,8 @@
     <string name="status_badge_safe">✓ SAFE</string>
 
     <!-- Payment QR snackbar (manual handling) -->
-    <string name="payment_qr_valid_header">✓ Valid payment QR format</string>
-    <string name="payment_qr_merchant_line">\nMerchant: %1$s</string>
-    <string name="payment_qr_city_line">\nCity: %1$s</string>
-    <string name="payment_qr_verify_reminder">\nAlways verify merchant details before paying.</string>
+    <string name="payment_qr_snack_pays">₱ This QR pays\u0020</string>
+    <string name="payment_qr_snack_city">\u0020(%1$s)</string>
+    <string name="payment_qr_snack_check">Check the name before you pay.</string>
     <string name="payment_qr_invalid_format">⚠ Suspicious or invalid payment QR\n%1$s</string>
 </resources>

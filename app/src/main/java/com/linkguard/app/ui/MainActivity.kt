@@ -16,7 +16,10 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.format.DateUtils
+import android.text.style.StyleSpan
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -358,12 +361,19 @@ class MainActivity : AppCompatActivity() {
                 )
                 viewModel.saveResultManually(result)
 
-                val message = if (validation.isValid) {
-                    buildString {
-                        append(getString(R.string.payment_qr_valid_header))
-                        validation.merchantName?.let { append(getString(R.string.payment_qr_merchant_line, it)) }
-                        validation.merchantCity?.let { append(getString(R.string.payment_qr_city_line, it)) }
-                        append(getString(R.string.payment_qr_verify_reminder))
+                // Snackbars show two lines at most: the old four-line text lost the city and the
+                // "verify" reminder. Approved mockup option B: the name to check, then the reminder.
+                val message: CharSequence = if (validation.isValid) {
+                    val name = validation.merchantName ?: "Unknown"
+                    val city = validation.merchantCity?.let { getString(R.string.payment_qr_snack_city, it) }.orEmpty()
+                    SpannableStringBuilder(getString(R.string.payment_qr_snack_pays)).apply {
+                        // The name comes from the QR, so it is added as plain text, never as markup.
+                        val start = length
+                        append(name)
+                        setSpan(StyleSpan(Typeface.BOLD), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        append(city)
+                        append('\n')
+                        append(getString(R.string.payment_qr_snack_check))
                     }
                 } else {
                     getString(R.string.payment_qr_invalid_format, validation.message)
@@ -723,7 +733,7 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun showSnackbar(message: String) {
+    private fun showSnackbar(message: CharSequence) {
         Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG).show()
     }
 }
