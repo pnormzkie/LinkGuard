@@ -760,7 +760,9 @@ object HeuristicScanner {
                 // Two extra letters around an intact brand is a different word ("rappler",
                 // "snapple"), not a misspelling; brand-plus-affix glue is rule 5's job.
                 val brandPlusTwoLetters = distance == 2 && domainName.contains(brand)
-                if (domainName.length >= 4 && distance in 1..2 && domainName != brand && !brandPlusTwoLetters) {
+                // Two edits leave only one letter of a three-letter brand: "blog" is not "bdo".
+                val maxDistance = if (brand.length < 5) 1 else 2
+                if (domainName.length >= 4 && distance in 1..maxDistance && domainName != brand && !brandPlusTwoLetters) {
                     addFinding(
                         "TYPOSQUAT_${brand.filter { it.isLetterOrDigit() }}",
                         "Lookalike domain — very similar to \"${brand.uppercase()}\" (possible typosquatting)",

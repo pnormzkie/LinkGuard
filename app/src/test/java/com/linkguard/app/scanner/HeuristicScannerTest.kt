@@ -608,4 +608,41 @@ class HeuristicScannerTest {
         assertTrue(flags.any { it.contains("Brand name used in subdomain") })
         assertFalse(flags.any { it.contains("free website host") })
     }
+
+    // ─── Pre-existing false alarms found by the 2026-09-27 platform control set ─
+
+    @Test
+    fun `a two-letter edit is not a lookalike of a three-letter brand`() {
+        // "blog" is two edits from "bdo"; every blog.<host> read as a BDO lookalike.
+        listOf("https://blog.google/", "https://blog.example.com/", "https://bpo-jobs.com/").forEach { url ->
+            val flags = flagsOf(url)
+            assertFalse(url, flags.any { it.contains("typosquatting") })
+        }
+    }
+
+    @Test
+    fun `a one-letter edit of a three-letter brand is still a lookalike`() {
+        assertTrue(flagsOf("https://bdoo.com/login").any { it.contains("typosquatting") })
+    }
+
+    @Test
+    fun `verified brand org pages on github io are the brand's own`() {
+        listOf(
+            "https://microsoft.github.io/", "https://google.github.io/", "https://facebook.github.io/",
+            "https://apple.github.io/", "https://paypal.github.io/", "https://netflix.github.io/",
+            "https://twitter.github.io/"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertEquals(url, ThreatLevel.SAFE, result.threatLevel)
+        }
+    }
+
+    @Test
+    fun `brand pages on github io that the brand does not own stay flagged`() {
+        // "amazon" on GitHub is a personal account, not Amazon; affixed names are anyone's.
+        listOf("https://amazon.github.io/", "https://paypal-verify.github.io/").forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertNotEquals(url, ThreatLevel.SAFE, result.threatLevel)
+        }
+    }
 }

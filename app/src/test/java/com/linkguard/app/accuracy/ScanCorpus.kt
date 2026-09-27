@@ -115,6 +115,15 @@ internal object ScanCorpus {
             Expected.SAFE,
             "Where that sign-in page redirected in the live run: long and heavily encoded"
         ),
+        Case(
+            "https://blog.google/", Expected.SAFE,
+            "Google's blog (googleblog.blogspot.com redirects here). Scored DANGER 100 on 2026-09-27: " +
+                "'blog' read as a BDO typosquat and blog.google as a Google spoof"
+        ),
+        Case(
+            "https://microsoft.github.io/", Expected.SAFE,
+            "Microsoft's own GitHub Pages org site. Scored DANGER 90 on 2026-09-27"
+        ),
 
         // The heuristics only ever see the URL string, so these are realistic PATH SHAPES on
         // real legitimate hosts rather than links verified to exist. They are here because

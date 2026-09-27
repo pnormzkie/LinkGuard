@@ -26,7 +26,12 @@ object KnownDomains {
         "visa.com", "mastercard.com", "dhl.com", "dhl.com.ph", "fedex.com",
         "battle.net", "blizzard.com", "steampowered.com", "steamcommunity.com",
         "discord.com", "epicgames.com", "riotgames.com",
-        "googlesyndication.com", "googleadservices.com", "doubleclick.net"
+        "googlesyndication.com", "googleadservices.com", "doubleclick.net",
+        // Brand-owned sites whose names otherwise read as spoofs. Each github.io entry was
+        // checked on 2026-09-27 to be the brand's own GitHub Organization (api.github.com/users):
+        // amazon.github.io is NOT, it is a personal account, so it stays out.
+        "blog.google", "microsoft.github.io", "google.github.io", "facebook.github.io",
+        "apple.github.io", "paypal.github.io", "netflix.github.io", "twitter.github.io"
     )
 
     /**

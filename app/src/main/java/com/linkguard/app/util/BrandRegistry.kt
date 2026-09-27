@@ -9,7 +9,7 @@ object BrandRegistry {
     )
 
     val brands = listOf(
-        Brand("Google", setOf("google", "gmail"), setOf("google.com", "google.com.ph")),
+        Brand("Google", setOf("google", "gmail"), setOf("google.com", "google.com.ph", "blog.google")),
         Brand("Microsoft", setOf("microsoft", "office 365", "outlook"), setOf("microsoft.com", "microsoftonline.com", "live.com", "office.com")),
         Brand("Apple", setOf("apple", "icloud"), setOf("apple.com", "icloud.com")),
         Brand("PayPal", setOf("paypal"), setOf("paypal.com")),
