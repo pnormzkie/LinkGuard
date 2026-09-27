@@ -151,6 +151,8 @@
     <string name="status_safe_link">SAFE LINK</string>
     <string name="source_qr_scan">QR Scan</string>
     <string name="source_manual_scan">Manual Scan</string>
+    <string name="source_tapped_link">Tapped link</string>
+    <string name="source_app_sender">%1$s · %2$s</string>
     <string name="url_copied">URL copied</string>
 
     <!-- Threat alert popup -->

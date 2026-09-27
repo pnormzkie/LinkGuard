@@ -96,7 +96,13 @@ class ScanDetailActivity : AppCompatActivity() {
             binding.tvResolvedUrl.visibility = View.GONE
         }
         binding.tvCategory.text = category
-        binding.tvSender.text   = if (app == "QR") getString(R.string.source_qr_scan) else getString(R.string.source_manual_scan)
+        binding.tvSender.text   = scanSourceLabel(
+            app, sender,
+            manualLabel = getString(R.string.source_manual_scan),
+            qrLabel = getString(R.string.source_qr_scan),
+            tappedLabel = getString(R.string.source_tapped_link),
+            appSenderFormat = getString(R.string.source_app_sender),
+        )
 
         // Flags
         setupFlags(flags, flagGroups, color)
@@ -180,4 +186,26 @@ class ScanDetailActivity : AppCompatActivity() {
         private fun baseIntent(context: Context) =
             Intent(context, ScanDetailActivity::class.java)
     }
+}
+
+/**
+ * The "Source" row, derived from the same sourceApp/senderInfo the history list shows as
+ * "via SMS". Before this, every non-QR scan read "Manual Scan", so a report opened from an SMS
+ * threat alert claimed the user had typed the link in. The app values are the literals the
+ * callers store: "Manual" (MainActivity/toLegacy default), "QR" (MainActivity), "Link Tap"
+ * (LinkInterceptActivity), otherwise the notification app label (LinkNotificationService, which
+ * stores "Unknown" when the notification had no title).
+ */
+internal fun scanSourceLabel(
+    app: String,
+    sender: String,
+    manualLabel: String,
+    qrLabel: String,
+    tappedLabel: String,
+    appSenderFormat: String,
+): String = when (app) {
+    "", "Manual" -> manualLabel
+    "QR" -> qrLabel
+    "Link Tap" -> tappedLabel
+    else -> if (sender.isBlank() || sender == "Unknown") app else String.format(appSenderFormat, app, sender)
 }
