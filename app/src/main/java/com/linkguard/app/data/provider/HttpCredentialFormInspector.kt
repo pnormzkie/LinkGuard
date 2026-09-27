@@ -111,15 +111,26 @@ class HttpCredentialFormInspector(
         val document = Jsoup.parse(html, finalUrl)
         val normalized = html.lowercase()
         val visibleText = document.body().text().lowercase()
+        // Links, navigation and the footer are site chrome: a "Sign in" link in the header or a
+        // "Jobstreet @ Google Play" badge is not the page claiming a login step or a brand.
+        // (ph.jobstreet.com scored DANGER 60 on exactly those.) The header stays in: phishing
+        // kits put their logo and brand title there.
+        val contentText = document.body().clone().apply { select("a, nav, footer").remove() }
+            .text().lowercase()
         val inputs = document.select("input, textarea, select")
         val hasPassword = document.select("input[type=password]").isNotEmpty()
         val hasOtpOrPayment = inputs.any { elementMatchesSensitiveTerms(it, OTP_PAYMENT_TERMS) }
         val hasIdentityRequest = inputs.any { elementMatchesSensitiveTerms(it, IDENTITY_TERMS) }
         val hasHiddenSensitive = document.select("input[type=hidden]")
             .any { elementMatchesSensitiveTerms(it, HIDDEN_SENSITIVE_TERMS) }
+        // A first login step asks only for an account id; a form that also takes free text
+        // (report, contact, comment) is not one, even if its email field is named "email".
         val hasMultiStepLogin = !hasPassword && document.select("form").isNotEmpty() &&
-            inputs.any { it.attr("type").equals("email", true) || elementMatchesSensitiveTerms(it, LOGIN_ID_TERMS) } &&
-            LOGIN_LANGUAGE.containsMatchIn(visibleText)
+            inputs.any {
+                (it.attr("type").equals("email", true) || elementMatchesSensitiveTerms(it, LOGIN_ID_TERMS)) &&
+                    it.closest("form")?.select("textarea").isNullOrEmpty()
+            } &&
+            LOGIN_LANGUAGE.containsMatchIn(contentText)
         val hasSensitiveRequest = hasPassword || hasOtpOrPayment || hasIdentityRequest ||
             hasHiddenSensitive || hasMultiStepLogin
         val postsToUntrustedDomain = hasPassword &&
@@ -226,7 +237,7 @@ class HttpCredentialFormInspector(
                 )
             )
             if (hasSensitiveRequest && !postsToUntrustedDomain && !postsToTrustedIdentityProvider &&
-                BrandRegistry.claimedBrand(visibleText, pageDomain) != null) add(
+                BrandRegistry.claimedBrand(contentText, pageDomain) != null) add(
                 ScanSignal(
                     ruleId = "PAGE_BRAND_IMPERSONATION",
                     title = "Brand identity claimed on an unrelated domain",

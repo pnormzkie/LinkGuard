@@ -200,6 +200,69 @@ class HttpCredentialFormInspectorTest {
         })
     }
 
+    // ── Site chrome is not a claim by the page (ph.jobstreet.com false DANGER, 2026-09-27) ──
+
+    @Test
+    fun `job page with header sign-in links, a report form and a store badge stays clean`() = runBlocking {
+        // Structure of https://ph.jobstreet.com/job/94833707, which scored DANGER 60 on-device:
+        // MULTI_STEP_LOGIN_FORM + PAGE_BRAND_IMPERSONATION ("Google" from the Play badge) +
+        // EXTERNAL_SCRIPT_WITH_SENSITIVE_FORM.
+        val html = """
+            <html><head><script src="https://tags.tiqcdn.com/utag/seek/candidate-main/prod/utag.js"></script></head>
+            <body>
+              <header><a href="/">Jobstreet</a><nav><a href="/oauth/login">Sign in</a></nav></header>
+              <main><h1>Playwright</h1><p>Ascendion - Pasig City</p>
+                <a href="/oauth/login">Sign in and add your salary</a>
+                <form>
+                  <label for="email">Your email address</label><input id="email" type="text">
+                  <select><option>Fraudulent</option></select><textarea></textarea>
+                  <button>Report job</button>
+                </form>
+              </main>
+              <footer><a href="#">Jobstreet @ Google Play</a> <a href="#">Jobstreet @ App Store</a></footer>
+            </body></html>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://ph.jobstreet.com/job/94833707?utm_source=chatgpt.com")
+        assertTrue(signals.map { it.ruleId }.toString(), signals.isEmpty())
+    }
+
+    @Test
+    fun `a sign-in link beside a newsletter email box is not a login step`() = runBlocking {
+        val html = """<nav><a href="/login">Log in</a></nav>
+            <form><input type="email" name="newsletter_email"><button>Subscribe</button></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://shop.test/")
+        assertTrue(signals.none { it.ruleId == "MULTI_STEP_LOGIN_FORM" })
+    }
+
+    @Test
+    fun `an email field in a form with a free-text box is not a login step`() = runBlocking {
+        val html = """<h2>Sign in to track your order, or contact us</h2>
+            <form><input type="email" name="email"><textarea name="message"></textarea></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://shop.test/contact")
+        assertTrue(signals.none { it.ruleId == "MULTI_STEP_LOGIN_FORM" })
+    }
+
+    @Test
+    fun `a brand named only in footer or store links is not a brand claim`() = runBlocking {
+        val html = """<form action="/login"><input type="password" name="password"></form>
+            <footer><a href="#">Get it on Google Play</a> <a href="#">Follow us on Facebook</a></footer>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://portal.test/login")
+        assertTrue(signals.none { it.ruleId == "PAGE_BRAND_IMPERSONATION" })
+        assertTrue(signals.any { it.ruleId == "CREDENTIAL_FORM_UNTRUSTED" })
+    }
+
+    @Test
+    fun `a brand in the page header is still a brand claim`() = runBlocking {
+        val html = """<header><h1>Microsoft account</h1></header>
+            <form action="/login"><input type="password" name="password"></form>"""
+        val signals = HttpCredentialFormInspector(clientReturningHtml(200, html))
+            .inspect("https://ms-verify.test/login")
+        assertTrue(signals.any { it.ruleId == "PAGE_BRAND_IMPERSONATION" })
+    }
+
     @Test
     fun `identity collection is detected without password or payment fields`() = runBlocking {
         val html = """<form><input aria-label="Passport number"></form>"""
