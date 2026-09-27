@@ -290,6 +290,62 @@ object HeuristicScanner {
         return null
     }
 
+    /**
+     * Free page hosts where anyone picks the subdomain. In the 2026-09-27 live run 27 of the 35
+     * zero-hour misses sat on these: the parent domain is old and clean, so domain age and
+     * reputation say nothing, and the only evidence left in the URL is the name the attacker
+     * chose. Being on one of these hosts is NOT evidence by itself.
+     *
+     * github.io is deliberately absent: brand-named org pages there are the real companies
+     * (microsoft.github.io, facebookresearch.github.io, googlechrome.github.io).
+     */
+    private val FREE_PAGE_HOSTS = listOf(
+        "vercel.app", "netlify.app", "pages.dev", "workers.dev", "blogspot.com",
+        "replit.app", "repl.co", "gitbook.io", "web.app", "firebaseapp.com", "glitch.me",
+        "onrender.com", "up.railway.app", "framer.website", "framer.app", "webflow.io",
+        "wixsite.com", "weebly.com", "square.site", "godaddysites.com", "herokuapp.com",
+        "surge.sh", "000webhostapp.com", "cpanel.site"
+    )
+
+    /** Hosts owned by a brand's own company, where that brand's name in a subdomain is expected. */
+    private val FREE_HOST_OWNER = mapOf(
+        "blogspot.com" to "google", "web.app" to "google", "firebaseapp.com" to "google"
+    )
+
+    /**
+     * Crypto wallets and exchanges: the most impersonated names on free page hosts in the live
+     * run (Ledger, Trezor, Exodus), often misspelled on purpose ("ledgr", "trezr", "ledgger").
+     */
+    private val CRYPTO_BRANDS = listOf("ledger", "trezor", "exodus", "metamask", "trustwallet", "coinbase", "binance")
+
+    private val FREE_HOST_BRANDS = ALL_BRANDS + CRYPTO_BRANDS + listOf("whatsapp", "roblox", "telegram")
+
+    /**
+     * The brand a free-page-host subdomain claims, or null. The subdomain is entirely
+     * attacker-chosen, so matching is looser than rule 5: digits are ignored ("shopee2178"),
+     * a brand of six or more letters counts anywhere in a token ("idshopee", "exodusweb3"), and
+     * a crypto brand also counts with one letter wrong. Shorter brands are also ordinary words
+     * and names ("maya", "grab", "apple"), so they need a phishing word glued on or beside
+     * them: "gcash-verify" counts, "maya-portfolio" and "pineapple" do not.
+     */
+    private fun freeHostBrand(domain: String): String? {
+        val host = FREE_PAGE_HOSTS.firstOrNull { domain.endsWith(".$it") } ?: return null
+        val subdomain = domain.removeSuffix(".$host").removePrefix("www.")
+        val tokens = subdomain.split('.', '-', '_').map { it.filter { c -> !c.isDigit() } }
+            .filter { it.isNotEmpty() }
+        val hasPhishingWord = tokens.any { it in BRAND_AFFIXES || it in PHISHING_KEYWORDS }
+        return FREE_HOST_BRANDS.firstOrNull { brand ->
+            brand != FREE_HOST_OWNER[host] && brand.all { it.isLetter() } && tokens.any { token ->
+                when {
+                    brand.length >= 6 -> token.contains(brand) ||
+                        (brand in CRYPTO_BRANDS && token.length >= 5 && levenshtein(token, brand) == 1)
+                    token == brand -> hasPhishingWord
+                    else -> looksLikeBrandSpoof(token, brand)
+                }
+            }
+        }
+    }
+
     private val PROTECTED_DOMAINS = listOf(
         "paymaya", "gcash", "bpi", "bdo", "metrobank",
         "landbank", "unionbank", "paypal", "amazon", "apple",
@@ -739,6 +795,20 @@ object HeuristicScanner {
                 addFinding(
                     "BRAND_SLUG_ON_USER_CONTENT_${brand.filter { it.isLetterOrDigit() }}",
                     "Page impersonates \"${brand.uppercase()}\" on a public hosting site",
+                    40,
+                    LocalHeuristicStrength.STRONG,
+                    40
+                )
+            }
+        }
+
+        // 18. Brand name chosen as a subdomain on free page hosting. Skipped when rule 8
+        //     already caught the same trick, so one piece of evidence is not scored twice.
+        if (!isOfficialDomain && findings.none { it.ruleId.startsWith("BRAND_IN_SUBDOMAIN_") }) {
+            freeHostBrand(unicodeDomain)?.let { brand ->
+                addFinding(
+                    "BRAND_ON_FREE_HOSTING_${brand.filter { it.isLetterOrDigit() }}",
+                    "Uses the name \"${brand.uppercase()}\" on a free website host",
                     40,
                     LocalHeuristicStrength.STRONG,
                     40

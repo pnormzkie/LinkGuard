@@ -562,4 +562,50 @@ class HeuristicScannerTest {
             assertTrue(url, result.flags.isEmpty())
         }
     }
+
+    // ─── Brand names chosen as a subdomain on free page hosting (2026-09-27 live run) ─
+
+    @Test
+    fun `brand name on a free page host is flagged`() {
+        // Host shapes from the 2026-09-27 OpenPhish sample that scored SAFE with no blocklist.
+        listOf(
+            "https://shopee2178.blogspot.com/",
+            "http://www.idshopee-59.blogspot.com/",
+            "https://exodusweb3-us-en.pages.dev/",
+            "https://alatau-proof-ledger.pages.dev/",
+            "https://ledgr-strts.pages.dev/",
+            "http://project-live--ledgger.pages.dev/",
+            "https://webapp-docs------trezor.gitbook.io/",
+            "https://whatsappbrnoticias.blogspot.com/",
+            "https://metamask-wallet-connect.netlify.app/"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertNotEquals(url, ThreatLevel.SAFE, result.threatLevel)
+            assertTrue(url, result.flags.any { it.contains("free website host") })
+        }
+    }
+
+    @Test
+    fun `ordinary names on free page hosts are not read as brands`() {
+        listOf(
+            "https://maya-portfolio.vercel.app/",
+            "https://pineapple-recipes.blogspot.com/",
+            "https://grab-and-go-cafe.netlify.app/",
+            "https://letters-to-home.pages.dev/",
+            "https://my-blog.vercel.app/",
+            "https://googleblog.blogspot.com/",
+            "https://microsoft.github.io/vscode-docs/",
+            "https://facebookresearch.github.io/"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertFalse(url, result.flags.any { it.contains("free website host") })
+        }
+    }
+
+    @Test
+    fun `brand in subdomain on a free host is scored once`() {
+        val flags = flagsOf("https://facebooklogininfo.blogspot.com/")
+        assertTrue(flags.any { it.contains("Brand name used in subdomain") })
+        assertFalse(flags.any { it.contains("free website host") })
+    }
 }
