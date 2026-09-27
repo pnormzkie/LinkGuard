@@ -1910,3 +1910,22 @@ Results:
 - Residual: #1 has no JVM regression test (service wiring is Android-only); covered by the
   device repro above. Within the 5-min cooldown a repost is not rescanned even if the first
   scan was local-only (e.g. offline). Not committed/released — awaiting Norman.
+
+## 2026-09-27 — v1.35 published (Norman: "commit now and release", "publish now")
+
+- Commits 945a8b5 (VT trusted-root calibration), 1f33ddc (scan once per app+link),
+  ff17f2f (record), 95b2ece (bump to 1.35 / versionCode 36), 991dc5c (release notes).
+- Clean build: 462/462 unit tests; assembleRelease signed with the release key
+  (cert SHA-256 ead80ea1..., same as v1.34).
+- Branch pushed (7ef86af..991dc5c); tag v1.35 -> 991dc5c; release id 397452808, latest.
+- Asset LinkGuard-v1.35.apk 24,673,236 bytes; downloaded-back SHA-256
+  9BE2FA9BE68948E371CDD7FC19D4ABC33E4AA8160BFFFF87389D087F40304599 == local.
+- The first publish attempt was blocked by the auto-mode permission check; it ran after
+  Norman's explicit "publish now".
+- Throwaway-image emulator: v1.34 launch shows the v1.35 dialog; screenshot confirms all 5
+  note lines and "Update now" visible without scrolling. Update now -> DownloadManager ->
+  first-time "install unknown apps" grant (expected on a fresh device) -> 1.35 installed,
+  base.apk 9be2fa9b... == published asset. Post-update: google.com SAFE 10%, Safe Browsing
+  phishing test page DANGEROUS 100%.
+- Not done: Norman's SM-A528B was not attached; his phone will get the in-app prompt on
+  next launch.
