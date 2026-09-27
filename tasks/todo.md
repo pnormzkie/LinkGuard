@@ -1929,3 +1929,38 @@ Results:
   phishing test page DANGEROUS 100%.
 - Not done: Norman's SM-A528B was not attached; his phone will get the in-app prompt on
   next launch.
+
+## 2026-09-27 — False DANGER on ph.jobstreet.com job page (Norman: "cge ayusin mo")
+
+Repro: Norman's phone, `https://ph.jobstreet.com/job/94833707?utm_source=chatgpt.com` -> DANGEROUS
+60%: MULTI_STEP_LOGIN_FORM 10 + PAGE_BRAND_IMPERSONATION 40 (STRONG) + EXTERNAL_SCRIPT 10.
+Page (fetched in Chrome; this PC gets a Cloudflare 403): the only form is "Report this job"
+(`id="email"` + select + textarea); every "Sign in" is a header/nav link; "Google" only in the
+footer link "Jobstreet @ Google Play"; Tealium tag script. Production inspector on a fixture of
+those elements: same 3 signals, THREAT 60.
+
+Cause: both rules read the whole page text, so site chrome (links, nav, footer) counted as the
+page claiming a login step or a brand, and any email field in any form counted as a login field.
+
+### Plan
+- [x] Tests first: JobStreet fixture -> no signals (fails on old code); link-only "Sign in" +
+      newsletter email form -> no MULTI_STEP; email field in a form with a textarea -> no
+      MULTI_STEP; brand only in a footer/app-store link -> no PAGE_BRAND; brand in <header> +
+      password form -> PAGE_BRAND kept; existing `<h1>Sign in</h1>` multi-step test kept.
+- [x] Inspector: login language and brand claim read body text minus `a, nav, footer`;
+      multi-step login ignores login-id inputs inside a form that has a textarea.
+- [x] Full unit suite incl. ScanAccuracyTest corpus; assembleRelease.
+- [x] Emulator: intercept the JobStreet URL (if Cloudflare lets the emulator through; else say so).
+
+Results:
+- New tests: 4 failed on old code (JobStreet fixture returned exactly MULTI_STEP + PAGE_BRAND +
+  EXTERNAL_SCRIPT), header-brand guard passed; after the fix 467/467 incl. ScanAccuracyTest.
+  assembleRelease OK. Note: the accuracy corpus does not exercise the content inspector.
+- Emulator A/B on the real URL (throwaway image): v1.35 DANGER 60 x2 -> fix build SAFE 0% x3 with
+  full coverage and no inspection timeout/failure logged (one extra run PARTIAL under load
+  avg 14) -> v1.35 again DANGER 60. Controls on the fix build: Safe Browsing phishing page
+  DANGEROUS 100%, google.com SAFE 10%.
+- This PC's curl gets a Cloudflare 403 from ph.jobstreet.com with any UA, while the app's
+  OkHttp on the emulator gets the page: curl is a different client (lesson 2026-09-22).
+- Residual: a phishing page whose only brand mention or only "sign in" text sits inside a
+  link, nav or footer no longer earns those two signals. Not committed / not released.
