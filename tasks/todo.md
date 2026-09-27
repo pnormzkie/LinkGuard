@@ -1999,7 +1999,7 @@ First run of the reusable flow (stage-release.sh + publish.sh).
   View Report -> "SMS · 555-0001"; tapped link opened from History -> "Tapped link";
   manual scan -> "Manual Scan". Long-sender ellipsis not exercised on device (emulator SMS
   senders are short numbers).
-- Not committed / not released.
+- Committed (see commits 3d0bc94 + fb6f2cd).
 
 ## 2026-09-27 — v1.37 published (Finding #3 source label; recorded after the laptop died mid-session)
 
@@ -2109,3 +2109,57 @@ Results (v1.37 code, live providers, run 2026-09-27):
   write (Bash, python, Write tool; a 1-byte SKILL.md and a same-content notes.md survive), which
   is also why ffb2047 recorded it as deleted this morning. Cause not found. Updated text saved at
   tasks/publish-release-SKILL.md; needs Norman to find what removes it.
+
+## 2026-09-27 — Valid payment QR shown as "SUSPICIOUS LINK 25%" (Norman: own BPI QR; approved mockup option A)
+
+Cause: MainActivity.handleQrResult hard-codes every valid EMV/QR Ph payment QR to SUSPICIOUS 25
+(261a4ba, deliberate: a valid checksum can't prove whose account it pays). The verdict logic stays;
+the scan report presented it as a suspicious LINK with a made-up score.
+Mockups: tasks/mockup-payment-qr.png, tasks/mockup-payment-qr-options.png (A chosen).
+- [x] ScanDetailActivity: valid payment QR (app "QR" + stored category) -> blue hero, "₱ / PAYMENT QR"
+      ring with no score, pill "CHECK PAYEE NAME", "PAYS TO" + large name, no Copy URL, category
+      "Payment QR — valid format", "BEFORE YOU PAY" note instead of risk flags
+- [x] No DB/data change: stored rows keep SUSPICIOUS/25/"Payment QR — Payee unverified", so old history
+      entries render the new way too. Invalid payment QR unchanged.
+- [x] PaymentQrReportTest (3); full suite 481/481; assembleRelease OK (strings: apostrophe must be \' — first build failed on it)
+- [x] Device (SM-A528B; had v1.38 from the in-app update; test build installed with install -r): Norman
+      scanned a real payment QR ("Normzkie", 18:55) -> saved to history (home: 1 SUSPICIOUS ITEM, row
+      "⚡ SUSPICIOUS 25%") -> report matches mockup A: blue hero, ₱ / PAYMENT QR, CHECK PAYEE NAME,
+      PAYS TO Normzkie, "Payment QR — valid format", BEFORE YOU PAY note, no Copy URL
+      (tasks/payment-qr-after-device.png)
+- Open question: the 17:48 "Norman" payment QR from Norman's screenshot was not in this phone's history
+  (home showed 0 suspicious before the new scan). Not investigated; the new scan did save.
+- Out of scope (ask): history badge + home "Suspicious" counter/tab still count valid payment QRs.
+
+### Follow-up in the same change: history row + Suspicious count (Norman: "B", mockup tasks/mockup-payment-qr-list.png approved, no 4th counter)
+- [x] Constants + isUnverifiedPaymentQr moved to data/ScanData.kt (shared by UI and DAO); ScanDao.getSuspiciousCount
+      excludes sourceApp 'QR' + the valid-payment-QR category; HistoryActivity Suspicious tab uses
+      ScanResult.matchesHistoryFilter (payment QR under All only); ScanHistoryAdapter row: blue, "₱ CHECK NAME",
+      "₱" instead of %, category "Payment QR — valid format". Invalid payment QR unchanged. No schema change.
+- [x] PaymentQrReportTest now 5 cases; full suite 483/483; assembleRelease OK (Room accepted the query).
+      Old-code failure of the filter test not run (old filter was threatLevel-only, so it would list the QR).
+- [x] Device (same phone, install -r): home SUSPICIOUS ITEMS 1 -> 0 (THREATS 5, SAFE 16 unchanged); Recent
+      Activity row "₱ CHECK NAME / Payment QR — valid format / ₱" (tasks/payment-qr-home-after.png);
+      History Suspicious tab "No items found for this category"; ALL tab lists the Normzkie row.
+- [x] Row "₱" enlarged 12sp -> 20sp (reset to 12sp for other rows, since rows are recycled); 483/483; device screenshot tasks/payment-qr-home-after.png shows the larger ₱ and the other rows at normal size.
+- Committed (see commits 3d0bc94 + fb6f2cd).
+
+## 2026-09-27 — QR detection: links inside QR text were never scanned (Norman: "cge")
+
+Probe of QrTypeDetector (temp test, deleted) found: poster text "Scan para sa libreng load: https://…" ->
+UNKNOWN (link not scanned); vCard with URL: -> PAYMENT_QR ("Invalid Payment QR", link not scanned); WiFi QR
+and intent:// -> PAYMENT_QR; long dotted token -> URL. Causes: URL only when the WHOLE payload is a link;
+payment fallbacks ("6304" anywhere, any 50+ chars without spaces).
+- [x] QrTypeDetector.linkIn(): whole payload if it is a link, else first UrlExtractor link; payloads starting
+      intent:/javascript:/file:/data:/content:/market:/vbscript: are never mined. detect(): payment only when the
+      payload starts "0002" (EMV tag 00), checked before link extraction. MainActivity scans linkIn(qr).
+- [x] QrTypeDetectorTest +5 (4 fail on the old detector, confirmed with a temporary linkIn stub); 488/488;
+      assembleRelease OK
+- [x] Device (SM-A528B, gallery upload, one test image at a time; link = Safe Browsing test page):
+      qr1-poster -> DANGEROUS LINK, scanned https://testsafebrowsing.appspot.com/s/phishing.html
+      (tasks/qr-test-qr1-poster.png); qr2-vcard -> same (tasks/qr-test-qr2-vcard.png); qr3-wifi and
+      qr4-text -> "Unsupported QR type" snackbar, no warning, nothing saved.
+- Test hygiene lesson: screencap/uiautomator dump to /sdcard got indexed as a gallery photo and became the
+  newest picker tile; use /data/local/tmp. Removed lg.png + all LinkGuardTest images from the phone and
+  its MediaStore (query returns no rows).
+- Committed (see commits 3d0bc94 + fb6f2cd).
