@@ -2000,3 +2000,14 @@ First run of the reusable flow (stage-release.sh + publish.sh).
   manual scan -> "Manual Scan". Long-sender ellipsis not exercised on device (emulator SMS
   senders are short numbers).
 - Not committed / not released.
+
+## 2026-09-27 — v1.37 published (Finding #3 source label; recorded after the laptop died mid-session)
+
+- Commits 69535f5 (source label fix), 370940a (record), d920842 (bump to 1.37 / versionCode 38),
+  acd6359 (release notes, 279 chars) — all on origin/release/v1.30-source.
+- Staged APK: 24,674,128 bytes, SHA-256 E21B99C5B3A7941BD5A7D006C9BF2E617FBC1597DA9E48DB0266095FAE077C5E.
+- Checked after resuming: GitHub release id 397488555, tag v1.37 -> acd6359, not draft or
+  prerelease, published 2026-09-27T03:06:49Z. Public releases/latest = v1.37. Asset downloaded
+  again: SHA-256 matches the staged APK. Body matches release-notes-v1.37.md.
+- Not verified: the in-app update from 1.36 to 1.37 on an emulator or device. The session died
+  before that step was recorded. Norman's SM-A528B gets the prompt on next launch.
