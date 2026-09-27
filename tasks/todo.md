@@ -1848,7 +1848,7 @@ Findings (open, not fixed):
       detections (0xSI_f33d, Fortra); VirusTotalEnrichmentProvider has no trusted-domain
       calibration (HA/URLhaus/DomainAge do), and 1-2 hits = 25 = SUSPICIOUS threshold.
       www.google.com and 12 other majors were SAFE.
-- [ ] S3/P2 Scan report "Source" is "Manual Scan" for everything except QR
+- [x] (fixed 2026-09-27, see below) S3/P2 Scan report "Source" is "Manual Scan" for everything except QR
       (ScanDetailActivity.kt:99): SMS alerts and link taps are mislabeled; sender unused.
 - [ ] S3/P3 History screen reuses MainViewModel -> getRecentScans(50); counters count all
       rows. Seen: THREATS 7, Threats tab lists 6; older rows unreachable.
@@ -1984,3 +1984,19 @@ First run of the reusable flow (stage-release.sh + publish.sh).
   4736962e... == asset. Post-update: JobStreet URL SAFE 0%, Safe Browsing phishing page
   DANGEROUS 100%, google.com SAFE 10%.
 - Not done: Norman's SM-A528B not attached; it gets the in-app prompt on next launch.
+
+## 2026-09-27 — Finding #3: Scan report "Source" mislabels SMS alerts and taps (Norman: approved mockup)
+
+- Mockup first (before/after from the real v1.36 screenshot), approved by Norman before any edit.
+- `ScanDetailActivity.kt`: Source row now comes from `scanSourceLabel(app, sender, ...)`:
+  notification -> "SMS · 555-0001" (app alone when the sender is blank/"Unknown"), "Link Tap" ->
+  "Tapped link", "Manual"/"" -> "Manual Scan", "QR" -> "QR Scan". New strings
+  `source_tapped_link`, `source_app_sender`. `tvSender` gets maxLines 1 + ellipsize end +
+  maxWidth 240dp + 12dp start margin so a long sender cannot squeeze the "Source" label.
+- Tests: ScanSourceLabelTest (4). Full suite 471/471, assembleRelease OK. The old code was an
+  inline expression, so there was no function to fail against; the SMS case is pinned.
+- Emulator (throwaway image, fix build): report opened from a real SMS DANGER alert's
+  View Report -> "SMS · 555-0001"; tapped link opened from History -> "Tapped link";
+  manual scan -> "Manual Scan". Long-sender ellipsis not exercised on device (emulator SMS
+  senders are short numbers).
+- Not committed / not released.
