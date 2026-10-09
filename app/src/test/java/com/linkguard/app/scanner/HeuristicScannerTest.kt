@@ -438,6 +438,46 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `online gambling promo text is suspicious`() {
+        // Real SMS from 2026-10-09: no peso sign, so the reward/cashback patterns missed it
+        // and slot.wintayo.com scored 0% SAFE.
+        val result = HeuristicScanner.scanWithContext(
+            "https://slot.wintayo.com",
+            "Surprises await! Claim 117 ! First Deposit Bonus up to 5,000, Mission Rewards up to " +
+                "20,000 & random 777  Mystery Bonuses this weekend! * slot.wintayo.com *"
+        )
+        assertEquals(ThreatLevel.SUSPICIOUS, result.threatLevel)
+        assertTrue(result.flags.any { it.contains("smishing", ignoreCase = true) })
+    }
+
+    @Test
+    fun `other online gambling promo wording is flagged`() {
+        listOf(
+            "Get 50 free spins today! Register now",
+            "Welcome bonus: 100% on your 1st deposit",
+            "Daily 777 jackpot waiting for you",
+            "JILI slots: claim your bonus now",
+            "E-sabong live na! Free credits pag nag-register"
+        ).forEach { text ->
+            val flags = flagsOf("https://example.com", text)
+            assertTrue(text, flags.any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `everyday deposit and number messages are not flagged as gambling`() {
+        listOf(
+            "Your deposit of 5,000 was received. Thank you for banking with us.",
+            "Your delivery time slot is 2-4 PM tomorrow.",
+            "Call our hotline 0917 777 1234 for assistance.",
+            "Room 777 is ready for check-in."
+        ).forEach { text ->
+            val flags = flagsOf("https://example.com", text)
+            assertFalse(text, flags.any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
+
+    @Test
     fun `task commission scam is flagged`() {
         val flags = flagsOf("https://example.com", "Like and review products to earn commission per task.")
         assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })

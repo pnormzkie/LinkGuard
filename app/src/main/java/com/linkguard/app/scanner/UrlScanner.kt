@@ -248,7 +248,12 @@ object HeuristicScanner {
         Regex("(?:download|install|i-?install).{0,30}(?:anydesk|teamviewer|quicksupport|remote desktop)", RegexOption.IGNORE_CASE),
         Regex("(?:like|follow|review|rate|subscribe).{0,40}(?:task|commission|kita|earn|bayad|paid)", RegexOption.IGNORE_CASE),
         Regex("(?:guaranteed|sigurado|sure).{0,30}(?:return|profit|kita|income).{0,30}(?:invest|deposit|cash in|mag-?invest)", RegexOption.IGNORE_CASE),
-        Regex("(?:warrant|arrest|aresto|kaso|investigation).{0,50}(?:pay|bayad|deposit|transfer|legal fee|penalty)", RegexOption.IGNORE_CASE)
+        Regex("(?:warrant|arrest|aresto|kaso|investigation).{0,50}(?:pay|bayad|deposit|transfer|legal fee|penalty)", RegexOption.IGNORE_CASE),
+        // Online gambling promos (unlicensed casino/slot SMS blasts; often no peso sign)
+        Regex("(?:first|1st)\\s+deposit|deposit\\s+bonus", RegexOption.IGNORE_CASE),
+        Regex("free\\s+spins?", RegexOption.IGNORE_CASE),
+        Regex("(?<!\\d)777(?!\\d).{0,30}(?:bonus|jackpot|spins?|slots?)", RegexOption.IGNORE_CASE),
+        Regex("(?<![a-z])(?:jili|e-?sabong|casino|slots?\\s+games?|jackpot).{0,40}(?:bonus|claim|deposit|free|register|reward)", RegexOption.IGNORE_CASE)
     )
 
     private val HOMOGRAPH_MAP = mapOf(

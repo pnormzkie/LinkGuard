@@ -2243,3 +2243,14 @@ payment fallbacks ("6304" anywhere, any 50+ chars without spaces).
 - Device: SM-A528B on the pre-bump test build (1.39 / code 40) shows "Update available · Version 1.40 · You're on
   1.39", all 6 note lines and "Update now" visible without scrolling (tasks/v140-update-dialog.png; the two lines
   with quotes are missing from the uiautomator grep but present on screen). Install left to Norman.
+
+## 2026-10-09 — Online-gambling SMS scored SAFE (slot.wintayo.com, 0%)
+
+- [x] Repro: HeuristicScanner on the real SMS + https://slot.wintayo.com -> SAFE 0, findings=[] (temp test, removed).
+      Cause: no SMISHING_PATTERNS entry for gambling promos; the reward pattern needs php/₱ and this text has none.
+- [x] 4 gambling patterns in UrlScanner SMISHING_PATTERNS (first/1st deposit, deposit bonus, free spins,
+      777+bonus/jackpot/spin/slot, jili/e-sabong/casino/slot games/jackpot + bonus/claim/deposit/free/register/reward).
+- [x] HeuristicScannerTest: 2 positive tests fail on old code, pass now; 1 negative test (bank deposit, delivery
+      time slot, 0917 777 1234, room 777) stays clean. Full suite 495/495.
+- Not done: device check; link-tap-only scans (no SMS text) still SAFE — follow-up idea: gambling word in domain
+  + young DomainAge as a combined signal. Domain keywords deliberately skipped (10% alone never changes the verdict).
