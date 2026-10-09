@@ -80,6 +80,10 @@ class LinkNotificationService : NotificationListenerService() {
         val sender = title.ifBlank { "Unknown" }
 
         urls.forEach { url ->
+            // Before the dedupe: a tap of this link must scan with its message even when this
+            // repost is not rescanned here.
+            ScannerProvider.recentMessageContext.record(url, fullMessageText)
+
             // Runs on the main thread before the launch below, so a twin post arriving
             // milliseconds later is dropped here rather than racing a second scan. Checked
             // before the quota tokens so repeats don't spend them.

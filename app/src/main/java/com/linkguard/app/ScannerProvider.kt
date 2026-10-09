@@ -15,6 +15,7 @@ import com.linkguard.app.domain.orchestrator.ScanOrchestrator
 import com.linkguard.app.domain.scanner.LegacyHeuristicEngine
 import com.linkguard.app.domain.scoring.ScoringEngine
 import com.linkguard.app.util.AppConfig
+import com.linkguard.app.util.RecentMessageContext
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -64,6 +65,9 @@ object ScannerProvider {
     }
 
     private val scoringEngine = ScoringEngine()
+
+    /** Shared by the notification service (records) and link tap (looks up); same process. */
+    val recentMessageContext = RecentMessageContext()
 
     val orchestrator: ScanOrchestrator by lazy {
         ScanOrchestrator(

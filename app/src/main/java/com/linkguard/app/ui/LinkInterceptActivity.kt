@@ -103,7 +103,9 @@ class LinkInterceptActivity : AppCompatActivity() {
     private fun scanAndDecide(url: String) {
         scanJob = lifecycleScope.launch {
             val legacy = runCatching {
-                ScannerProvider.orchestrator.scan(url)
+                // A link that arrived in a notification keeps that message as scan context.
+                val messageText = ScannerProvider.recentMessageContext.lookup(url)
+                ScannerProvider.orchestrator.scan(url, messageText = messageText)
                     .toLegacy(sourceApp = "Link Tap", senderInfo = "Tapped link")
             }.getOrNull()
 

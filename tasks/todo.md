@@ -2254,3 +2254,21 @@ payment fallbacks ("6304" anywhere, any 50+ chars without spaces).
       time slot, 0917 777 1234, room 777) stays clean. Full suite 495/495.
 - Not done: device check; link-tap-only scans (no SMS text) still SAFE — follow-up idea: gambling word in domain
   + young DomainAge as a combined signal. Domain keywords deliberately skipped (10% alone never changes the verdict).
+- Committed: c6c6818.
+
+## 2026-10-09 — Link tap reuses the SMS text it arrived in
+
+Cause: LinkInterceptActivity scanned orchestrator.scan(url) with no message text, so the same
+slot.wintayo.com link was flagged from the SMS but read SAFE 0% "via Link Tap". Copying the stored
+verdict was rejected: both scans ran in the same minute, so the SMS result may not exist yet when tapped.
+- [x] util/RecentMessageContext: in-memory url -> message text, 30 min TTL, 50 entries, keyed by
+      host+path+query ignoring scheme/case/fragment/trailing slash. Never written to disk.
+- [x] ScannerProvider.recentMessageContext shared instance (service + activity, same process).
+- [x] LinkNotificationService records every extracted URL before the scan dedupe.
+- [x] LinkInterceptActivity scans with lookup(url) as messageText (null -> unchanged behavior).
+- [x] RecentMessageContextTest: 7 tests. Full suite 502/502; :app:assembleDebug OK.
+- [x] Device (SM-A528B, release-signed test build over 1.40, data kept): shell notification with the real
+      SMS text -> "Suspicious Link Detected from LuckyPin67"; then VIEW https://slot.wintayo.com ->
+      SUSPICIOUS LINK 25%, "Message matches known smishing/scam pattern", goes to vip.wintayo.com
+      (tasks/gambling-sms-alert.png, tasks/gambling-link-tap.png). Control https://www.wintayo.com (no
+      message) -> SAFE 0%, unchanged. Emulator unusable: system userdata.img is 1 MB, -data copy never boots.
