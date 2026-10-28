@@ -102,6 +102,30 @@ class DomainExtractorTest {
         assertEquals("evil.com", DomainExtractor.extract("https://user:hunter2@evil.com:8080/%%%"))
     }
 
+    // ── Browser parsing parity ───────────────────────────────────────────────
+
+    // Browsers (WHATWG URL) treat '\' as '/' in http(s) URLs, so this navigates to the .xyz
+    // host. URI() rejects '\', and the fallback used to take the text after '@' — reporting
+    // the trusted paypal.com and silencing every host-based check.
+    @Test
+    fun `backslash ends the authority like a browser`() {
+        assertEquals(
+            "paypal-account-verify.xyz",
+            DomainExtractor.extract("http://paypal-account-verify.xyz\\@paypal.com/login")
+        )
+    }
+
+    @Test
+    fun `fallback stops at a fragment before userinfo`() {
+        // '^' makes URI() throw; the browser navigates to evil.com and keeps "#^@good.com" local.
+        assertEquals("evil.com", DomainExtractor.extract("https://evil.com#^@good.com"))
+    }
+
+    @Test
+    fun `fallback stops at a query before userinfo`() {
+        assertEquals("evil.com", DomainExtractor.extract("https://evil.com?^@good.com"))
+    }
+
     // ── Malformed scheme / fallback robustness ───────────────────────────────
 
     @Test

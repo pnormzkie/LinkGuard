@@ -79,4 +79,14 @@ class LegacyHeuristicEngineTest {
         assertEquals(25, file.score)
         assertEquals(Verdict.SUSPICIOUS, ScoringEngine().evaluate(signals).verdict)
     }
+
+    @Test
+    fun `backslash before a trusted host does not hide the real phishing host`() = runBlocking {
+        // A browser opens the .xyz host here; "\@paypal.com" must not make it read as trusted.
+        val slash = ScoringEngine().evaluate(engine.scan("http://paypal-account-verify.xyz/@paypal.com/login", null))
+        val backslash = ScoringEngine().evaluate(engine.scan("http://paypal-account-verify.xyz\\@paypal.com/login", null))
+
+        assertEquals(Verdict.THREAT, slash.verdict)
+        assertEquals(slash.verdict, backslash.verdict)
+    }
 }

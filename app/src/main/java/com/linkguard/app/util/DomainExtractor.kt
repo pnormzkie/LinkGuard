@@ -3,6 +3,8 @@ package com.linkguard.app.util
 import java.net.URI
 
 object DomainExtractor {
+    private val AUTHORITY_TERMINATORS = setOf('/', '\\', '?', '#')
+
     /**
      * Safely extracts the host/domain from a URL string.
      * Handles missing schemes, subdomains, ports, and paths.
@@ -24,12 +26,12 @@ object DomainExtractor {
             val host = uri.host ?: authorityHost(uri.rawAuthority) ?: return null
             host.lowercase().removePrefix("www.")
         } catch (e: Exception) {
-            // Mirror URI.host: drop scheme, path, and query, then take the authority's
-            // host — the part after the LAST '@' (stripping user:pass@ userinfo) and
-            // before the ':' port — and lowercase it.
+            // Mirror how a browser finds the host: the authority ends at the first '/', '\',
+            // '?' or '#' (browsers treat '\' as '/' in http(s) URLs, and URI() rejects it, so
+            // "evil.xyz\@paypal.com" lands here). Then take the part after the LAST '@'
+            // (stripping user:pass@ userinfo) and before the ':' port, and lowercase it.
             url.substringAfter("://")
-                .substringBefore("/")
-                .substringBefore("?")
+                .takeWhile { it !in AUTHORITY_TERMINATORS }
                 .substringAfterLast("@")
                 .substringBefore(":")
                 .removePrefix("www.")

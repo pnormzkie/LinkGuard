@@ -115,3 +115,9 @@
 **Context:** Verifying the release-safe redirect-resolution log line (HttpRedirectResolver.resolve).
 **Rule:** Before calling a network timing "environment only", reproduce it on at least one real device on a real network. If that isn't possible, say "seen on the emulator; real-device behaviour unknown". Never write "not the app" on emulator evidence alone.
 **Status:** active
+
+## 2026-10-28 — Host extraction must parse the way the browser does
+**Mistake:** DomainExtractor's fallback (used when java.net.URI throws) split the authority only at '/' and '?', then took the text after the last '@'. Browsers also end the authority at '\' and '#', so `http://evil.xyz\@paypal.com/` read as trusted paypal.com while the browser opened evil.xyz. Every trusted-host waiver went silent: a THREAT/80 URL scored SAFE/0.
+**Context:** Repo audit. Found by comparing URI, the fallback and OkHttp HttpUrl on the same string.
+**Rule:** Any code that decides "which host is this" for a trust decision must give the same answer as the browser (WHATWG) for '\', '#', '?' and '@'. When adding or changing a host parser, add a parser-differential test for these characters.
+**Status:** active
