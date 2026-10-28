@@ -2272,3 +2272,35 @@ verdict was rejected: both scans ran in the same minute, so the SMS result may n
       SUSPICIOUS LINK 25%, "Message matches known smishing/scam pattern", goes to vip.wintayo.com
       (tasks/gambling-sms-alert.png, tasks/gambling-link-tap.png). Control https://www.wintayo.com (no
       message) -> SAFE 0%, unchanged. Emulator unusable: system userdata.img is 1 MB, -data copy never boots.
+
+## 2026-10-09 — v1.41 published (device check unfinished)
+
+- Commits c6c6818 (gambling smishing patterns), 00de443 (link tap reuses SMS text), 6a56dd7 (bump 1.41 / code 42),
+  8414f2d (notes, 6 lines / 312 chars). stage-release: 502/502, SHA-256 5F3D9A6B...F84968, 24,683,364 bytes.
+- publish.sh: release id 407966835, tag v1.41 -> 8414f2d, PUBLISHED_AND_VERIFIED.
+- Device (SM-A528B): update dialog OK, all lines + "Update now" visible (tasks/v141-update-dialog.png); download OK;
+  install stopped at Google Play Protect "App scan recommended" — left for Norman. NOT yet verified: installed
+  versionName 1.41, base.apk hash, smoke URLs. Release record not committed/pushed yet.
+- Open: .claude/skills/publish-release/SKILL.md is deleted within seconds of being restored (cause unknown);
+  /publish-release still works from tasks/publish-release-SKILL.md.
+
+## 2026-10-28 — Repo audit + fix: backslash URL hid phishing host behind a trusted domain
+
+- [x] Audit (read-only): 6 findings; #1 critical, confirmed by probe
+- [x] Repro: `http://paypal-account-verify.xyz\@paypal.com/login` scored SAFE/0 vs THREAT/80 with `/` (DomainExtractor fallback took the host after '@'; browsers end the authority at '\')
+- [x] Regression tests (red first): DomainExtractorTest x3, LegacyHeuristicEngineTest x1
+- [x] Fix: DomainExtractor fallback ends the authority at '/', '\', '?' or '#'
+- [x] Verify: :app:testDebugUnitTest — 506 tests, 0 failures
+- [x] Released as v1.42 (see below)
+- [ ] Residual: HeuristicScanner.extractPath splits only on '/' and '?' — the "\@paypal.com" segment is not seen as path text (verdict now correct via host rules)
+- [ ] Backlog from the audit: #2 API keys inside the public APK; #3 installer launched from a background receiver (Android 10+ BAL, unverified); #4 MainViewModel.manualScan saveScan outside runCatching; #5 scan cache key has no delimiter; #6 HostSafetyValidator misses 100.64/10, 64:ff9b::/96, 198.18/15, multicast
+
+## 2026-10-28 — v1.42 published (device check not done)
+
+- Commits 684522e (DomainExtractor fix + 4 regression tests), 3677782 (bump 1.42 / code 43), aa3a8f8 (notes, 5 lines / 248 chars).
+- stage-release: 506/506 tests, release cert matched, 24,683,356 bytes, SHA-256 862A3368...239659C.
+- publish.sh: release id 426757224, tag v1.42 -> aa3a8f8, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
+- Notes deliberately do not describe the bypass (older installs remain exposed until they update).
+- NOT verified: update dialog on device, install over v1.41, smoke URLs incl. the backslash URL. No device attached
+  (adb empty), 3.2 GB free RAM; emulator not attempted (last attempt did not boot).
+- Also still open from v1.41: installed versionName/hash and smoke never confirmed on SM-A528B.
