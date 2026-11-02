@@ -2396,3 +2396,11 @@ Approved by Norman: fix both.
 - Download dir after update: only LinkGuard-v1.45.apk (pruning works on the live build).
 - Smoke: google.com SAFE 10%; phishing test page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40%, `NO_REDIRECT 5ms` (no request); backslash URL DANGEROUS 80% (resolver TIMEOUT 6004 ms on the non-existent host = normal NXDOMAIN wait, verdict unaffected). Screens tasks/v145-*.png.
 - Not verified on the live build: the background "tap to install" notification (tested on a temp build earlier), QR scanner after the manifest change.
+
+## 2026-11-02 — QR scanner after the camera uses-feature change (v1.45, SM-A528B) — PARTIAL
+
+- Home -> "QR Code Scanner" opens QrScannerActivity: frame, "ALIGN QR CODE INSIDE THE FRAME", "Upload QR from Gallery" (tasks/v145-qr-1.png). No crash / FATAL in logcat.
+- Camera really opens: `dumpsys media.camera` lists com.linkguard.app on Camera ID 0 (back), "Device 0 is open", SurfaceView consumer = QrScannerActivity.
+- Preview was black (faint sensor noise) — scene was dark/phone lying flat; frames not seen, so DECODING a real QR is NOT verified. BACK closed the activity and released the camera.
+- Manifest change itself is therefore safe for the camera path (permission still granted, back camera opens).
+- QR decode VERIFIED (follow-up, same day): generated a QR of the Safe Browsing phishing test URL (segno, throwaway), pushed to /sdcard/Pictures, Upload QR from Gallery -> photo picker (only that one image selected) -> Scan Report: DANGEROUS 100%, 10 vendors, Source "QR Scan" (tasks/v145-qr-2..4.png). The manifest change did not break the QR path. Live-camera decoding still not seen (dark scene); test image removed from the phone; the scan remains in the app's history as a QR Scan entry.
