@@ -2525,3 +2525,10 @@ Device A/B, SM-A528B (A = official v1.46, B = release-signed build of this sourc
 - B7 on device (SYSTEM_ALERT_WINDOW denied for the test, restored to allow): background download -> "update ready" active (1); same process (pid unchanged), "Update now" again -> active 0 within 2 s, installer opened directly. Note: `am force-stop` itself clears an app's notifications, so the first attempt that force-stopped was not a valid test.
 - Phone restored: official v1.46 installed through that in-app flow (Play Protect ~2 min), base.apk 4ec6b2d7... == published; overlay permission allow.
 - Not covered: B7 has no unit test (no Robolectric in this project); B8 only when the page answers within the per-hop timeout.
+
+## 2026-11-02 — v1.47 published (device check not done)
+
+- Contents: e4bb06f (http link first hop probed over https, X1), 02fbf62 (backlog sweep B1-B3, B5-B8), bump 1.47 / code 48, release notes (7 lines / 291 chars, deliberately general).
+- stage-release: 541/541 tests, 24,687,560 bytes, SHA-256 F195D8D0...382ACF.
+- publish.sh: release id 431132286, tag v1.47, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
+- NOT verified on device yet: update dialog 1.47 over 1.46, in-app install, smoke on the published APK (the changes themselves were A/B-tested on a release-signed build of the same source).
