@@ -2439,3 +2439,10 @@ Measurement (temporary JVM test, removed; real heuristic + scoring engines, ever
 - [x] UrlScanner: smishing patterns for "P5,000 ... claim/reward/prize/redeem/cashback" and "unusual/suspicious/unauthorized login|activity|transaction ... secure/verify/confirm/click/update"; brands meralco, pldt, maynilad, cebuana, gotyme with their official domains.
 - [x] Full suite 516/516 (incl. ScanAccuracyTest false-positive corpus).
 - After (same set): link-only 21/30 (6 DANGER), with SMS 30/30 (19 DANGER); FP 0/12. Caveat: the patterns were written against these exact texts, so this overstates real-world gains; no-brand domains are still SAFE when tapped without message context.
+
+## 2026-11-02 — v1.46 published (device check not done)
+
+- Commits 6908236 (P-amount prize texts, fake login alerts, utility/telco brands), bump 1.46 / code 47, release notes (7 lines / 306 chars).
+- stage-release: 516/516 tests, 24,683,464 bytes, SHA-256 4EC6B2D7...563FC3.
+- publish.sh: release id 431083976, tag v1.46, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
+- NOT verified on device: update dialog 1.46 over 1.45, in-app install, smoke.
