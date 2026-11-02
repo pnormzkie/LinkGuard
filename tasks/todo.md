@@ -2313,3 +2313,11 @@ Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/
 - [x] #4 fix: MainViewModel.manualScan saveScan in runCatching + log. No unit test: MainViewModel builds ScanRepository(Application) and the ScannerProvider singleton, no existing seam; verified by compile only
 - [x] Full suite 507/507 + assembleDebug OK; :app:testDebugUnitTest
 - [ ] Not committed / not released until Norman asks
+
+## 2026-11-02 — v1.43 published (device check not done)
+
+- Commits 128d374 (first-hop private-host check + manualScan saveScan guard), 23ac1e1 (bump 1.43 / code 44), release notes (6 lines / 235 chars; wording deliberately vague).
+- stage-release: 507/507 tests, 24,683,356 bytes, SHA-256 2F6BE8C3...9A1F4A.
+- publish.sh: release id 431002556, tag v1.43, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
+- NOT verified: update dialog, install over v1.42, smoke URLs on a device. #4 has no unit test (no seam in MainViewModel).
+- Skipped by decision: #6 (range additions can break NAT64 / fake-IP VPN / Tailscale), key rotation. Open: #3, #5, lint errors, device checks for v1.41-v1.43.
