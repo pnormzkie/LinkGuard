@@ -1,6 +1,7 @@
 package com.linkguard.app.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -55,7 +56,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 orchestrator.scan(url)
             }.onSuccess { domainResult ->
                 val legacyResult = domainResult.toLegacy(sourceApp = sourceApp, senderInfo = "You")
-                repository.saveScan(legacyResult)
+                // A failed history write must not crash the app or hide a finished scan.
+                runCatching { repository.saveScan(legacyResult) }
+                    .onFailure { Log.e("MainViewModel", "Could not save scan to history", it) }
                 _manualScanResult.postValue(legacyResult)
                 loadData()
             }.onFailure { e ->

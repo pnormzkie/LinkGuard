@@ -2304,3 +2304,12 @@ verdict was rejected: both scans ran in the same minute, so the SMS result may n
 - NOT verified: update dialog on device, install over v1.41, smoke URLs incl. the backslash URL. No device attached
   (adb empty), 3.2 GB free RAM; emulator not attempted (last attempt did not boot).
 - Also still open from v1.41: installed versionName/hash and smoke never confirmed on SM-A528B.
+
+## 2026-11-02 — v1.43: audit #1 (first-hop SSRF) and #4 (saveScan outside runCatching)
+
+Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/10 can break scans on NAT64 / fake-IP VPN / Tailscale). #5 and key rotation not in scope.
+- [x] #1 repro test: HttpRedirectResolver.resolve("http://192.168.1.1/admin") must make no call (red on current code)
+- [x] #1 fix: check first URL host with isBlockedHost before the loop; return NO_REDIRECT, no request (a BLOCKED_PRIVATE_HOST outcome would add the "redirects to an unsafe target" signal to a link that never redirected)
+- [x] #4 fix: MainViewModel.manualScan saveScan in runCatching + log. No unit test: MainViewModel builds ScanRepository(Application) and the ScannerProvider singleton, no existing seam; verified by compile only
+- [x] Full suite 507/507 + assembleDebug OK; :app:testDebugUnitTest
+- [ ] Not committed / not released until Norman asks

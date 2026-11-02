@@ -610,4 +610,32 @@ class HttpRedirectResolverTest {
         assertEquals(0, connectStarts.get())
         assertEquals(0, requestStarts.get())
     }
+
+    @Test
+    fun `private or local first url is never contacted`() = runBlocking {
+        val calls = AtomicInteger()
+        val client = OkHttpClient.Builder()
+            .eventListener(object : EventListener() {
+                override fun callStart(call: Call) {
+                    calls.incrementAndGet()
+                }
+            })
+            .build()
+
+        listOf(
+            "http://192.168.1.1/admin",
+            "http://127.0.0.1:8080/",
+            "http://10.0.0.5/reset",
+            "http://169.254.169.254/latest/meta-data",
+            "http://[::1]/",
+            "http://localhost/admin",
+            "http://printer.local/"
+        ).forEach { url ->
+            val result = HttpRedirectResolver(client).resolve(url)
+            assertEquals(url, RedirectOutcome.NO_REDIRECT, result.outcome)
+            assertEquals(url, result.finalUrl)
+        }
+
+        assertEquals(0, calls.get())
+    }
 }

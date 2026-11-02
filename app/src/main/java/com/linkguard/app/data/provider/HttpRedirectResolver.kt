@@ -62,6 +62,14 @@ class HttpRedirectResolver(
         val startedAt = now()
         var hops = 0
 
+        // The tapped URL gets the same host check as every redirect target. Nothing is sent, and
+        // the outcome is NO_REDIRECT rather than BLOCKED_PRIVATE_HOST: the link never redirected,
+        // so the "redirects to an unsafe target" signal would describe something that didn't happen.
+        val startHost = state.current.toHttpUrlOrNull()?.host
+        if (startHost != null && isBlockedHost(startHost)) {
+            return result(state.chain, state.current, RedirectOutcome.NO_REDIRECT)
+        }
+
         while (true) {
             if (now() - startedAt >= totalBudgetMs) {
                 return result(state.chain, state.current, RedirectOutcome.TIMEOUT)
