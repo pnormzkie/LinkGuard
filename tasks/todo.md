@@ -2453,3 +2453,24 @@ Measurement (temporary JVM test, removed; real heuristic + scoring engines, ever
 - In-app update in foreground: installer opened directly (no BAL_BLOCK) -> Update -> InstallSuccess in ~20 s, no Play Protect prompt. Installed 1.46 / code 47; base.apk SHA-256 4ec6b2d7...563fc3 == staged == published. Counters 11/22/65 before = after (history kept). Download dir holds only LinkGuard-v1.46.apk.
 - Smoke: google.com SAFE 10%; phishing test page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40%, NO_REDIRECT 18 ms (no request).
 - New detection on device: https://meralco-bill-rebate.com/apply SUSPICIOUS 50% (was SAFE 10% before v1.46). Notification "Congratulations! You won P5,000 ... Claim now: https://my-refund-portal.com/claim?n=46" (properly quoted, android.text verified) -> "⚠ Suspicious Link Detected — From Shopee via shell" alert within 5 s; history 12/25/66.
+
+## 2026-11-02 — X1 option C: probe an http link's first hop over https (not committed)
+
+Approved by Norman ("gawin mo yung option C, basta dapat ma test ng maigi"). Cleartext policy unchanged.
+- [x] Tests first (HttpRedirectResolverTest, 6 new): http link probed over https + redirect followed with no http request; non-redirecting http link keeps its ORIGINAL http URL as finalUrl (so the unencrypted-HTTP signal survives); failed https probe = ERROR on the original URL; relative Location resolves against https; https links fetched exactly as given; httpsEquivalent keeps host/path/query/explicit port, 80 -> default. 4 behaviour tests red on the old resolver (compile-only red avoided by adding the helper first).
+- [x] HttpRedirectResolver: `fetchUrl = httpsEquivalent(current)` on hop 0 only; Location resolved against fetchUrl. Mid-chain http hops unchanged (still refused by policy, kalibrr rule unchanged).
+- [x] :app:testDebugUnitTest 522/522, assembleDebug, lintDebug OK.
+- [x] Device A/B on SM-A528B (A = official v1.46, B = release-signed build of this source, same 1.46/47; official v1.46 reinstalled afterwards, hash 4ec6b2d7... re-checked):
+  | URL | A (v1.46) | B (option C) |
+  |---|---|---|
+  | http://postman-echo.com/redirect-to?url=<SB phishing test page> | SAFE 15% "passed", ERROR 12 ms | DANGEROUS 100%, GOES TO .../phishing.html |
+  | http://httpbingo.org/redirect-to?url=https://example.com/ | SUSPICIOUS 30%, ERROR | SUSPICIOUS 25%, GOES TO https://example.com/ |
+  | http://192.168.1.1/admin | SUSPICIOUS 40%, NO_REDIRECT 5 ms | same |
+  | http://www.kalibrr.com/ | SAFE 15% | SAFE 15% (now shows GOES TO http://www.kalibrr.com/home; same-site, no signal) |
+  | http://neverssl.com/ (no HTTPS) | SAFE 15%, 51 ms | SAFE 15%, ERROR after ~3.6 s (repeatable) |
+  | http://example.com/ | DANGEROUS 71% (2 vendors — pre-existing vendor FP, unrelated) | same verdict; probe 1.1-1.3 s (one transient 3 s timeout) |
+  | http://1.1.1.1/login/verify-account | SUSPICIOUS 50% | SAFE 20% — https probe redirects to Cloudflare's own https://one.one.one.one/..., which is then scanned (same rule https links already follow: a resolved chain is scored by its destination) |
+  | https links (SB phishing, httpbingo https) | unchanged | unchanged |
+  - httpbingo refuses redirect-to targets outside its allowlist (403 for the phishing page) — test-service limit, switched to postman-echo.
+- Trade-offs seen: (1) http links to hosts without HTTPS now wait for the connect timeout (~3.6 s added); (2) a raw-IP/http link that redirects is judged by its destination, so its IP/HTTP signals no longer count — consistent with https chains, but a verdict drop like 1.1.1.1 50% -> 20% is possible.
+- Side finding: http://example.com/ is DANGEROUS 71% from 2 vendor hits (pre-existing false positive).
