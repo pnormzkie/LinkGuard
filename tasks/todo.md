@@ -2405,3 +2405,37 @@ Approved by Norman: fix both.
 - Manifest change itself is therefore safe for the camera path (permission still granted, back camera opens).
 - QR decode VERIFIED (follow-up, same day): generated a QR of the Safe Browsing phishing test URL (segno, throwaway), pushed to /sdcard/Pictures, Upload QR from Gallery -> photo picker (only that one image selected) -> Scan Report: DANGEROUS 100%, 10 vendors, Source "QR Scan" (tasks/v145-qr-2..4.png). The manifest change did not break the QR path. Live-camera decoding still not seen (dark scene); test image removed from the phone; the scan remains in the app's history as a QR Scan entry.
 - Live-camera decode VERIFIED (v1.45, SM-A528B): first attempt had no QR in frame (preview worked: tasks/v145-qr-live.png, scene = laptop/cable/keyboard). After Norman put the QR (https://testsafebrowsing.appspot.com/s/malware.html, a URL not used before) in front of the back camera, the scanner decoded it and opened Scan Report: DANGEROUS 100%, 10 vendors, Source "QR Scan", URL .../malware.html (tasks/v145-qr-live2.png). Camera released after BACK; no FATAL in logcat. The QR scanner is fully verified after the camera uses-feature change.
+
+## 2026-11-02 — Exploratory testing on device (v1.45, SM-A528B) — findings, nothing fixed yet
+
+Method: VIEW intents into LinkInterceptActivity (probe script in scratchpad), verdict read from uiautomator + RedirectResolver log line; ~35 URLs. History counters 10/21/65 intact afterwards.
+
+| # | Finding | Evidence | Sev |
+|---|---|---|---|
+| X1 | `http://` links are never redirect-resolved: usesCleartextTraffic=false makes OkHttp throw "CLEARTEXT communication to X not permitted" -> resolver ERROR in ms, no destination scan. https version of the same redirector resolved and showed "GOES TO". Also hits mid-chain https->http hops and the content inspector. | D1/D2 httpbingo redirect-to; log line | S2 / P2 |
+| X2 | IPv6 literal hosts get no "IP address used instead of domain" signal: `http://[::1]:8080/admin` and `http://[::ffff:192.168.1.1]/admin` = SAFE 15%; public `http://[2606:4700:4700::1111]/login/verify-account` = 25% vs 50% for the IPv4 equivalent | A4, A5, B1-B3 | S3 / P3 |
+| X3 | Link wrappers on trusted hosts are never unwrapped: `google.com/url?q=https://evil-site.xyz/login` = SAFE 0% (Google serves a 200 interstitial, no Location), `l.facebook.com/l.php?u=...` = SAFE 0% and the resolver is skipped because the check is `domain == "facebook.com"` (exact match; ScanOrchestrator ~L302). The embedded destination is never scanned. | E8, E9, curl | S3 / P2-P3 |
+| X4 | Numeric-form hosts (decimal/hex/short IPv4: `2130706433`, `0x7f.0.0.1`, `127.1`) are not recognised as IPs: first hop waits the 6 s resolver budget (TIMEOUT) and the scan is slow; browsers read them as 127.0.0.1. No connection was made on this device (Dns validator + system resolver), so impact = latency + weaker heuristics. | A1-A3, B4 | S4 |
+| X5 | `https://` (empty host) = SAFE 0% with an "Open Link" button | E5 | S4 |
+| X6 | Our own "update ready" notification (id 4401) from the background-install test stays in the tray after the APK it points to was pruned. | dumpsys notification | S4 |
+
+OK in exploration: private/loopback IPv4, 169.254.169.254, nip.io->10.x (Dns blocks), userinfo tricks, brand-in-subdomain, IDN homograph (100%), 3000-char URL, trailing dot, ftp/uppercase scheme not routed to the app (platform). No crashes.
+
+Inconclusive / not done:
+- Notification path — RESOLVED, NOT A BUG (see follow-up below). Original note: shell-posted notifications (4 of them, fresh URLs) did NOT produce scans or alerts after 11:49 (History top entry is 11:49; counters unchanged) although the listener is enabled and scanAllApps is on. Cause unknown — could be the test harness (`cmd notification post` auto-grouping/Samsung filtering) or a real regression since v1.41 when the same method worked. Needs a real SMS or a proper investigation before calling it a bug.
+- Manual-scan field and History UI: my coordinate-driven taps hit the wrong screens (History, photo picker); no data lost, but no verdicts collected. Offline / rotation / mid-scan lifecycle not tested.
+
+### Follow-up: notification path is working (harness error, not an app bug)
+- Cause: `adb shell cmd notification post ... "<text with spaces>"` is re-split by the device shell, so only the first word was posted (dumpsys extras: android.text = "URGENT" / "Your" / "SMS3" / "Claim"). No URL ever reached the listener. This gotcha was already recorded at todo.md:197 and :1216.
+- Correct harness: quote the whole command for the device shell: `adb shell "cmd notification post -S bigtext -t 'Title' TAG 'text with https://...'"` and confirm android.text in `dumpsys notification --noredact` before judging the app.
+- Re-test (v1.45, SM-A528B): text with https://testsafebrowsing.appspot.com/s/malware.html?nt=1 -> ThreatAlertActivity full-screen "Threat Alert" + alert notification within 5 s (tasks/v145-notif-real1.png). Text with http://192.168.88.8/apply?ok=1 -> `RedirectResolver: resolved: NO_REDIRECT, hops=0, 1ms` (no request to the LAN — audit #1 fix holds on the zero-click path) and ThreatAlertActivity shown.
+- Phone locked itself (screen timeout) at the end; leftover test notifications from com.android.shell remain in the tray.
+
+## 2026-11-02 — Zero-day measurement + three cheap detection fixes (not committed)
+
+Measurement (temporary JVM test, removed; real heuristic + scoring engines, every provider silent = no vendor report, no domain age / content / redirect): 30 invented zero-day-shaped PH phishing links, link-only and with a typical smishing text; 10-12 real PH sites as false-positive controls.
+- Before: link-only 20/30 flagged (6 DANGER), with SMS 23/30 (11 DANGER); FP 0/10. Misses: every no-brand domain (0/7 link-only), "You won P5,000 ... Claim now", "Unusual login ... Secure it immediately", meralco-bill-rebate.com, shoppee.ph, jt-track.github.io.
+- [x] Tests first (HeuristicScannerTest, 6 new): P-amount prize text, unusual-login alert with CTA, utility/telco look-alikes -> red on old code (3 failed); negatives green before and after (order/bill/payment amounts, "Top 10", benign sign-in notice, real Shopee promo on shopee.ph, official meralco/pldt/maynilad/cebuana/gotyme sites).
+- [x] UrlScanner: smishing patterns for "P5,000 ... claim/reward/prize/redeem/cashback" and "unusual/suspicious/unauthorized login|activity|transaction ... secure/verify/confirm/click/update"; brands meralco, pldt, maynilad, cebuana, gotyme with their official domains.
+- [x] Full suite 516/516 (incl. ScanAccuracyTest false-positive corpus).
+- After (same set): link-only 21/30 (6 DANGER), with SMS 30/30 (19 DANGER); FP 0/12. Caveat: the patterns were written against these exact texts, so this overstates real-world gains; no-brand domains are still SAFE when tapped without message context.

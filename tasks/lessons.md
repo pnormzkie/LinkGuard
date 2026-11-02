@@ -121,3 +121,9 @@
 **Context:** Repo audit. Found by comparing URI, the fallback and OkHttp HttpUrl on the same string.
 **Rule:** Any code that decides "which host is this" for a trust decision must give the same answer as the browser (WHATWG) for '\', '#', '?' and '@'. When adding or changing a host parser, add a parser-differential test for these characters.
 **Status:** active
+
+## 2026-11-02 — Check the recorded harness gotchas before calling a device result a bug
+**Mistake:** During exploratory testing I posted test notifications with `adb shell cmd notification post ... "<text>"`, saw no scans, and reported the zero-click notification path as "inconclusive, possibly a regression since v1.41". The device shell had split the text at the first space, so no URL was ever posted. The same gotcha was already written down in tasks/todo.md twice (lines ~197 and ~1216).
+**Context:** v1.45 exploratory session on SM-A528B; cost several rounds and briefly suggested a possible S1 in the app's core feature.
+**Rule:** Before judging an app from a device harness result, confirm the INPUT arrived (here: `dumpsys notification --noredact` shows the full android.text with the URL). For adb-driven tests, grep tasks/todo.md and lessons.md for the tool name first; quote the whole `adb shell "..."` command when an argument contains spaces.
+**Status:** active
