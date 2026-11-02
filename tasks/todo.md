@@ -2329,3 +2329,11 @@ Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/
 - Smoke (VIEW intent -> LinkInterceptActivity): google.com SAFE 10%; testsafebrowsing phishing page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40% (HTTP + raw IP heuristics), logcat `resolved: NO_REDIRECT, hops=0, 4ms` = no request sent (#1 fix); `http://paypal-account-verify.xyz\@paypal.com/login` DANGEROUS 80% (v1.42 fix). Screens: tasks/v143-smoke-1..4.png.
 - Closes the v1.41/v1.42 device checks (their code is in v1.43).
 - NOT verified: the in-app "Update now" download + install (Play Protect prompt), history kept (not inspected), other private ranges on device (unit test only), why google.com reads 10% (no baseline taken).
+
+## 2026-11-02 — Lint errors fixed (2 -> 0)
+
+- [x] PermissionImpliesUnsupportedChromeOsHardware: added `<uses-feature android:name="android.hardware.camera" android:required="false" />` to AndroidManifest.xml (no runtime effect; QR scanner still asks for the CAMERA permission).
+- [x] UseAppTint: dialog_update_available.xml `android:tint` -> `app:tint` + xmlns:app. MainActivity is an AppCompatActivity and inflates via its own layoutInflater (AppCompatImageView honours app:tint); app:tint is already used in activity_main/activity_link_intercept.
+- [x] `:app:lintDebug :app:assembleDebug` BUILD SUCCESSFUL, no Error lines (152 warnings untouched).
+- [x] Device (SM-A528B): temp release-signed build with versionName 1.42 / code 44 (NOT committed, build.gradle restored) -> update dialog shows blue download arrow, same as before (tasks/v143-lint-dialog.png vs v143-update-dialog.png). Official v1.43 APK reinstalled afterwards, hash re-checked.
+- Not released: these 2 files change the source after v1.43; they ship with the next release.
