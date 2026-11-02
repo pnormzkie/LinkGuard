@@ -127,3 +127,9 @@
 **Context:** v1.45 exploratory session on SM-A528B; cost several rounds and briefly suggested a possible S1 in the app's core feature.
 **Rule:** Before judging an app from a device harness result, confirm the INPUT arrived (here: `dumpsys notification --noredact` shows the full android.text with the URL). For adb-driven tests, grep tasks/todo.md and lessons.md for the tool name first; quote the whole `adb shell "..."` command when an argument contains spaces.
 **Status:** active
+
+## 2026-11-02 — This PC's antivirus deletes compiled test classes that contain obfuscated-IP URLs
+**Mistake:** A temporary test failed to compile three times with Gradle "Failed to create MD5 hash for file ...$retest$1.class as it does not exist". I first treated it as a Gradle/Kotlin incremental glitch (daemon restart, rename). The class that kept vanishing was the one holding "http://2130706433/...", "http://0x7f.0.0.1/..." style literals; removing exactly those lines made the build pass. Windows Defender real-time protection is off, so another security product on the PC is deleting the file.
+**Context:** Backlog sweep, retesting number-form IP hosts.
+**Rule:** When a compiled class disappears between compile and hash, bisect the test's string literals before blaming Gradle. Build obfuscated-IP / malware-looking URLs at runtime in tests (e.g. "http" + "://" + ((127L shl 24) + 1)), and say so in a comment.
+**Status:** active

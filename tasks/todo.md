@@ -2474,3 +2474,54 @@ Approved by Norman ("gawin mo yung option C, basta dapat ma test ng maigi"). Cle
   - httpbingo refuses redirect-to targets outside its allowlist (403 for the phishing page) — test-service limit, switched to postman-echo.
 - Trade-offs seen: (1) http links to hosts without HTTPS now wait for the connect timeout (~3.6 s added); (2) a raw-IP/http link that redirects is judged by its destination, so its IP/HTTP signals no longer count — consistent with https chains, but a verdict drop like 1.1.1.1 50% -> 20% is possible.
 - Side finding: http://example.com/ is DANGEROUS 71% from 2 vendor hits (pre-existing false positive).
+
+## 2026-11-02 — Backlog sweep (everything except key rotation)
+
+Norman: "ituloy muna ang mga backlog except sa key rotation. Make no mistake. i retest mo muna para sure bago ka mag fix. Dapat wala tatamaan sa fixes as much as possible."
+Rule for every item: re-test on current code (e659a83) first -> red test -> smallest fix -> full suite -> device A/B at the end. Items whose only fix would weaken detection elsewhere are reported, not changed.
+- [x] B1 https-probe timeout for http links (neverssl ~3.6 s)
+- [x] B2 (X3) trusted wrappers: l.facebook.com exact-match + embedded destination never scanned
+- [x] B3 (X2) IPv6 literal hosts get no IP-address signal
+- [x] B4 http://example.com/ DANGEROUS 71% from 2 vendor hits
+- [x] B5 (X4) decimal/hex/short IPv4 hosts: 6 s DNS wait, not seen as IPs
+- [x] B6 (X5) https:// with empty host = SAFE 0% + Open Link
+- [x] B7 (X6) stale "update ready" notification after its APK is pruned
+- [x] B8 APK download warning
+- [x] Final: full suite, lint, release-signed A/B on SM-A528B, official v1.46 restored
+
+### Backlog sweep — results (not committed)
+Re-test first (current code e659a83): all eight confirmed on JVM and/or SM-A528B before any change.
+- B1: neverssl.com http link waited ~3.6 s (TCP connect to :443 times out).
+- B2: google.com/url?q=, l.facebook.com/l.php?u=, m.youtube.com/redirect?q= -> SAFE 0%; l.facebook/m.youtube skipped the resolver (exact-name check); google answers 200 interstitial so the carried address was never scanned.
+- B3: [::1], [::ffff:192.168.1.1], public IPv6 got no IP signal (SAFE 15% / 25% vs 50% for IPv4).
+- B4: "Vendors flagged" on http://example.com is URLhaus offline history (already WEAK 15) plus, at times, one VirusTotal vendor on that exact URL. Vendor data, not logic. NOT CHANGED: the only lever would weaken URLhaus/VirusTotal for every link.
+- B5: 2130706433 / 0x7f.0.0.1 / 127.1 -> SAFE 15%, no IP signal; resolver did a DNS lookup of the number.
+- B6: "https://" -> SAFE 0%, no signal.
+- B7: code path confirmed (no cancel when the APK it points at is pruned).
+- B8: .apk in the path was already flagged; an APK served without ".apk" (postman-echo Content-Type, GitHub release CDN) -> SAFE 0%.
+
+Fixes (tests first; 11 behaviour tests red before, 541/541 after; assembleDebug + lintDebug OK):
+- B1 AppConfig.REDIRECT_HTTPS_PROBE_CONNECT_TIMEOUT_MS = 1.5 s, TCP connect only, probe request only (TLS handshake keeps the 3 s read timeout — the 2026-09-22 Notion failure mode).
+- B2 ScanOrchestrator: google.com/url (q|url), facebook.com/l.php (u), youtube.com/redirect (q) on the site or any subdomain carry their destination; it is resolved and scanned as the destination. "Open Link" still opens the tapped wrapper (verifiedResolvedUrl stays null) so the platform's own warning page stays in front. hasRedirectParameter uses the same site-or-subdomain match. Existing test `trusted host with redirect parameter...` updated: resolver now receives the carried address (google /url answers 200, verified with curl), destination assertion unchanged.
+- B3/B5 util/NumericHost + UrlScanner rule 9: any IPv4 notation a browser opens, and bracketed IPv6, get "IP address used instead of domain name". Resolver skips number-form hosts like private ones (no request). Negatives kept clean: 1password.com, 123.example.com, 7-eleven.com.ph, 0x.org, 365.office.com.
+- B6 UrlScanner rule 0: http(s) link with no host -> "Link has no website address — it cannot be checked" (MEDIUM 25).
+- B7 UpdateInstaller: cancel the "update ready" notification when a new download prunes the old APK.
+- B8 Resolver reports the final page's Content-Type (RedirectResolution.finalContentType, default null); orchestrator adds DOWNLOADS_ANDROID_APP (MEDIUM 25) for application/vnd.android.package-archive unless LOCAL_DANGEROUS_FILE_TYPE_APK already fired.
+
+Device A/B, SM-A528B (A = official v1.46, B = release-signed build of this source, versionName 1.45 / code 47):
+| URL | A | B |
+|---|---|---|
+| http://neverssl.com/ | SAFE 15%, 59 ms | SAFE 15%, 2.5 s (was 3.6 s with option C alone) |
+| http://postman-echo redirect -> SB phishing page | SAFE 15% | DANGEROUS 100% (probe still works with the short connect) |
+| l.facebook.com / google.com/url / m.youtube.com/redirect -> evil-site.xyz | SAFE 0% (x3) | SUSPICIOUS 35%, GOES TO https://evil-site.xyz/login (x3) |
+| google.com/url?q=https://www.rappler.com/ | SAFE 0% | SAFE 10%, GOES TO rappler (no false positive) |
+| google.com/search?q=linkguard | SAFE 0% | SAFE 0% |
+| http://[::1]:8080/admin | SAFE 15% | SUSPICIOUS 40% |
+| http://2130706433/admin | SUSPICIOUS 40%, ERROR | DANGEROUS 65%, NO_REDIRECT 4 ms (IP signal + URLhaus history) |
+| https:// | SAFE 0% | SUSPICIOUS 25% "Link has no website address" |
+| postman-echo serving Content-Type APK | SAFE 0% | SUSPICIOUS 25% "Link downloads an Android app" on 2 of 3 re-runs; the 3rd timed out at 3 s on the server and stayed SAFE (no Content-Type without a response) |
+| postman-echo text/html | SAFE 0% | SAFE 0% |
+| google.com, SB phishing, 192.168.1.1, https://example.com, http://kalibrr | unchanged | unchanged |
+- B7 on device (SYSTEM_ALERT_WINDOW denied for the test, restored to allow): background download -> "update ready" active (1); same process (pid unchanged), "Update now" again -> active 0 within 2 s, installer opened directly. Note: `am force-stop` itself clears an app's notifications, so the first attempt that force-stopped was not a valid test.
+- Phone restored: official v1.46 installed through that in-app flow (Play Protect ~2 min), base.apk 4ec6b2d7... == published; overlay permission allow.
+- Not covered: B7 has no unit test (no Robolectric in this project); B8 only when the page answers within the per-hop timeout.
