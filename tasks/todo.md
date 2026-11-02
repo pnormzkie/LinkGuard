@@ -2345,3 +2345,10 @@ Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/
 - [x] Test `cache key keeps url and message text apart`; full suite 508/508, assembleDebug OK.
 - Practical risk was low (needs a colliding url/text pair); fix is one line. Ships with the next release, not v1.43.
 - Lesson learned while editing: sed/python via the shell mangled "\u0000" (became "0000" / a real NUL byte). Use the Edit tool for escape sequences and check `git diff` for "Binary file" afterwards.
+
+## 2026-11-02 — v1.44 published (device check not done)
+
+- Commits 5455b23 (#5 cache key), de03def (lint fixes), 3e1d0ee (bump 1.44 / code 45), notes (6 lines / 246 chars).
+- stage-release: 508/508 tests, 24,683,464 bytes, SHA-256 A15F0147...5656A7.
+- publish.sh: release id 431018679, tag v1.44, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
+- NOT verified on device: update dialog showing 1.44 over 1.43, install, smoke. Phone SM-A528B currently on v1.43.
