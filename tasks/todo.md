@@ -2380,3 +2380,10 @@ Approved by Norman: fix both.
 - Device result (SM-A528B, SYSTEM_ALERT_WINDOW denied during test, restored to allow): backgrounded after "Update now" -> download completes, NO BAL_BLOCK in logcat, notification "LinkGuard update ready — Tap to install the new version." appears; tapping it opens PackageInstallerActivity (tasks/v144-fix3-notification.png, v144-fix3-tap.png). Foreground path: installer opens directly, no BAL_BLOCK (tasks/v144-fix3-foreground.png). Download dir went from 9 old APKs (v1.23..v1.41) to only the new one.
 - Import detail: foreground check uses importance <= IMPORTANCE_FOREGROUND, not VISIBLE/FOREGROUND_SERVICE (the app runs a foreground service, which does not exempt it from the background-start limit).
 - Phone restored: official v1.44 reinstalled (hash a15f0147...5656a7), overlay permission allow, test APK removed. Not committed or released; ships with the next version.
+
+## 2026-11-02 — v1.45 published (device check not done)
+
+- Commits 1d17ccc (background-install notification + APK pruning), bump 1.45 / code 46, release notes (6 lines / 249 chars).
+- stage-release: 510/510 tests, 24,683,464 bytes, SHA-256 A12C461F...6723AB.
+- publish.sh: release id 431032249, tag v1.45, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
+- NOT verified on device: update dialog 1.45 over 1.44, in-app install. Phone SM-A528B is on v1.44. The fix itself was device-tested on a temp build (see the #3 entry above).
