@@ -2321,3 +2321,11 @@ Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/
 - publish.sh: release id 431002556, tag v1.43, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
 - NOT verified: update dialog, install over v1.42, smoke URLs on a device. #4 has no unit test (no seam in MainViewModel).
 - Skipped by decision: #6 (range additions can break NAT64 / fake-IP VPN / Tailscale), key rotation. Open: #3, #5, lint errors, device checks for v1.41-v1.43.
+
+## 2026-11-02 — v1.43 device check (SM-A528B, RZCT10CY6ED) — PASS
+
+- Device was on v1.41 (v1.42 was never installed). Update dialog showed "Version 1.43 / You're on 1.41": all 4 note lines + "Update now" visible, no scroll (tasks/v143-update-dialog.png).
+- `adb install -r` of release-staging/LinkGuard-v1.43.apk over v1.41: Success. versionName 1.43 / versionCode 44; installed base.apk SHA-256 2f6be8c3...b22b9a1f4a == staged == published asset.
+- Smoke (VIEW intent -> LinkInterceptActivity): google.com SAFE 10%; testsafebrowsing phishing page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40% (HTTP + raw IP heuristics), logcat `resolved: NO_REDIRECT, hops=0, 4ms` = no request sent (#1 fix); `http://paypal-account-verify.xyz\@paypal.com/login` DANGEROUS 80% (v1.42 fix). Screens: tasks/v143-smoke-1..4.png.
+- Closes the v1.41/v1.42 device checks (their code is in v1.43).
+- NOT verified: the in-app "Update now" download + install (Play Protect prompt), history kept (not inspected), other private ranges on device (unit test only), why google.com reads 10% (no baseline taken).
