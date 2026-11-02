@@ -478,6 +478,81 @@ class HeuristicScannerTest {
     }
 
     @Test
+    fun `prize text written with a P amount is flagged`() {
+        // PH texts write pesos as "P5,000"; the reward patterns only knew "php" and the peso sign.
+        listOf(
+            "Congratulations! You won P5,000 from Shopee anniversary promo. Claim now:",
+            "You have won P 10,000 cash prize. Redeem before midnight",
+            "Your P1,500 reward is ready, claim it here"
+        ).forEach { text ->
+            val flags = flagsOf("https://my-refund-portal.com/claim", text)
+            assertTrue(text, flags.any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `unusual login alert with a call to action is flagged`() {
+        listOf(
+            "BDO Alert: Unusual login detected on your account. Secure it immediately at",
+            "Suspicious activity on your GCash wallet. Verify now to avoid suspension",
+            "Unauthorized transaction attempt detected. Click to confirm your details"
+        ).forEach { text ->
+            val flags = flagsOf("https://account-review-center.com/verify", text)
+            assertTrue(text, flags.any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `everyday peso amounts and login notices are not flagged`() {
+        listOf(
+            "Your order of P1,250 has been shipped. Track your parcel in the app.",
+            "Meralco: Your October bill is P2,345.60, due on Nov 10.",
+            "Top 10 deals this week, shop now",
+            "New sign-in from Chrome on Windows. If this was you, no action is needed.",
+            "Your payment of P500 was received. Thank you."
+        ).forEach { text ->
+            val flags = flagsOf("https://example.com", text)
+            assertFalse(text, flags.any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `a real promo text pointing at the official store stays clean`() {
+        val result = HeuristicScanner.scanWithContext(
+            "https://shopee.ph/m/anniversary",
+            "Congratulations! You won a P500 voucher. Claim it in the Shopee app: https://shopee.ph/m/anniversary"
+        )
+        assertEquals(ThreatLevel.SAFE, result.threatLevel)
+    }
+
+    @Test
+    fun `utility and telco look-alike domains are flagged`() {
+        listOf(
+            "https://meralco-bill-rebate.com/apply",
+            "https://pldt-refund-claim.com/",
+            "https://maynilad-bill-update.net/pay",
+            "https://cebuana-padala-claim.com/",
+            "https://gotyme-account-verify.com/login"
+        ).forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertTrue(url, result.threatLevel != ThreatLevel.SAFE)
+        }
+    }
+
+    @Test
+    fun `official utility and telco sites stay safe`() {
+        listOf(
+            "https://www.meralco.com.ph/",
+            "https://pldthome.com/",
+            "https://www.mayniladwater.com.ph/",
+            "https://www.cebuanalhuillier.com/",
+            "https://www.gotyme.com.ph/"
+        ).forEach { url ->
+            assertEquals(url, ThreatLevel.SAFE, HeuristicScanner.scanWithContext(url, null).threatLevel)
+        }
+    }
+
+    @Test
     fun `task commission scam is flagged`() {
         val flags = flagsOf("https://example.com", "Like and review products to earn commission per task.")
         assertTrue(flags.any { it.contains("smishing", ignoreCase = true) })

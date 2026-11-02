@@ -140,7 +140,9 @@ object HeuristicScanner {
         "gcash", "maya", "paymaya", "grab", "shopee", "lazada",
         "sss", "pagibig", "philhealth", "dti", "bir",
         // Couriers: the most impersonated senders in PH delivery-scam texts.
-        "lbc", "lbcexpress", "jnt", "jtexpress", "ninjavan", "phlpost"
+        "lbc", "lbcexpress", "jnt", "jtexpress", "ninjavan", "phlpost",
+        // Utilities, telco, remittance and digital banks named in PH bill/refund scam texts.
+        "meralco", "pldt", "maynilad", "cebuana", "gotyme"
     )
 
     private val GLOBAL_BRANDS = listOf(
@@ -191,6 +193,11 @@ object HeuristicScanner {
         "jtexpress"   to listOf("jtexpress.ph", "www.jtexpress.ph"),
         "ninjavan"    to listOf("ninjavan.co", "www.ninjavan.co"),
         "phlpost"     to listOf("phlpost.gov.ph", "www.phlpost.gov.ph"),
+        "meralco"     to listOf("meralco.com.ph", "www.meralco.com.ph"),
+        "pldt"        to listOf("pldt.com", "www.pldt.com", "pldthome.com", "www.pldthome.com"),
+        "maynilad"    to listOf("mayniladwater.com.ph", "www.mayniladwater.com.ph"),
+        "cebuana"     to listOf("cebuanalhuillier.com", "www.cebuanalhuillier.com"),
+        "gotyme"      to listOf("gotyme.com.ph", "www.gotyme.com.ph"),
         "icloud"      to listOf("icloud.com", "www.icloud.com")
     )
 
@@ -209,6 +216,10 @@ object HeuristicScanner {
         Regex("(\\d+[,.]?\\d*) points? (will )?expire", RegexOption.IGNORE_CASE),
         Regex("(php|₱)\\s?[\\d,]+.*cash.?back", RegexOption.IGNORE_CASE),
         Regex("(php|₱)\\s?[\\d,]+.*reward", RegexOption.IGNORE_CASE),
+        // PH texts usually write pesos as "P5,000"; the lookbehind keeps "Top 10" / "Step 2" out.
+        Regex("(?:php|₱|(?<![a-z])p)\\s?\\d[\\d,]*(?:\\.\\d+)?.{0,60}(?:claim|reward|prize|redeem|cash.?back)", RegexOption.IGNORE_CASE),
+        // Fake security alerts: an "unusual login" notice that asks the reader to act on a link.
+        Regex("(?:unusual|suspicious|unauthori[sz]ed)\\s+(?:log-?in|sign-?in|activity|transaction|access).{0,80}(?:secure|verify|confirm|click|update|log\\s?in)", RegexOption.IGNORE_CASE),
         Regex("congratulations.*pending", RegexOption.IGNORE_CASE),
         Regex("click.*link.*claim", RegexOption.IGNORE_CASE),
         Regex("visit.*redeem", RegexOption.IGNORE_CASE),
