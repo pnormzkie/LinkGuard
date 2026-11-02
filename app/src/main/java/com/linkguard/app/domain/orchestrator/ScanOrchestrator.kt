@@ -71,7 +71,8 @@ class ScanOrchestrator(
     ): ScanResult = supervisorScope {
         // 1. Check Cache — entries past the TTL are treated as a miss and re-scanned
         //    so a stale verdict can't outlive a domain going bad.
-        val cacheKey = url + (messageText ?: "")
+        // NUL cannot appear in a URL, so (url, text) pairs map to distinct keys.
+        val cacheKey = url + "\u0000" + (messageText ?: "")
         val startedAt = now()
         cacheGet(cacheKey)?.let { cached ->
             if (startedAt - cached.cachedAt < AppConfig.SCAN_CACHE_TTL_MS) {

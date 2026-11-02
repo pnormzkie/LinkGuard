@@ -2337,3 +2337,11 @@ Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/
 - [x] `:app:lintDebug :app:assembleDebug` BUILD SUCCESSFUL, no Error lines (152 warnings untouched).
 - [x] Device (SM-A528B): temp release-signed build with versionName 1.42 / code 44 (NOT committed, build.gradle restored) -> update dialog shows blue download arrow, same as before (tasks/v143-lint-dialog.png vs v143-update-dialog.png). Official v1.43 APK reinstalled afterwards, hash re-checked.
 - Not released: these 2 files change the source after v1.43; they ship with the next release.
+
+## 2026-11-02 — Audit #5: scan cache key had no delimiter
+
+- [x] Repro (red first): `scan("https://example.com/ab")` then `scan("https://example.com/a", "b")` both built the key "https://example.com/ab", so the second scan was served the first one's cached verdict.
+- [x] Fix: ScanOrchestrator cache key = url + "\u0000" + messageText (NUL cannot appear in a URL).
+- [x] Test `cache key keeps url and message text apart`; full suite 508/508, assembleDebug OK.
+- Practical risk was low (needs a colliding url/text pair); fix is one line. Ships with the next release, not v1.43.
+- Lesson learned while editing: sed/python via the shell mangled "\u0000" (became "0000" / a real NUL byte). Use the Edit tool for escape sequences and check `git diff` for "Binary file" afterwards.

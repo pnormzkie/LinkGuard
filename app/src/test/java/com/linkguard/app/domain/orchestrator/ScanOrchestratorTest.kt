@@ -293,6 +293,18 @@ class ScanOrchestratorTest {
     }
 
     @Test
+    fun `cache key keeps url and message text apart`() = runTest {
+        var calls = 0
+        val orchestrator = orchestrator(reputation = FakeProvider { calls++; emptyList() })
+
+        // "…/ab" + no text and "…/a" + text "b" concatenate to the same string; they are different scans.
+        orchestrator.scan("https://example.com/ab")
+        assertEquals(1, calls)
+        orchestrator.scan("https://example.com/a", "b")
+        assertEquals(2, calls)
+    }
+
+    @Test
     fun `expired cached entry triggers a re-scan`() = runTest {
         var calls = 0
         val clock = arrayOf(0L)
