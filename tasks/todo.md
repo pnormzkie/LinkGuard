@@ -2446,3 +2446,10 @@ Measurement (temporary JVM test, removed; real heuristic + scoring engines, ever
 - stage-release: 516/516 tests, 24,683,464 bytes, SHA-256 4EC6B2D7...563FC3.
 - publish.sh: release id 431083976, tag v1.46, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
 - NOT verified on device: update dialog 1.46 over 1.45, in-app install, smoke.
+
+## 2026-11-02 — v1.46 device check (SM-A528B) — PASS
+
+- Update dialog on v1.45: "Version 1.46 / You're on 1.45", all 5 note lines + "Update now" visible without scrolling (7-line / 306-char body) (tasks/v146-update-dialog.png).
+- In-app update in foreground: installer opened directly (no BAL_BLOCK) -> Update -> InstallSuccess in ~20 s, no Play Protect prompt. Installed 1.46 / code 47; base.apk SHA-256 4ec6b2d7...563fc3 == staged == published. Counters 11/22/65 before = after (history kept). Download dir holds only LinkGuard-v1.46.apk.
+- Smoke: google.com SAFE 10%; phishing test page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40%, NO_REDIRECT 18 ms (no request).
+- New detection on device: https://meralco-bill-rebate.com/apply SUSPICIOUS 50% (was SAFE 10% before v1.46). Notification "Congratulations! You won P5,000 ... Claim now: https://my-refund-portal.com/claim?n=46" (properly quoted, android.text verified) -> "⚠ Suspicious Link Detected — From Shopee via shell" alert within 5 s; history 12/25/66.
