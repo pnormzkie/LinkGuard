@@ -638,4 +638,100 @@ class HttpRedirectResolverTest {
 
         assertEquals(0, calls.get())
     }
+
+    // ── Plain-http links: the app's cleartext policy refuses http requests on Android, so the
+    //    first hop of an http:// link is probed over https instead (option C, 2026-11-02).
+
+    /** Routes by full URL like [routingClient], records every URL requested, and fails [failing]. */
+    private fun recordingClient(
+        routes: Map<String, Pair<Int, String?>>,
+        requested: MutableList<String>,
+        failing: Set<String> = emptySet()
+    ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(Interceptor { chain ->
+            val req = chain.request()
+            val url = req.url.toString()
+            synchronized(requested) { requested.add("${req.method} $url") }
+            if (url in failing) throw java.io.IOException("TLS handshake failed")
+            val (code, location) = routes[url] ?: (200 to null)
+            stub(req, code, location)
+        })
+        .build()
+
+    @Test
+    fun `http link is probed over https and its redirect is followed`() = runBlocking {
+        val requested = mutableListOf<String>()
+        val client = recordingClient(
+            mapOf("https://short.test/abc" to (302 to "https://landing.test/login")),
+            requested
+        )
+
+        val res = HttpRedirectResolver(client).resolve("http://short.test/abc")
+
+        assertEquals(RedirectOutcome.RESOLVED, res.outcome)
+        assertEquals("https://landing.test/login", res.finalUrl)
+        assertEquals(listOf("http://short.test/abc", "https://landing.test/login"), res.hops)
+        assertTrue(res.crossedDomains)
+        assertTrue(requested.toString(), requested.none { it.contains("http://") })
+    }
+
+    @Test
+    fun `http link that does not redirect keeps its original http url`() = runBlocking {
+        // The scan must still see the original scheme, or the unencrypted-HTTP signal is lost.
+        val requested = mutableListOf<String>()
+        val res = HttpRedirectResolver(recordingClient(emptyMap(), requested))
+            .resolve("http://plain.test/page?x=1")
+
+        assertEquals(RedirectOutcome.NO_REDIRECT, res.outcome)
+        assertEquals("http://plain.test/page?x=1", res.finalUrl)
+        assertEquals(listOf("http://plain.test/page?x=1"), res.hops)
+        assertTrue(requested.toString(), requested.all { it.endsWith("https://plain.test/page?x=1") })
+    }
+
+    @Test
+    fun `http link whose https probe fails is an error on the original url`() = runBlocking {
+        val requested = mutableListOf<String>()
+        val res = HttpRedirectResolver(
+            recordingClient(emptyMap(), requested, failing = setOf("https://no-tls.test/x"))
+        ).resolve("http://no-tls.test/x")
+
+        assertEquals(RedirectOutcome.ERROR, res.outcome)
+        assertEquals("http://no-tls.test/x", res.finalUrl)
+        assertEquals(listOf("http://no-tls.test/x"), res.hops)
+    }
+
+    @Test
+    fun `relative location from the https probe resolves against https`() = runBlocking {
+        val requested = mutableListOf<String>()
+        val client = recordingClient(
+            mapOf("https://short.test/go" to (301 to "/final?id=7")),
+            requested
+        )
+
+        val res = HttpRedirectResolver(client).resolve("http://short.test/go")
+
+        assertEquals(RedirectOutcome.RESOLVED, res.outcome)
+        assertEquals("https://short.test/final?id=7", res.finalUrl)
+        assertFalse(res.crossedDomains)
+    }
+
+    @Test
+    fun `https link is fetched exactly as given`() = runBlocking {
+        val requested = mutableListOf<String>()
+        val res = HttpRedirectResolver(recordingClient(emptyMap(), requested))
+            .resolve("https://secure.test/a")
+
+        assertEquals(RedirectOutcome.NO_REDIRECT, res.outcome)
+        assertEquals("https://secure.test/a", res.finalUrl)
+        assertTrue(requested.toString(), requested.all { it.endsWith(" https://secure.test/a") })
+    }
+
+    @Test
+    fun `https equivalent keeps host path query and explicit port`() {
+        assertEquals("https://a.test/p?q=1", HttpRedirectResolver.httpsEquivalent("http://a.test/p?q=1"))
+        assertEquals("https://a.test:8080/p", HttpRedirectResolver.httpsEquivalent("http://a.test:8080/p"))
+        assertEquals("https://a.test/", HttpRedirectResolver.httpsEquivalent("http://a.test:80/"))
+        assertEquals(null, HttpRedirectResolver.httpsEquivalent("https://a.test/"))
+        assertEquals(null, HttpRedirectResolver.httpsEquivalent("not a url"))
+    }
 }

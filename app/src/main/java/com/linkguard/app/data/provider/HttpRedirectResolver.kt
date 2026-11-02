@@ -76,8 +76,11 @@ class HttpRedirectResolver(
             }
             if (hops >= maxHops) return result(state.chain, state.current, RedirectOutcome.MAX_HOPS)
 
+            // An http link's first hop is probed over https (see [httpsEquivalent]); the chain and
+            // the final URL keep the link exactly as tapped, so its scheme is still scored.
+            val fetchUrl = if (hops == 0) httpsEquivalent(state.current) ?: state.current else state.current
             val response = try {
-                fetchHop(state.current)
+                fetchHop(fetchUrl)
             } catch (e: CancellationException) {
                 throw e // never swallow real coroutine cancellation
             } catch (e: Exception) {
@@ -95,7 +98,7 @@ class HttpRedirectResolver(
 
             // resolve() returns null for relative-against-invalid or non-http(s) schemes —
             // that is exactly the "blocked scheme" case (javascript:/data:/intent:/mailto:).
-            val next = state.current.toHttpUrlOrNull()?.resolve(location)
+            val next = fetchUrl.toHttpUrlOrNull()?.resolve(location)
                 ?: return result(state.chain, state.current, RedirectOutcome.BLOCKED_SCHEME)
             if (isBlockedHost(next.host)) {
                 return result(state.chain, state.current, RedirectOutcome.BLOCKED_PRIVATE_HOST)
@@ -169,6 +172,18 @@ class HttpRedirectResolver(
          */
         fun isPrivateOrLocalHost(host: String): Boolean =
             HostSafetyValidator.isPrivateOrLocalHost(host)
+
+        /**
+         * The https form of a plain-http [url] (same host, port, path and query; the default
+         * port 80 becomes 443), or null when [url] is not http. The app's cleartext policy makes
+         * Android refuse every http request, so this is what an http link's first hop is probed
+         * with — the policy itself stays strict.
+         */
+        internal fun httpsEquivalent(url: String): String? {
+            val parsed = url.toHttpUrlOrNull() ?: return null
+            if (parsed.scheme != "http") return null
+            return parsed.newBuilder().scheme("https").build().toString()
+        }
 
         private fun registrableDomain(domain: String): String {
             val parts = domain.removePrefix("www.").split(".").filter { it.isNotEmpty() }
