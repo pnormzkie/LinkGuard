@@ -2352,3 +2352,12 @@ Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/
 - stage-release: 508/508 tests, 24,683,464 bytes, SHA-256 A15F0147...5656A7.
 - publish.sh: release id 431018679, tag v1.44, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
 - NOT verified on device: update dialog showing 1.44 over 1.43, install, smoke. Phone SM-A528B currently on v1.43.
+
+## 2026-11-02 — v1.44 device check (SM-A528B) — PASS
+
+- Update dialog on v1.43: "Version 1.44 / You're on 1.43", 4 note lines + "Update now" visible, no scroll, blue arrow icon (tasks/v144-update-dialog.png).
+- In-app flow: "Update now" -> download -> system installer "Do you want to update this app?" -> Update -> Play Protect scan (~3 min) "This app looks safe" -> Install -> InstallSuccess. First full in-app update verified on this device.
+- Installed versionName 1.44 / versionCode 45; base.apk SHA-256 a15f0147...5656a7 == staged == published asset.
+- History kept: home counters 2 threats / 5 suspicious / 55 safe before and after the update (tasks/v144-home.png).
+- Smoke: google.com SAFE 10%; Safe Browsing phishing page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40%, `resolved: NO_REDIRECT, hops=0, 5ms` (no request). Screens tasks/v144-smoke-1..3.png.
+- Not verified: why google.com is 10% (no baseline), QR scanner/camera path after the manifest change.
