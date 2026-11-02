@@ -34,6 +34,11 @@ object AppConfig {
     const val REDIRECT_MAX_HOPS = 5
     const val REDIRECT_TOTAL_BUDGET_MS = 6_000L
     const val REDIRECT_PER_HOP_TIMEOUT_MS = 3_000L
+    // TCP connect only, for the https probe of an http:// link. A host with no HTTPS usually drops
+    // the SYN, so the probe waited the full 3 s for nothing (neverssl.com: +3.6 s per scan). The TLS
+    // handshake falls under the read timeout and keeps the 3 s above, so the 2026-09-22 Notion
+    // failure mode does not return; a probe that still fails just leaves the link unresolved.
+    const val REDIRECT_HTTPS_PROBE_CONNECT_TIMEOUT_MS = 1_500L
 
     // Credential-form page inspection: a conditional, read-only GET of a borderline-suspicious
     // destination's HTML to detect a login/password form. Bounded for click-time UX and privacy.

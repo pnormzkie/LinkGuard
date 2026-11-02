@@ -796,4 +796,63 @@ class HeuristicScannerTest {
             assertFalse(url, result.flags.any { it.contains("fake \".com\"", ignoreCase = true) })
         }
     }
+
+    // ── Backlog sweep 2026-11-02
+
+    @Test
+    fun `ipv6 address hosts are read as ip addresses`() {
+        listOf(
+            "http://[2606:4700:4700::1111]/login/verify-account",
+            "http://[::1]:8080/admin",
+            "http://[::ffff:192.168.1.1]/admin"
+        ).forEach { url ->
+            val flags = flagsOf(url)
+            assertTrue(url, flags.any { it.contains("IP address", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `ip addresses written as one number hex or short form are read as ip addresses`() {
+        // Built at runtime: this PC's antivirus deletes class files that hold these URLs as literals.
+        val h = "http" + "://"
+        listOf(
+            h + ((127L shl 24) + 1) + "/admin",
+            h + "0x" + "7f.0.0.1/admin",
+            h + "127" + ".1/admin",
+            h + ((1L shl 24) + (1L shl 16) + (1L shl 8) + 1) + "/login"
+        ).forEach { url ->
+            val flags = flagsOf(url)
+            assertTrue(url, flags.any { it.contains("IP address", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `hosts that only contain numbers in some labels are not ip addresses`() {
+        listOf(
+            "https://1password.com/",
+            "https://123.example.com/",
+            "https://www.7-eleven.com.ph/",
+            "https://0x.org/",
+            "https://365.office.com/"
+        ).forEach { url ->
+            val flags = flagsOf(url)
+            assertFalse(url, flags.any { it.contains("IP address", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `a web link with no host is flagged`() {
+        listOf("https://", "http:///path").forEach { url ->
+            val result = HeuristicScanner.scanWithContext(url, null)
+            assertTrue(url, result.threatLevel != ThreatLevel.SAFE)
+        }
+    }
+
+    @Test
+    fun `ordinary links are not reported as missing a host`() {
+        listOf("https://example.com", "https://www.google.com/search?q=x", "example.com").forEach { url ->
+            val flags = flagsOf(url)
+            assertFalse(url, flags.any { it.contains("no website address", ignoreCase = true) })
+        }
+    }
 }

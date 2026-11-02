@@ -734,4 +734,100 @@ class HttpRedirectResolverTest {
         assertEquals(null, HttpRedirectResolver.httpsEquivalent("https://a.test/"))
         assertEquals(null, HttpRedirectResolver.httpsEquivalent("not a url"))
     }
+
+    // ── Backlog sweep 2026-11-02
+
+    @Test
+    fun `https probe of an http link uses the short connect timeout and later hops do not`() = runBlocking {
+        val timeouts = mutableMapOf<String, Int>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                val url = chain.request().url.toString()
+                synchronized(timeouts) { timeouts[url] = chain.connectTimeoutMillis() }
+                if (url == "https://short.test/a") stub(chain.request(), 302, "https://next.test/b")
+                else stub(chain.request(), 200, null)
+            })
+            .build()
+
+        HttpRedirectResolver(client).resolve("http://short.test/a")
+
+        assertEquals(AppConfig.REDIRECT_HTTPS_PROBE_CONNECT_TIMEOUT_MS.toInt(), timeouts["https://short.test/a"])
+        assertEquals(10_000, timeouts["https://next.test/b"]) // the client's own (OkHttp default) timeout
+    }
+
+    @Test
+    fun `an https link keeps the client connect timeout`() = runBlocking {
+        val timeouts = mutableListOf<Int>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                synchronized(timeouts) { timeouts.add(chain.connectTimeoutMillis()) }
+                stub(chain.request(), 200, null)
+            })
+            .build()
+
+        HttpRedirectResolver(client).resolve("https://secure.test/a")
+
+        assertTrue(timeouts.toString(), timeouts.isNotEmpty() && timeouts.all { it == 10_000 })
+    }
+
+    @Test
+    fun `ip address written as one number or in hex is never contacted`() = runBlocking {
+        val calls = AtomicInteger()
+        val client = OkHttpClient.Builder()
+            .eventListener(object : EventListener() {
+                override fun callStart(call: Call) {
+                    calls.incrementAndGet()
+                }
+            })
+            .build()
+        // Built at runtime: this PC's antivirus deletes class files that hold these URLs as literals.
+        val h = "http" + "://"
+        listOf(
+            h + ((127L shl 24) + 1) + "/admin",
+            h + "0x" + "7f.0.0.1/admin",
+            h + "127" + ".1/admin",
+            h + ((1L shl 24) + (1L shl 16) + (1L shl 8) + 1) + "/login"
+        ).forEach { url ->
+            val result = HttpRedirectResolver(client).resolve(url)
+            assertEquals(url, RedirectOutcome.NO_REDIRECT, result.outcome)
+            assertEquals(url, result.finalUrl)
+        }
+
+        assertEquals(0, calls.get())
+    }
+
+    @Test
+    fun `content type of the final page is reported`() = runBlocking {
+        val client = OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                val url = chain.request().url.toString()
+                val builder = Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .message("stub")
+                    .body("".toResponseBody("text/plain".toMediaType()))
+                if (url == "https://dl.test/get") {
+                    builder.code(302).header("Location", "https://cdn.test/file?id=7")
+                } else {
+                    builder.code(200).header("Content-Type", "application/vnd.android.package-archive")
+                }
+                builder.build()
+            })
+            .build()
+
+        val redirected = HttpRedirectResolver(client).resolve("https://dl.test/get")
+        val direct = HttpRedirectResolver(client).resolve("https://cdn.test/file?id=7")
+
+        assertEquals(RedirectOutcome.RESOLVED, redirected.outcome)
+        assertEquals("application/vnd.android.package-archive", redirected.finalContentType)
+        assertEquals(RedirectOutcome.NO_REDIRECT, direct.outcome)
+        assertEquals("application/vnd.android.package-archive", direct.finalContentType)
+    }
+
+    @Test
+    fun `an unfinished chain reports no content type`() = runBlocking {
+        val res = HttpRedirectResolver(clientFailing()).resolve("https://a.test/x")
+        assertEquals(RedirectOutcome.ERROR, res.outcome)
+        assertEquals(null, res.finalContentType)
+    }
 }

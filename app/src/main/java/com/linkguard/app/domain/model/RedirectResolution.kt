@@ -8,12 +8,15 @@ package com.linkguard.app.domain.model
  * @property hops           the ordered chain, including the input and the final URL.
  * @property crossedDomains true when the final registrable domain differs from the input's.
  * @property outcome        why resolution stopped — see [RedirectOutcome].
+ * @property finalContentType the Content-Type of the final page when the chain finished
+ *                          (NO_REDIRECT or RESOLVED), otherwise null.
  */
 data class RedirectResolution(
     val finalUrl: String,
     val hops: List<String>,
     val crossedDomains: Boolean,
-    val outcome: RedirectOutcome
+    val outcome: RedirectOutcome,
+    val finalContentType: String? = null
 ) {
     /** True if at least one redirect was actually followed. */
     val redirected: Boolean get() = hops.size > 1

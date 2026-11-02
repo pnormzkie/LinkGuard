@@ -398,7 +398,9 @@ class ScanOrchestratorTest {
         val tapped = "https://google.com/url?q=https%3A%2F%2Fcredential-harvest.test%2Flogin"
         orchestrator.scan(tapped)
 
-        assertEquals(tapped, resolvedInput)
+        // The real endpoint answers 200 with an interstitial (checked 2026-11-02), so the carried
+        // address is what gets resolved; the destination is scanned either way.
+        assertEquals("https://credential-harvest.test/login", resolvedInput)
         assertEquals("https://credential-harvest.test/login", heuristicInput)
     }
 
@@ -986,5 +988,173 @@ class ScanOrchestratorTest {
         assertEquals(null, result.resolvedUrl)
         assertEquals(0, connectStarts.get())
         assertEquals(0, requestStarts.get())
+    }
+
+    // ── Backlog sweep 2026-11-02: trusted link wrappers and APK downloads
+
+    private fun noRedirect(url: String) = RedirectResolution(url, listOf(url), false, RedirectOutcome.NO_REDIRECT)
+
+    @Test
+    fun `trusted link wrappers are scanned at the address they carry`() = runTest {
+        listOf(
+            "https://www.google.com/url?q=https://evil-site.xyz/login&sa=D",
+            "https://www.google.com/url?url=https://evil-site.xyz/login",
+            "https://l.facebook.com/l.php?u=https%3A%2F%2Fevil-site.xyz%2Flogin&h=AT0",
+            "https://lm.facebook.com/l.php?u=https%3A%2F%2Fevil-site.xyz%2Flogin",
+            "https://www.facebook.com/l.php?u=https%3A%2F%2Fevil-site.xyz%2Flogin",
+            "https://m.youtube.com/redirect?q=https%3A%2F%2Fevil-site.xyz%2Flogin&event=video_description",
+            "https://www.youtube.com/redirect?q=https://evil-site.xyz/login"
+        ).forEach { wrapper ->
+            val resolved = mutableListOf<String>()
+            val heuristicInputs = mutableListOf<String>()
+            val orchestrator = orchestrator(
+                heuristic = FakeHeuristic { heuristicInputs.add(it); emptyList() },
+                redirect = FakeRedirectResolver { resolved.add(it); noRedirect(it) }
+            )
+
+            val result = orchestrator.scan(wrapper)
+
+            assertEquals(wrapper, listOf("https://evil-site.xyz/login"), resolved)
+            assertEquals(wrapper, listOf("https://evil-site.xyz/login"), heuristicInputs)
+            assertEquals(wrapper, "https://evil-site.xyz/login", result.resolvedUrl)
+            assertTrue(wrapper, result.verdict.signals.any { it.ruleId == "REDIRECT_CROSS_DOMAIN" })
+        }
+    }
+
+    @Test
+    fun `a wrapper is unwrapped even when network checks are off`() = runTest {
+        val heuristicInputs = mutableListOf<String>()
+        val orchestrator = orchestrator(
+            heuristic = FakeHeuristic { heuristicInputs.add(it); emptyList() },
+            redirect = FakeRedirectResolver { error("network checks are off") }
+        )
+
+        val result = orchestrator.scan(
+            "https://www.google.com/url?q=https://evil-site.xyz/login",
+            allowNetworkChecks = false
+        )
+
+        assertEquals(listOf("https://evil-site.xyz/login"), heuristicInputs)
+        assertEquals("https://evil-site.xyz/login", result.resolvedUrl)
+    }
+
+    @Test
+    fun `the carried address keeps its own redirect chain`() = runTest {
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { target ->
+                RedirectResolution(
+                    finalUrl = "https://landing.test/x",
+                    hops = listOf(target, "https://landing.test/x"),
+                    crossedDomains = true,
+                    outcome = RedirectOutcome.RESOLVED
+                )
+            }
+        )
+
+        val result = orchestrator.scan("https://www.google.com/url?q=https://bit.ly/abc")
+
+        assertEquals("https://landing.test/x", result.resolvedUrl)
+        // Opening still goes through the wrapper, so its own warning page stays in front.
+        assertEquals(null, result.verifiedResolvedUrl)
+    }
+
+    @Test
+    fun `a carried address that cannot be fetched is still scanned without an unresolved signal`() = runTest {
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver { RedirectResolution(it, listOf(it), false, RedirectOutcome.TIMEOUT) }
+        )
+
+        val result = orchestrator.scan("https://www.google.com/url?q=https://slow-site.test/")
+
+        assertEquals("https://slow-site.test/", result.resolvedUrl)
+        assertFalse(result.verdict.signals.any { it.ruleId == ScoringEngine.REDIRECT_UNRESOLVED_RULE_ID })
+    }
+
+    @Test
+    fun `a wrapper pointing back into its own site is not a cross-site redirect`() = runTest {
+        val orchestrator = orchestrator(redirect = FakeRedirectResolver { noRedirect(it) })
+
+        val result = orchestrator.scan("https://www.google.com/url?q=https://maps.google.com/place/x")
+
+        assertEquals("https://maps.google.com/place/x", result.resolvedUrl)
+        assertFalse(result.verdict.signals.any { it.ruleId == "REDIRECT_CROSS_DOMAIN" })
+    }
+
+    @Test
+    fun `wrapper paths and parameters that carry no web address are left alone`() = runTest {
+        listOf(
+            "https://www.google.com/search?q=https://evil-site.xyz/login",
+            "https://www.google.com/url?q=javascript:alert(1)",
+            "https://www.google.com/url?q=not-a-link",
+            "https://www.facebook.com/profile.php?u=https%3A%2F%2Fevil-site.xyz",
+            "https://evil-google.com/url?q=https://evil-site.xyz/login"
+        ).forEach { url ->
+            val heuristicInputs = mutableListOf<String>()
+            val orchestrator = orchestrator(
+                heuristic = FakeHeuristic { heuristicInputs.add(it); emptyList() },
+                redirect = FakeRedirectResolver { noRedirect(it) }
+            )
+
+            val result = orchestrator.scan(url)
+
+            assertEquals(url, listOf(url), heuristicInputs)
+            assertEquals(url, null, result.resolvedUrl)
+        }
+    }
+
+    @Test
+    fun `a page served as an android app is flagged`() = runTest {
+        val orchestrator = orchestrator(
+            redirect = FakeRedirectResolver {
+                RedirectResolution(
+                    it, listOf(it), false, RedirectOutcome.NO_REDIRECT,
+                    finalContentType = "application/vnd.android.package-archive; charset=utf-8"
+                )
+            }
+        )
+
+        val result = orchestrator.scan("https://promo.test/download?id=7")
+
+        assertTrue(result.verdict.signals.any { it.ruleId == "DOWNLOADS_ANDROID_APP" })
+        assertNotEquals(Verdict.SAFE, result.verdict.verdict)
+    }
+
+    @Test
+    fun `an apk already named in the url is not counted twice`() = runTest {
+        val orchestrator = orchestrator(
+            heuristic = FakeHeuristic {
+                listOf(
+                    ScanSignal(
+                        ruleId = "LOCAL_DANGEROUS_FILE_TYPE_APK", title = "apk", description = "apk",
+                        strength = SignalStrength.MEDIUM, source = SignalSource.LOCAL_HEURISTIC, score = 25
+                    )
+                )
+            },
+            redirect = FakeRedirectResolver {
+                RedirectResolution(
+                    it, listOf(it), false, RedirectOutcome.NO_REDIRECT,
+                    finalContentType = "application/vnd.android.package-archive"
+                )
+            }
+        )
+
+        val result = orchestrator.scan("https://promo.test/app.apk")
+
+        assertFalse(result.verdict.signals.any { it.ruleId == "DOWNLOADS_ANDROID_APP" })
+    }
+
+    @Test
+    fun `ordinary pages are not flagged as app downloads`() = runTest {
+        listOf("text/html; charset=utf-8", null, "application/pdf").forEach { type ->
+            val orchestrator = orchestrator(
+                redirect = FakeRedirectResolver {
+                    RedirectResolution(it, listOf(it), false, RedirectOutcome.NO_REDIRECT, finalContentType = type)
+                }
+            )
+
+            val result = orchestrator.scan("https://promo.test/page")
+
+            assertFalse("$type", result.verdict.signals.any { it.ruleId == "DOWNLOADS_ANDROID_APP" })
+        }
     }
 }

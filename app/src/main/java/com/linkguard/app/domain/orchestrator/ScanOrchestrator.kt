@@ -86,7 +86,14 @@ class ScanOrchestrator(
         //     skip this for latency, but redirect-capable query parameters are still resolved
         //     to prevent trusted-host open-redirect bypasses. The verdict still gates opening.
         val originalDomain = DomainExtractor.extract(url)
-        val resolution = redirectResolver
+        // A trusted link wrapper (google.com/url?q=, l.facebook.com/l.php?u=, youtube.com/redirect?q=)
+        // carries its destination in a parameter and answers with its own interstitial instead of a
+        // redirect, so following it never reached the destination: the wrapper scored SAFE 0%
+        // whatever it pointed at. The carried address is scanned as the link's destination instead.
+        val wrapped = wrappedDestination(url)
+        val resolution = if (wrapped != null) {
+            unwrapped(url, wrapped, redirectResolver?.takeIf { allowNetworkChecks }?.resolve(wrapped))
+        } else redirectResolver
             ?.takeIf {
                 allowNetworkChecks &&
                     (!KnownDomains.isTrusted(originalDomain) || hasRedirectParameter(url))
@@ -103,6 +110,22 @@ class ScanOrchestrator(
             .getOrDefault(emptyList())
         allSignals.addAll(heuristicSignals)
         resolution?.let { allSignals.addAll(redirectSignals(it)) }
+        // A link that serves an Android app file, even when nothing in the URL says ".apk".
+        if (resolution?.finalContentType?.startsWith(APK_CONTENT_TYPE, ignoreCase = true) == true &&
+            allSignals.none { it.ruleId == "LOCAL_DANGEROUS_FILE_TYPE_APK" }
+        ) {
+            allSignals.add(
+                ScanSignal(
+                    ruleId = "DOWNLOADS_ANDROID_APP",
+                    title = "Link downloads an Android app",
+                    description = "This link delivers an app file (APK) instead of a web page — apps from outside the Play Store are a common way to spread malware.",
+                    strength = SignalStrength.MEDIUM,
+                    source = SignalSource.LOCAL_HEURISTIC,
+                    score = 25,
+                    matchedValue = resolution.finalUrl
+                )
+            )
+        }
 
         // Start bounded static inspection alongside providers only when local/redirect evidence
         // has not already decided THREAT. Eligibility is side-effect-free and retains all fetch
@@ -171,8 +194,10 @@ class ScanOrchestrator(
             verdict = finalVerdict,
             timestamp = startedAt,
             resolvedUrl = resolution?.takeIf { it.redirected }?.finalUrl,
+            // Not for an unwrapped link: opening it still goes through the wrapper, so the
+            // platform's own warning page stays in front of the destination.
             verifiedResolvedUrl = resolution
-                ?.takeIf { it.redirected && it.outcome == RedirectOutcome.RESOLVED }
+                ?.takeIf { wrapped == null && it.redirected && it.outcome == RedirectOutcome.RESOLVED }
                 ?.finalUrl
         )
 
@@ -295,15 +320,59 @@ class ScanOrchestrator(
         // Several major trusted services use short, endpoint-specific parameter names. Keep
         // these scoped to their actual redirect paths so ordinary searches such as /search?q=
         // do not incur redirect probing or get mistaken for open redirects.
-        val domain = DomainExtractor.extract(url)
+        // Matched as the site or any subdomain: the exact-name check missed l.facebook.com and
+        // m.youtube.com, the hosts these links actually use.
+        val host = parsed.host
         val path = parsed.encodedPath.lowercase()
         return when {
-            domain == "google.com" && path == "/url" -> "q" in parameterNames
-            domain == "facebook.com" && path == "/l.php" -> "u" in parameterNames
-            domain == "youtube.com" && path == "/redirect" -> "q" in parameterNames
+            isWithin(host, "google.com") && path == "/url" -> "q" in parameterNames
+            isWithin(host, "facebook.com") && path == "/l.php" -> "u" in parameterNames
+            isWithin(host, "youtube.com") && path == "/redirect" -> "q" in parameterNames
             else -> false
         }
     }
+
+    private fun isWithin(host: String?, site: String): Boolean =
+        host != null && (host == site || host.endsWith(".$site"))
+
+    /** The http(s) address a trusted link wrapper carries, or null when [url] is not one. */
+    private fun wrappedDestination(url: String): String? {
+        val parsed = url.toHttpUrlOrNull() ?: return null
+        val path = parsed.encodedPath.lowercase()
+        val (_, _, parameters) = LINK_WRAPPERS
+            .firstOrNull { (site, wrapperPath, _) -> isWithin(parsed.host, site) && path == wrapperPath }
+            ?: return null
+        return parameters.firstNotNullOfOrNull { parsed.queryParameter(it) }
+            ?.takeIf { it.toHttpUrlOrNull() != null }
+    }
+
+    /**
+     * The wrapper as the first hop in front of its carried [destination]. The destination is
+     * known even when it cannot be fetched, so the result is RESOLVED unless the destination's
+     * own chain left it and then failed — that keeps its outcome and unresolved-redirect signal.
+     */
+    private fun unwrapped(wrapperUrl: String, destination: String, inner: RedirectResolution?): RedirectResolution {
+        val site = LINK_WRAPPERS.first { isWithin(wrapperUrl.toHttpUrlOrNull()?.host, it.first) }.first
+        val finalUrl = inner?.finalUrl ?: destination
+        val finished = inner == null || !inner.redirected ||
+            inner.outcome == RedirectOutcome.NO_REDIRECT || inner.outcome == RedirectOutcome.RESOLVED
+        return RedirectResolution(
+            finalUrl = finalUrl,
+            hops = listOf(wrapperUrl) + (inner?.hops ?: listOf(destination)),
+            crossedDomains = !isWithin(finalUrl.toHttpUrlOrNull()?.host, site),
+            outcome = if (finished) RedirectOutcome.RESOLVED else inner!!.outcome,
+            finalContentType = inner?.finalContentType
+        )
+    }
+
+    // site, wrapper path, parameters that carry the destination
+    private val LINK_WRAPPERS = listOf(
+        Triple("google.com", "/url", listOf("q", "url")),
+        Triple("facebook.com", "/l.php", listOf("u")),
+        Triple("youtube.com", "/redirect", listOf("q"))
+    )
+
+    private val APK_CONTENT_TYPE = "application/vnd.android.package-archive"
 
     private val REDIRECT_PARAMETER_NAMES = setOf(
         "url", "redirect", "redirect_uri", "redirect_url", "target", "dest", "destination",

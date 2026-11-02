@@ -7,6 +7,7 @@ import com.linkguard.app.domain.model.RedirectResolution
 import com.linkguard.app.domain.scanner.RedirectResolver
 import com.linkguard.app.util.AppConfig
 import com.linkguard.app.util.DomainExtractor
+import com.linkguard.app.util.NumericHost
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,6 +15,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 /**
  * Follows a tapped link's HTTP redirect chain to its final destination, read-only and bounded.
@@ -43,7 +45,15 @@ class HttpRedirectResolver(
         var current: String
     )
 
-    private data class HopResponse(val code: Int, val location: String?)
+    private data class HopResponse(val code: Int, val location: String?, val contentType: String?)
+
+    // The https probe of an http link connects with a shorter TCP timeout (see AppConfig); every
+    // other request uses the injected client unchanged.
+    private val probeClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .connectTimeout(AppConfig.REDIRECT_HTTPS_PROBE_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .build()
+    }
 
     override suspend fun resolve(url: String): RedirectResolution {
         val state = RedirectState(mutableListOf(url), url)
@@ -65,8 +75,10 @@ class HttpRedirectResolver(
         // The tapped URL gets the same host check as every redirect target. Nothing is sent, and
         // the outcome is NO_REDIRECT rather than BLOCKED_PRIVATE_HOST: the link never redirected,
         // so the "redirects to an unsafe target" signal would describe something that didn't happen.
+        // A number-form IP ("2130706433", "0x7f.0.0.1") is skipped the same way: the client would
+        // look it up as a hostname, while the browser opens the address it encodes.
         val startHost = state.current.toHttpUrlOrNull()?.host
-        if (startHost != null && isBlockedHost(startHost)) {
+        if (startHost != null && (isBlockedHost(startHost) || NumericHost.isObfuscatedIpv4(startHost))) {
             return result(state.chain, state.current, RedirectOutcome.NO_REDIRECT)
         }
 
@@ -78,9 +90,10 @@ class HttpRedirectResolver(
 
             // An http link's first hop is probed over https (see [httpsEquivalent]); the chain and
             // the final URL keep the link exactly as tapped, so its scheme is still scored.
-            val fetchUrl = if (hops == 0) httpsEquivalent(state.current) ?: state.current else state.current
+            val probe = if (hops == 0) httpsEquivalent(state.current) else null
+            val fetchUrl = probe ?: state.current
             val response = try {
-                fetchHop(fetchUrl)
+                fetchHop(fetchUrl, if (probe != null) probeClient else client)
             } catch (e: CancellationException) {
                 throw e // never swallow real coroutine cancellation
             } catch (e: Exception) {
@@ -93,7 +106,7 @@ class HttpRedirectResolver(
 
             if (code !in 300..399 || location.isNullOrBlank()) {
                 val outcome = if (state.chain.size > 1) RedirectOutcome.RESOLVED else RedirectOutcome.NO_REDIRECT
-                return result(state.chain, state.current, outcome)
+                return result(state.chain, state.current, outcome, response.contentType)
             }
 
             // resolve() returns null for relative-against-invalid or non-http(s) schemes —
@@ -117,17 +130,17 @@ class HttpRedirectResolver(
      * byte-range GET because some redirectors deliberately return 200 to HEAD and redirect only
      * real GET requests. Redirecting HEAD responses need no second request.
      */
-    private suspend fun fetchHop(url: String): HopResponse {
+    private suspend fun fetchHop(url: String, client: OkHttpClient): HopResponse {
         client.executeCancellable(request(url, head = true)).use { head ->
             if (head.code in 300..399 && !head.header("Location").isNullOrBlank()) {
-                return HopResponse(head.code, head.header("Location"))
+                return HopResponse(head.code, head.header("Location"), head.header("Content-Type"))
             }
             if (head.code !in 200..299 && head.code != 405 && head.code != 501) {
-                return HopResponse(head.code, head.header("Location"))
+                return HopResponse(head.code, head.header("Location"), head.header("Content-Type"))
             }
         }
         client.executeCancellable(request(url, head = false)).use { get ->
-            return HopResponse(get.code, get.header("Location"))
+            return HopResponse(get.code, get.header("Location"), get.header("Content-Type"))
         }
     }
 
@@ -141,12 +154,18 @@ class HttpRedirectResolver(
         return builder.build()
     }
 
-    private fun result(chain: List<String>, finalUrl: String, outcome: RedirectOutcome) =
+    private fun result(
+        chain: List<String>,
+        finalUrl: String,
+        outcome: RedirectOutcome,
+        finalContentType: String? = null
+    ) =
         RedirectResolution(
             finalUrl = finalUrl,
             hops = chain.toList(),
             crossedDomains = crossedDomains(chain.first(), finalUrl),
-            outcome = outcome
+            outcome = outcome,
+            finalContentType = finalContentType
         )
 
     private fun crossedDomains(first: String, last: String): Boolean {

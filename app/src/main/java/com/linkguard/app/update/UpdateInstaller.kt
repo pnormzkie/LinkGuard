@@ -213,6 +213,10 @@ object UpdateInstaller {
         )
 
         pruneOldReleaseApks(appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))
+        // An earlier "tap to install" notice pointed at a file that was just deleted; tapping it
+        // would open the installer on nothing.
+        (appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .cancel(UPDATE_NOTIFICATION_ID)
 
         val request = DownloadManager.Request(Uri.parse(apkUrl))
             .setTitle(fileName)

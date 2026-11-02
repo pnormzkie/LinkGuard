@@ -4,6 +4,7 @@ import com.linkguard.app.data.ScanResult
 import com.linkguard.app.data.ThreatLevel
 import com.linkguard.app.util.DomainExtractor
 import com.linkguard.app.util.KnownDomains
+import com.linkguard.app.util.NumericHost
 import com.linkguard.app.util.TldRegistry
 import java.net.URI
 import java.util.regex.Pattern
@@ -513,6 +514,13 @@ object HeuristicScanner {
         // path is still attacker-chosen, so path evidence is not waived there.
         val isUserContent = isOfficialDomain && isUserContentHost(domain)
 
+        // 0. A web link with no host ("https://") cannot be checked against anything.
+        if ((urlLower.startsWith("http://") || urlLower.startsWith("https://")) &&
+            DomainExtractor.extract(urlLower).isNullOrBlank()
+        ) {
+            addFinding("MISSING_HOST", "Link has no website address — it cannot be checked", 30, LocalHeuristicStrength.MEDIUM, 25)
+        }
+
         // 1. HTTP
         if (!isOfficialDomain && urlLower.startsWith("http://")) {
             addFinding("UNENCRYPTED_HTTP", "Unencrypted HTTP connection", 30, LocalHeuristicStrength.WEAK, 15)
@@ -694,8 +702,9 @@ object HeuristicScanner {
             }
         }
 
-        // 9. IP address
-        if (domain.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) {
+        // 9. IP address — any IPv4 notation a browser opens ("1.2.3.4", "2130706433",
+        //    "0x7f.0.0.1", "127.1") or an IPv6 literal ("[::1]")
+        if (NumericHost.isIpv4Form(domain) || (domain.startsWith("[") && ':' in domain)) {
             addFinding(
                 "IP_ADDRESS_HOST",
                 "IP address used instead of domain name",
