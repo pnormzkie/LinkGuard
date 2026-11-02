@@ -2361,3 +2361,22 @@ Approved by Norman: #1 and #4 only. #6 skipped (64:ff9b::/96, 198.18/15, 100.64/
 - History kept: home counters 2 threats / 5 suspicious / 55 safe before and after the update (tasks/v144-home.png).
 - Smoke: google.com SAFE 10%; Safe Browsing phishing page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40%, `resolved: NO_REDIRECT, hops=0, 5ms` (no request). Screens tasks/v144-smoke-1..3.png.
 - Not verified: why google.com is 10% (no baseline), QR scanner/camera path after the manifest change.
+
+## 2026-11-02 — Audit #3 verified on device: installer launch is blocked in the background
+
+- Setup (SM-A528B, Android BAL rules): temp release-signed build versionName 1.43 / code 45 over v1.44 (not committed, build.gradle restored); SYSTEM_ALERT_WINDOW temporarily set to deny (it is "allow" on this phone and exempts the app from background-start limits), restored to allow afterwards; official v1.44 reinstalled, hash a15f0147...5656a7 re-checked.
+- Test: update dialog -> "Update now" -> HOME after 1s -> wait 70s. Download completed ("LinkGuard-v1.44.apk — Download complete" notification) but no installer: logcat `Abort background activity starts from 10590` / `START u0 {act=VIEW typ=application/vnd.android.package-archive cmp=...InstallStart} ... (BAL_BLOCK) result code=102`. UpdateInstaller.kt:180 `startActivity` from the completion receiver is blocked.
+- Foreground path (app on screen) works: verified earlier with the real v1.43 -> v1.44 in-app update.
+- Impact: low (S3/P3) — update is downloaded and verified, the user can tap the "Download complete" notification; users who granted "display over other apps" are exempt. No fix made yet.
+- Side finding: the app's external Download folder keeps every downloaded release APK (v1.23 ... v1.41 listed, ~24 MB each); nothing deletes them.
+
+## 2026-11-02 — Fix audit #3 (background installer launch) + prune old downloaded APKs
+
+Approved by Norman: fix both.
+- [x] #3 fix: in the download-complete receiver, launch the installer directly only when the app process is in the foreground; otherwise post an "Update ready — tap to install" notification (PendingIntent is exempt from BAL). startActivity does not throw when blocked, so the result cannot be detected after the fact.
+- [x] Prune: before enqueue, delete earlier LinkGuard-v*.apk in the app's Download dir (unit test with a temp dir).
+- [x] Device repro (same protocol: temp 1.43/code 45 build, SYSTEM_ALERT_WINDOW denied then restored, HOME after "Update now"): notification appears, tap opens installer. Also foreground path still launches installer.
+- [x] Full suite 510/510 (2 new prune tests, red first: compile error until pruneOldReleaseApks existed); no commit/release until asked.
+- Device result (SM-A528B, SYSTEM_ALERT_WINDOW denied during test, restored to allow): backgrounded after "Update now" -> download completes, NO BAL_BLOCK in logcat, notification "LinkGuard update ready — Tap to install the new version." appears; tapping it opens PackageInstallerActivity (tasks/v144-fix3-notification.png, v144-fix3-tap.png). Foreground path: installer opens directly, no BAL_BLOCK (tasks/v144-fix3-foreground.png). Download dir went from 9 old APKs (v1.23..v1.41) to only the new one.
+- Import detail: foreground check uses importance <= IMPORTANCE_FOREGROUND, not VISIBLE/FOREGROUND_SERVICE (the app runs a foreground service, which does not exempt it from the background-start limit).
+- Phone restored: official v1.44 reinstalled (hash a15f0147...5656a7), overlay permission allow, test APK removed. Not committed or released; ships with the next version.

@@ -1,6 +1,10 @@
 package com.linkguard.app.update
 
+import android.app.ActivityManager
 import android.app.DownloadManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,7 +15,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import java.io.File
 import java.net.URI
 
 /**
@@ -27,6 +33,9 @@ object UpdateInstaller {
 
     /** Returned when a download could not be started (untrusted URL or enqueue failure). */
     const val NO_DOWNLOAD = -1L
+
+    private const val UPDATE_CHANNEL_ID = "linkguard_update"
+    private const val UPDATE_NOTIFICATION_ID = 4401
 
     /**
      * Completion receivers awaiting a download, keyed by id. DownloadManager broadcasts nothing
@@ -177,8 +186,16 @@ object UpdateInstaller {
                 val install = Intent(Intent.ACTION_VIEW)
                     .setDataAndType(apkUri, APK_MIME_TYPE)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                runCatching { appContext.startActivity(install) }
-                    .onFailure { Log.e(TAG, "Could not launch installer: ${it.message}") }
+                // startActivity does not throw when Android blocks a background launch (it logs
+                // BAL_BLOCK and returns), so the failure cannot be caught afterwards. Launch
+                // directly only while the app is on screen; otherwise hand the user a
+                // notification, whose PendingIntent is exempt from the background-start limit.
+                if (isAppInForeground()) {
+                    runCatching { appContext.startActivity(install) }
+                        .onFailure { Log.e(TAG, "Could not launch installer: ${it.message}") }
+                } else {
+                    notifyInstallReady(appContext, install)
+                }
             }
         }
 
@@ -194,6 +211,8 @@ object UpdateInstaller {
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
+
+        pruneOldReleaseApks(appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS))
 
         val request = DownloadManager.Request(Uri.parse(apkUrl))
             .setTitle(fileName)
@@ -258,6 +277,51 @@ object UpdateInstaller {
         }
         // A removed download broadcasts no completion, so the receiver must be torn down here.
         releaseReceiver(appContext, downloadId)
+    }
+
+    /**
+     * Deletes release APKs left in [dir] by earlier updates (each is ~24 MB and nothing else
+     * removes them). Returns how many files were deleted; a null or missing directory is a no-op.
+     */
+    internal fun pruneOldReleaseApks(dir: File?): Int =
+        dir?.listFiles { f -> f.isFile && f.name.startsWith("LinkGuard-v") && f.name.endsWith(".apk") }
+            ?.count { it.delete() } ?: 0
+
+    // FOREGROUND only: a foreground-service process reports a weaker importance, and that
+    // state does not exempt the app from the background-start restriction.
+    private fun isAppInForeground(): Boolean {
+        val state = ActivityManager.RunningAppProcessInfo()
+        ActivityManager.getMyMemoryState(state)
+        return state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    }
+
+    private fun notifyInstallReady(context: Context, install: Intent) {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!nm.areNotificationsEnabled()) {
+            Log.w(TAG, "Update downloaded but notifications are off; the download notification remains")
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            nm.getNotificationChannel(UPDATE_CHANNEL_ID) == null
+        ) {
+            nm.createNotificationChannel(
+                NotificationChannel(UPDATE_CHANNEL_ID, "App updates", NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val tapIntent = PendingIntent.getActivity(
+            context,
+            UPDATE_NOTIFICATION_ID,
+            install,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, UPDATE_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("LinkGuard update ready")
+            .setContentText("Tap to install the new version.")
+            .setContentIntent(tapIntent)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(UPDATE_NOTIFICATION_ID, notification)
     }
 
     private fun android.database.Cursor.getIntOrZero(column: String): Int {
