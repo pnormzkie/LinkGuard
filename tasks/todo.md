@@ -2387,3 +2387,12 @@ Approved by Norman: fix both.
 - stage-release: 510/510 tests, 24,683,464 bytes, SHA-256 A12C461F...6723AB.
 - publish.sh: release id 431032249, tag v1.45, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
 - NOT verified on device: update dialog 1.45 over 1.44, in-app install. Phone SM-A528B is on v1.44. The fix itself was device-tested on a temp build (see the #3 entry above).
+
+## 2026-11-02 — v1.45 device check (SM-A528B) — PASS
+
+- Update dialog on v1.44: "Version 1.45 / You're on 1.44", 4 note lines + "Update now" visible, no scroll (tasks/v145-update-dialog.png).
+- In-app update, app in foreground: Update now -> download -> installer opened directly (no BAL_BLOCK in logcat) -> Update -> InstallSuccess. No Play Protect prompt this time.
+- Installed 1.45 / code 46; base.apk SHA-256 a12c461f...6723ab == staged == published asset. History kept: counters 3 / 6 / 56 before and after.
+- Download dir after update: only LinkGuard-v1.45.apk (pruning works on the live build).
+- Smoke: google.com SAFE 10%; phishing test page DANGEROUS 100% (10 vendors); http://192.168.1.1/admin SUSPICIOUS 40%, `NO_REDIRECT 5ms` (no request); backslash URL DANGEROUS 80% (resolver TIMEOUT 6004 ms on the non-existent host = normal NXDOMAIN wait, verdict unaffected). Screens tasks/v145-*.png.
+- Not verified on the live build: the background "tap to install" notification (tested on a temp build earlier), QR scanner after the manifest change.
