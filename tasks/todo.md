@@ -2532,3 +2532,9 @@ Device A/B, SM-A528B (A = official v1.46, B = release-signed build of this sourc
 - stage-release: 541/541 tests, 24,687,560 bytes, SHA-256 F195D8D0...382ACF.
 - publish.sh: release id 431132286, tag v1.47, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
 - NOT verified on device yet: update dialog 1.47 over 1.46, in-app install, smoke on the published APK (the changes themselves were A/B-tested on a release-signed build of the same source).
+
+## 2026-11-02 — v1.47 device check (SM-A528B) — PASS
+
+- Update dialog on v1.46: "Version 1.47 / You're on 1.46", all 5 note lines + "Update now" visible without scrolling (tasks/v147-update-dialog.png).
+- In-app update in foreground: installer opened directly (no BAL_BLOCK) -> Update -> InstallSuccess in ~20 s, no Play Protect prompt. Installed 1.47 / code 48; base.apk SHA-256 f195d8d0...382acf == staged == published. Counters 21/51/105 before = after (history kept). Download dir holds only LinkGuard-v1.47.apk.
+- Smoke on the published APK: google.com SAFE 10%; SB phishing DANGEROUS 100%; http://192.168.1.1/admin SUSPICIOUS 40% (NO_REDIRECT 19 ms, no request); google.com/url?q=https://evil-site.xyz/login SUSPICIOUS 35% GOES TO evil-site.xyz; http postman-echo redirect -> SB phishing DANGEROUS 100% GOES TO the phishing page; http://[::1]:8080/admin SUSPICIOUS 40%; https:// SUSPICIOUS 25% "Link has no website address". No crashes.
