@@ -133,3 +133,21 @@
 **Context:** Backlog sweep, retesting number-form IP hosts.
 **Rule:** When a compiled class disappears between compile and hash, bisect the test's string literals before blaming Gradle. Build obfuscated-IP / malware-looking URLs at runtime in tests (e.g. "http" + "://" + ((127L shl 24) + 1)), and say so in a comment.
 **Status:** active
+
+## 2026-11-10 — Following a redirect must add evidence, never replace it
+**Mistake:** ScanOrchestrator set `scanUrl = resolution.finalUrl` and ran the heuristics and every provider on that URL only. The destination's answer replaced everything known about the link the user received, so a server that redirected this app's check to google.com turned a Safe Browsing-listed link into SAFE 10%. The 2026-11-02 note had already recorded the symptom as a trade-off ("its IP/HTTP signals no longer count") without asking who controls the redirect.
+**Context:** Full audit of v1.47. Found by probing: same link, same providers, with and without a fake resolver.
+**Rule:** The server being checked decides what the check sees. Any step that swaps the scan target for something the server returned (redirect, wrapper, page content) must keep the decisive evidence about the original. For every such step, write the test "the server lies to the scanner" before trusting it.
+**Status:** active
+
+## 2026-11-10 — Text from a sender or a page is hostile input to a regex
+**Mistake:** Message and page patterns used open-ended runs (`.*` twice in one pattern, `\d+[,.]?\d*`, `[^>]*`). 4,000 digits in a message took 122 s; 128 KB of unterminated "<svg " took 47 s. Both run before any verdict is shown (message patterns on the main thread on tap; the scan awaits the page inspection), so the sender could hold back the warning for their own link. `withTimeout` did not help: a running regex has no suspension point.
+**Context:** Same audit. Every existing test used short, well-formed text, where these patterns are fast.
+**Rule:** For a pattern that runs on sender- or site-written text: no nested or adjacent open-ended quantifiers; use possessive/atomic forms or a bounded `{0,N}`. Add one test with a long input that almost matches, under a time limit. A coroutine timeout does not bound CPU work.
+**Status:** active
+
+## 2026-11-10 — Size an attack input by what the platform delivers, not by what the test can build
+**Mistake:** Reported the message-regex stall as "4,000 digits = 2 minutes" from a desktop test. On the phone (Android 14) a notification text field is cut at about 1,024 characters, so the real worst case through one field was 950 digits = 4 s. The first device attempt also put the link after the digits, the link was cut off, nothing was scanned, and it looked like a hang.
+**Context:** Full audit, F2, device A/B on SM-A528B.
+**Rule:** Before quoting the impact of a hostile-input bug, check the size limit of the channel that carries the input on the target OS and quote the figure for that size. In device tests put the link first in the text, and check `isKeyguardShowing` before trusting an empty screen read.
+**Status:** active

@@ -2538,3 +2538,51 @@ Device A/B, SM-A528B (A = official v1.46, B = release-signed build of this sourc
 - Update dialog on v1.46: "Version 1.47 / You're on 1.46", all 5 note lines + "Update now" visible without scrolling (tasks/v147-update-dialog.png).
 - In-app update in foreground: installer opened directly (no BAL_BLOCK) -> Update -> InstallSuccess in ~20 s, no Play Protect prompt. Installed 1.47 / code 48; base.apk SHA-256 f195d8d0...382acf == staged == published. Counters 21/51/105 before = after (history kept). Download dir holds only LinkGuard-v1.47.apk.
 - Smoke on the published APK: google.com SAFE 10%; SB phishing DANGEROUS 100%; http://192.168.1.1/admin SUSPICIOUS 40% (NO_REDIRECT 19 ms, no request); google.com/url?q=https://evil-site.xyz/login SUSPICIOUS 35% GOES TO evil-site.xyz; http postman-echo redirect -> SB phishing DANGEROUS 100% GOES TO the phishing page; http://[::1]:8080/admin SUSPICIOUS 40%; https:// SUSPICIOUS 25% "Link has no website address". No crashes.
+
+## 2026-11-10 — Full audit of v1.47 source (HEAD 6324709) + fix critical bugs only
+
+Request (Norman): "perform full audit on my Linkguard app, fix any critical bugs found. Suggest what's need to improve."
+Scope rule: only bugs judged critical (S1, or S2 on the core detect/alert path) are fixed, each re-tested first, red test, smallest fix. Everything else is reported, not changed. No UI visual changes. No commit / release unless asked.
+- [x] 1. Baseline: 541/541 on HEAD 6324709
+- [x] 2. Read every main source file + manifest + build config (8,573 lines)
+- [x] 3. Probe suspected defects with real code (temporary JVM test, removed)
+- [x] 4. Fix critical findings (test first), full suite + assembleDebug + lint
+- [x] 5. Report: findings by severity, fixed vs open, improvement suggestions
+
+### Fixed (not committed, not released, NOT device-tested: no phone attached, adb list empty)
+- [x] F1 S1 Redirect cloak. Only the destination of a redirect was scored. A server that sends this app's check to a clean site made a Safe Browsing-listed, newly registered link read SAFE 10% "No risks detected" (probe: THREAT 100 without the redirect, SAFE 10 with it). Fix (ScanOrchestrator): when the chain left the tapped site and the tapped host is not trusted, Safe Browsing, VirusTotal, URLhaus and DomainAge are also asked about the tapped link; only STRONG/CRITICAL findings from it count; a finding on both ends counts once (the stronger); a failed tapped lookup = partial coverage, not cached. After: THREAT 100.
+- [x] F2 S2 Slow regex on message text (sender-written). `(\d+[,.]?\d*) points?...`: 1,000 digits 2.0 s, 2,000 15.7 s, 4,000 122 s; `verify.*within.*hour` / `delivery.*fee.*pay` on 25,000 chars 108 s / 122 s (desktop JVM). Runs on the main thread on link tap. Fix (UrlScanner): possessive quantifiers / atomic groups, same matches. After: 65 ms, 336 ms, 354 ms.
+- [x] F3 S2 Slow regex on page content (site-written). Unterminated "<svg " x 128 KB: 47.5 s (64 KB 11.9 s); the scan awaits the inspection before reporting, so the page delays the alert for its own link. Fix (HttpCredentialFormInspector): the two open-ended runs capped at 512 chars. After: 128 KB 470 ms, 250 KB 906 ms.
+- Tests: 16 new (11 red before the fix, 5 guards green before and after); 1 existing test updated (`resolved destination is what gets scanned...` now expects the reputation lookup on both ends). `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug` -> 557/557, BUILD SUCCESSFUL, lint 0 errors / 153 warnings.
+- Cost of F1: a cross-site redirect from an untrusted host now makes 4 extra provider calls (SB, VT, URLhaus, RDAP). VirusTotal's free quota is the tight one.
+- Timings are desktop JVM (OpenJDK regex). Android uses ICU's engine: same backtracking class, not timed on a device.
+
+### Open (reported, not changed)
+- [ ] O1 S2/P2 Rest of the cloak: local findings and SMS wording about the tapped link are still dropped after a cross-site redirect (probe: SUSPICIOUS 25-50 -> SAFE 10). Keeping them has a false-positive cost that needs a decision: gcash.onelink.me-style deep links (BRAND_IN_SUBDOMAIN 50) and promo SMS through shp.ee-style short domains would turn SUSPICIOUS.
+- [ ] O2 S3/P2 The check announces itself: User-Agent "LinkGuard-SafetyCheck/1.0" and HEAD first (HttpRedirectResolver, HttpCredentialFormInspector). Makes cloaking trivial.
+- [ ] O3 S3/P2 Wrappers still not unwrapped: l.instagram.com/?u= SAFE 0%, google.com/amp/s/<host> SAFE 0%, nested google.com/url?q=google.com/url?q= SAFE 0%, l.messenger.com/l.php?u= SAFE 10% (probe).
+- [ ] O4 S3/P3 Pages on trusted platforms with no brand in the path: sites.google.com/view/<id> and script.google.com/macros/... with a scam SMS = SAFE 0% (rule 13 is waived by host trust even on USER_CONTENT_HOSTS; script.google.com is not in that list).
+- [ ] O5 S3/P3 scanDeduper drops a repeat of the same link for 5 min even when the new message carries the scam wording (code read, not probed). Tap path is unaffected.
+- [ ] O6 S4/P3 DomainExtractor trusts a host with characters no real host has: "evil.xyz%2f.paypal.com", "%5c", "%23", "%3f", "%00", "%20" read trusted=true while OkHttp rejects the URL. No bypass shown; a host outside [a-z0-9.-] should not be trusted.
+- [ ] O7 S4/P3 UrlExtractor.extractUrls("a.a.a.a..." 5,000 chars) throws StackOverflowError on the desktop JVM; called on the main thread in onNotificationPosted with no guard. Android/ICU behaviour unknown.
+- [ ] O8 S3/P3 Privacy: full URLs with query strings (reset / magic-login tokens) from notifications go to Safe Browsing, VirusTotal and Hybrid Analysis and are stored in history with no retention limit.
+- [ ] O9 S3/P3 Update APK is verified and then installed from external app storage (Android 8-10: another app with storage access can swap the file between check and install prompt; code read, not tested).
+- [ ] Still open from before: API keys inside the public APK (#2), History shows only the newest 50 rows, config change re-scans, ongoing DANGER notification, SetupActivity unused, 29 release APKs + app/release/app-release.apk tracked in git.
+
+### Device A/B, SM-A528B Android 14 (2026-11-10) — IN PROGRESS, phone locked mid-run
+A = official v1.47 (base.apk f195d8d0...382acf). B = release-signed build of this working tree, same 1.47/48, cert ead80ea1..., sha256 2dc39414...3a072e, `install -r` (firstInstallTime unchanged, data kept).
+- [x] A verdicts (tap path, cold): google.com SAFE 0%; SB phishing DANGEROUS 100%; 192.168.1.1/admin SUSPICIOUS 40%; postman-echo -> example.com SUSPICIOUS 25%; httpbingo -> example.com SUSPICIOUS 25%; http postman-echo -> SB phishing DANGEROUS 100%; google.com/url?q=evil-site.xyz SUSPICIOUS 35%; postman-echo -> rappler SAFE 10%.
+- [x] F2 on the real app (notification from shell, link first, 950 digits = the most Android 14 lets through: notification text fields are cut at ~1,024 chars; a first try with the link after 1,000+ digits lost the link and scanned nothing): app CPU per scan A 4,220 / 4,260 ms vs control 260 / 170 ms; B 240 / 190 ms vs control 280 / 210 ms.
+- [x] Old vs new patterns on the phone's own regex engine (app_process, Dalvik 2.1.0, same inputs as the unit tests):
+  - digits-points: 500 = 602 ms, 950 = 4.1 s, 2,000 = 38.5 s -> new 2 / 7 / 31 ms, 4,000 = 127 ms
+  - verify-within: 5,000 chars = 2.9 s, 25,000 = 363 s -> new 24 ms / 607 ms
+  - delivery-fee: 5,000 = 3.0 s (25,000 not waited for)
+  - page <svg flood: 16 KB 1.2 s, 64 KB 19.9 s, 128 KB 78.8 s -> new 83 ms / 343 ms / 686 ms, 250 KB 1.3 s
+  - page setTimeout( flood: 64 KB 9.6 s, 128 KB 38.3 s -> new 165 ms / 331 ms, 250 KB 641 ms
+  So the phone is slower than the desktop JVM on the old patterns (128 KB page 78.8 s vs 47.5 s), and the fix holds on it.
+- [x] B verdicts (second run after Norman unlocked; the first run's screens were not read, keyguard): all 8 identical to A — SAFE 0%, DANGEROUS 100%, SUSPICIOUS 40%, SUSPICIOUS 25%, SUSPICIOUS 25%, DANGEROUS 100%, SUSPICIOUS 35%, SAFE 10%. Same provider counts in logcat, crash buffer empty, no ANR.
+  - The tapped-link lookups do run on the device: on the httpbingo run "SafeBrowsing (tapped link) timed out after 8000ms" was logged and the screen added "Some external security checks unavailable — verdict based on partial coverage" (verdict still 25%). That is the designed behaviour, and also the cost: four more lookups = more chances of that note on a slow network. The other three off-site redirects (postman-echo x3) logged no failure.
+- [x] Official v1.47 restored with `install -r`: base.apk f195d8d0...382acf == staged == published, firstInstallTime unchanged, listener still enabled, launches. Probe dex and UI dump removed from the phone.
+- Left on the phone: ~35 test rows in History (smoke links and my-refund-portal.com/claim?n=5xx) and any alerts they raised.
+- Not possible on device: F1 true positive (a blocklisted link whose server redirects off-site) — no safe public fixture exists (Safe Browsing test pages do not redirect); covered by unit tests with fakes only. F3 through the real app — needs a public server serving the crafted page; engine timing above instead.
+- Correction to the earlier report: F2's exposure on Android 13+ through one notification field is ~1,000 chars (4 s of CPU on this phone), not the 4,000-digit / 2-minute case; the longer cases need Android 8-12 (5 KB fields) or several fields joined.
