@@ -13,3 +13,6 @@ app/build/
 
 # Logs
 *.log
+
+# Working task log: lists open findings, kept on this machine only
+tasks/todo.md
