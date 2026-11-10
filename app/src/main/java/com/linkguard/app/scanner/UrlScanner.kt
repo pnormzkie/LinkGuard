@@ -127,13 +127,7 @@ object HeuristicScanner {
         ".pw", ".vip", ".win", ".loan", ".buzz", ".icu", ".cyou"
     )
 
-    private val URL_SHORTENERS = listOf(
-        "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly",
-        "short.link", "rb.gy", "cutt.ly", "is.gd", "buff.ly",
-        "tiny.cc", "shorte.st", "adf.ly", "bc.vc", "s.id",
-        "v.gd", "clck.ru", "qr.ae", "to.ly", "x.co",
-        "lnkd.in", "fb.me", "wa.me", "go2l.ink", "shorturl.at"
-    )
+    private val URL_SHORTENERS = KnownDomains.URL_SHORTENERS
 
     private val PH_BRANDS = listOf(
         "bpi", "bdo", "metrobank", "landbank", "pnb", "rcbc",

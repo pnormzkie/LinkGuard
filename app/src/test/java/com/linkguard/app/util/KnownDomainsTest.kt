@@ -45,4 +45,36 @@ class KnownDomainsTest {
         assertFalse(KnownDomains.isTrusted(null))
         assertFalse(KnownDomains.isTracker(null))
     }
+
+    @Test
+    fun `trusted sites, shorteners, brand links and app links are known forwarders`() {
+        for (domain in listOf(
+            "google.com", "l.facebook.com",          // trusted
+            "bit.ly", "maps.app.goo.gl",              // public shortener, and a subdomain of one
+            "shp.ee", "youtu.be", "smrt.ph",          // a brand's own forwarding domain
+            "grab.onelink.me", "app.appsflyer.com"    // app-install link service
+        )) {
+            assertTrue(domain, KnownDomains.isKnownForwarder(domain))
+        }
+    }
+
+    @Test
+    fun `an ordinary or look-alike host is not a known forwarder`() {
+        for (domain in listOf(
+            "gcash-verify.top", "parcel-redelivery.info", "example.com",
+            "notbit.ly", "shp.ee.evil.xyz", "onelink.me.evil.xyz", "pldt.ph", "gcash.co",
+            "gcsh.app", "glo.be" // ownership not confirmed
+        )) {
+            assertFalse(domain, KnownDomains.isKnownForwarder(domain))
+        }
+        assertFalse(KnownDomains.isKnownForwarder(null))
+    }
+
+    @Test
+    fun `a brand forwarding domain is not trusted as a destination`() {
+        // The list only says who does the forwarding. A page on these hosts is still scanned.
+        for (domain in KnownDomains.BRAND_FORWARDING_DOMAINS + KnownDomains.APP_LINK_SERVICES) {
+            assertFalse(domain, KnownDomains.isTrusted(domain))
+        }
+    }
 }

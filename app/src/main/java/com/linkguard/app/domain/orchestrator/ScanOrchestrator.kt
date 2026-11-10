@@ -110,6 +110,22 @@ class ScanOrchestrator(
             .getOrDefault(emptyList())
         allSignals.addAll(heuristicSignals)
         resolution?.let { allSignals.addAll(redirectSignals(it)) }
+
+        // 2b. Everything above scores the destination. A host that answered this check with a
+        //     redirect can answer a browser with something else: a phishing server sends
+        //     security checks to the real brand's site and everyone else to its fake page. So
+        //     what such a host's own name says about it, and what the message says, still
+        //     counts after it forwarded. A finding the destination already has is not repeated.
+        val forwarders = resolution?.let { unvettedForwarders(it) }.orEmpty()
+        forwarders.forEach { hop ->
+            runCatching { heuristicEngine.scan(hop, messageText) }
+                .onFailure { Log.e(TAG, "Heuristic engine failed${if (BuildConfig.DEBUG) " for $hop" else ""}", it) }
+                .getOrDefault(emptyList())
+                .filter { isForwarderEvidence(it.ruleId) }
+                .forEach { finding ->
+                    if (allSignals.none { it.ruleId == finding.ruleId }) allSignals.add(finding)
+                }
+        }
         // A link that serves an Android app file, even when nothing in the URL says ".apk".
         if (resolution?.finalContentType?.startsWith(APK_CONTENT_TYPE, ignoreCase = true) == true &&
             allSignals.none { it.ruleId == "LOCAL_DANGEROUS_FILE_TYPE_APK" }
@@ -141,16 +157,13 @@ class ScanOrchestrator(
         //    Full-URL providers receive a sanitized copy (no userinfo, no fragment) —
         //    URL credentials and browser-local fragments never leave the device.
         val lookupUrl = UrlPrivacy.sanitizeForExternalLookup(scanUrl)
-        // Everything above scores the destination. A phishing server can answer this app's check
-        // with a redirect to a clean site while real browsers get the phishing page, and then
-        // nothing was ever asked about the link the user received: a blocklisted link read SAFE.
-        // So when the chain left the tapped site, the blocklists and the domain age are asked
-        // about the tapped link too. Not for a same-site hop (www/https — it would double the
-        // provider quota for nothing) and not for a trusted host (a link wrapper).
-        val tappedLookupUrl = resolution
-            ?.takeIf { it.redirected && it.crossedDomains && !KnownDomains.isTrusted(originalDomain) }
-            ?.let { UrlPrivacy.sanitizeForExternalLookup(url) }
-            ?.takeIf { it != lookupUrl }
+        // For the same reason the blocklists and the domain age are asked about each forwarding
+        // host too, not only about the destination: otherwise nothing was ever asked about the
+        // link the user received, and a blocklisted link read SAFE.
+        val forwarderLookups = forwarders.mapNotNull { hop ->
+            UrlPrivacy.sanitizeForExternalLookup(hop)?.takeIf { it != lookupUrl }
+                ?.let { it to DomainExtractor.extract(hop) }
+        }
         val results = if (allowNetworkChecks && lookupUrl != null) {
             val checks = mutableListOf(
                 async { guarded("SafeBrowsing", lookupUrl, reputationProvider) },
@@ -160,12 +173,12 @@ class ScanOrchestrator(
                 async { guarded("DomainAge", domain, domainAgeProvider) },
                 async { guarded("URLhaus", lookupUrl, urlHausProvider) }
             )
-            if (tappedLookupUrl != null) {
-                checks += async { guarded("SafeBrowsing (tapped link)", tappedLookupUrl, reputationProvider) }
-                checks += async { guarded("VirusTotal (tapped link)", tappedLookupUrl, enrichmentProvider) }
-                checks += async { guarded("URLhaus (tapped link)", tappedLookupUrl, urlHausProvider) }
-                if (originalDomain != null) {
-                    checks += async { guarded("DomainAge (tapped link)", originalDomain, domainAgeProvider) }
+            forwarderLookups.forEach { (hopUrl, hopDomain) ->
+                checks += async { guarded("SafeBrowsing (forwarding link)", hopUrl, reputationProvider) }
+                checks += async { guarded("VirusTotal (forwarding link)", hopUrl, enrichmentProvider) }
+                checks += async { guarded("URLhaus (forwarding link)", hopUrl, urlHausProvider) }
+                if (hopDomain != null) {
+                    checks += async { guarded("DomainAge (forwarding link)", hopDomain, domainAgeProvider) }
                 }
             }
             checks.awaitAll()
@@ -178,10 +191,10 @@ class ScanOrchestrator(
         val externalCoverageMissing = successfulProviderCount == 0
         val externalCoveragePartial = successfulProviderCount in 1 until results.size
         results.take(PROVIDER_COUNT).filterNotNull().forEach { allSignals.addAll(it) }
-        // From the tapped link only decisive findings count. A weak one (host-level history, one
-        // vendor) is supporting evidence that popular shorteners and click-trackers also carry,
-        // so it would turn every resolved short link suspicious. A finding both ends share is
-        // counted once, at the stronger of the two.
+        // From a forwarding link only decisive provider findings count. A weak one (host-level
+        // history, one vendor) is supporting evidence that click-trackers also carry, so it
+        // would turn every resolved link suspicious. A finding both ends share is counted
+        // once, at the stronger of the two.
         results.drop(PROVIDER_COUNT).filterNotNull().flatten()
             .filter { it.strength == SignalStrength.STRONG || it.strength == SignalStrength.CRITICAL }
             .forEach { tapped ->
@@ -415,4 +428,44 @@ class ScanOrchestrator(
     )
 
     private val PROVIDER_COUNT = 6
+
+    /**
+     * The addresses in the chain that sent this check on to another site and could have sent
+     * a browser somewhere else. Not the destination itself, not a hop on the destination's own
+     * site (www/https), and not a known forwarding service (a trusted site, a public
+     * shortener, a brand's own short link, an app-install link). One address per host, at
+     * most [MAX_FORWARDERS_CHECKED]: each costs four provider lookups.
+     */
+    private fun unvettedForwarders(resolution: RedirectResolution): List<String> {
+        if (!resolution.redirected) return emptyList()
+        val finalSite = DomainExtractor.extract(resolution.finalUrl)?.let(DomainExtractor::site)
+        return resolution.hops.dropLast(1)
+            .mapNotNull { hop -> DomainExtractor.extract(hop)?.let { host -> hop to host } }
+            .filter { (_, host) ->
+                DomainExtractor.site(host) != finalSite && !KnownDomains.isKnownForwarder(host)
+            }
+            .distinctBy { (_, host) -> host }
+            .take(MAX_FORWARDERS_CHECKED)
+            .map { (hop, _) -> hop }
+    }
+
+    private val MAX_FORWARDERS_CHECKED = 2
+
+    /**
+     * The local findings that say who a forwarding host claims to be, plus the wording of the
+     * message. The shape of its address (subdomain depth, hyphens, random labels, length,
+     * encoding, keywords, plain http) is left out on purpose: click-trackers share all of it.
+     */
+    private fun isForwarderEvidence(ruleId: String): Boolean =
+        ruleId in FORWARDER_RULES || FORWARDER_RULE_PREFIXES.any { ruleId.startsWith(it) }
+
+    private val FORWARDER_RULES = setOf(
+        "LOCAL_ELEVATED_RISK_TLD", "LOCAL_IP_ADDRESS_HOST", "LOCAL_FAKE_COM_LABEL",
+        "LOCAL_NUMBER_SUBSTITUTION_LOOKALIKE", "LOCAL_PUNYCODE_BRAND_LOOKALIKE",
+        "LOCAL_MIXED_SCRIPT_DOMAIN", "LOCAL_SMISHING_MESSAGE_PATTERN"
+    )
+
+    private val FORWARDER_RULE_PREFIXES = listOf(
+        "LOCAL_BRAND_SPOOF_", "LOCAL_BRAND_IN_SUBDOMAIN_", "LOCAL_TYPOSQUAT_", "LOCAL_BRAND_ON_FREE_HOSTING_"
+    )
 }

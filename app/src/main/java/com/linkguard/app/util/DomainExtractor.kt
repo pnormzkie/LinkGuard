@@ -39,6 +39,24 @@ object DomainExtractor {
         }
     }
 
+    /**
+     * The site a host belongs to: its last two labels, or three under a two-part suffix such
+     * as "com.ph" ("mail.bdo.com.ph" -> "bdo.com.ph"). A leading "www." is ignored. This is a
+     * short suffix list, not the full public-suffix list.
+     */
+    fun site(host: String): String {
+        val parts = host.lowercase().removePrefix("www.").split(".").filter { it.isNotEmpty() }
+        if (parts.size <= 2) return parts.joinToString(".")
+        val lastTwo = parts.takeLast(2).joinToString(".")
+        return if (lastTwo in TWO_PART_SUFFIXES) parts.takeLast(3).joinToString(".") else lastTwo
+    }
+
+    private val TWO_PART_SUFFIXES = setOf(
+        "com.ph", "net.ph", "org.ph", "gov.ph",
+        "co.uk", "org.uk", "gov.uk",
+        "com.au", "com.sg", "com.my"
+    )
+
     private fun authorityHost(authority: String?): String? {
         val value = authority?.substringAfterLast('@')?.takeIf { it.isNotBlank() } ?: return null
         return if (value.startsWith('[')) {

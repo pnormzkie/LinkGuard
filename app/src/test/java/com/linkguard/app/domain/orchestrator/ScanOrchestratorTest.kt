@@ -11,10 +11,12 @@ import com.linkguard.app.domain.model.SignalStrength
 import com.linkguard.app.domain.model.Verdict
 import com.linkguard.app.domain.scanner.CredentialFormInspector
 import com.linkguard.app.domain.scanner.HeuristicEngine
+import com.linkguard.app.domain.scanner.LegacyHeuristicEngine
 import com.linkguard.app.domain.scanner.RedirectResolver
 import com.linkguard.app.domain.scanner.SignalProvider
 import com.linkguard.app.domain.scoring.ScoringEngine
 import com.linkguard.app.util.AppConfig
+import com.linkguard.app.util.DomainExtractor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -339,11 +341,11 @@ class ScanOrchestratorTest {
 
     @Test
     fun `resolved destination is what gets scanned, tapped url preserved`() = runTest {
-        var heuristicInput: String? = null
+        val heuristicInputs = mutableListOf<String>()
         val reputationInputs = mutableListOf<String>()
         var domainInput: String? = null
         val orchestrator = orchestrator(
-            heuristic = FakeHeuristic { heuristicInput = it; emptyList() },
+            heuristic = FakeHeuristic { heuristicInputs.add(it); emptyList() },
             reputation = FakeProvider { reputationInputs.add(it); emptyList() },
             domain = FakeProvider { domainInput = it; emptyList() },
             redirect = FakeRedirectResolver {
@@ -358,7 +360,8 @@ class ScanOrchestratorTest {
 
         val result = orchestrator.scan("https://sho.rt/a")
 
-        assertEquals("https://evil.example/landing", heuristicInput)
+        // The destination is scored; the link that forwarded there is examined after it.
+        assertEquals(listOf("https://evil.example/landing", "https://sho.rt/a"), heuristicInputs)
         // The destination is looked up; since the chain left the tapped site, so is the tapped link.
         assertEquals(setOf("https://evil.example/landing", "https://sho.rt/a"), reputationInputs.toSet())
         assertEquals("evil.example", domainInput) // providers see the resolved domain
@@ -1338,5 +1341,206 @@ class ScanOrchestratorTest {
         val vt = result.verdict.signals.filter { it.ruleId == "VT_MALICIOUS" }
         assertEquals(listOf("6 Vendors Flagged"), vt.map { it.title })
         assertEquals(65 + 10, result.verdict.finalScore) // + the cross-site redirect itself
+    }
+
+    // ─── What is known about a forwarding host counts ──────────────────────────────
+    // A host that sent the check somewhere else can send a browser somewhere else. Its
+    // look-alike name and the scam wording of the message used to be dropped the moment it
+    // answered with a redirect, and the blocklists were only asked about the tapped link,
+    // so a public shortener in front of the scam host hid it completely.
+
+    private fun chain(vararg hops: String) = FakeRedirectResolver { tapped ->
+        if (tapped != hops.first()) noRedirect(tapped) else RedirectResolution(
+            hops.last(), hops.toList(),
+            crossedDomains = DomainExtractor.site(DomainExtractor.extract(hops.first())!!) !=
+                DomainExtractor.site(DomainExtractor.extract(hops.last())!!),
+            outcome = RedirectOutcome.RESOLVED
+        )
+    }
+
+    private val parcelScam = "Your parcel is held at our warehouse. Pay the delivery fee today."
+    private val promoWording = "Congratulations! Claim your P50 cashback reward now."
+
+    private fun ruleIds(result: com.linkguard.app.domain.model.ScanResult) =
+        result.verdict.signals.map { it.ruleId }
+
+    @Test
+    fun `a look-alike host that forwards the check to the real site is still reported`() = runTest {
+        val orchestrator = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            redirect = chain("https://gcash-verify.top/login", "https://www.gcash.com/")
+        )
+
+        val result = orchestrator.scan("https://gcash-verify.top/login")
+
+        assertEquals(Verdict.THREAT, result.verdict.verdict)
+        assertTrue(ruleIds(result).containsAll(listOf("LOCAL_BRAND_SPOOF_gcash", "LOCAL_ELEVATED_RISK_TLD")))
+    }
+
+    @Test
+    fun `a misspelled brand and a raw IP address that forward elsewhere are still reported`() = runTest {
+        val typo = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            redirect = chain("https://gcassh.com/", "https://www.gcash.com/")
+        ).scan("https://gcassh.com/")
+        val ip = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            redirect = chain("https://203.0.113.9/login", "https://www.google.com/")
+        ).scan("https://203.0.113.9/login")
+
+        assertTrue(ruleIds(typo).contains("LOCAL_TYPOSQUAT_gcash"))
+        assertNotEquals(Verdict.SAFE, typo.verdict.verdict)
+        assertTrue(ruleIds(ip).contains("LOCAL_IP_ADDRESS_HOST"))
+        assertEquals(Verdict.SUSPICIOUS, ip.verdict.verdict)
+    }
+
+    @Test
+    fun `scam wording counts when an unknown host forwards the check to a trusted site`() = runTest {
+        val tapped = "https://parcel-redelivery.info/track"
+        val orchestrator = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            redirect = chain(tapped, "https://www.google.com/")
+        )
+
+        val withWording = orchestrator.scan(tapped, messageText = parcelScam)
+        val withoutWording = orchestrator.scan(tapped)
+
+        assertEquals(Verdict.SUSPICIOUS, withWording.verdict.verdict)
+        assertEquals(25 + 10, withWording.verdict.finalScore)
+        assertTrue(ruleIds(withWording).contains("LOCAL_SMISHING_MESSAGE_PATTERN"))
+        // The host itself says nothing: without the message there is nothing to report.
+        assertEquals(Verdict.SAFE, withoutWording.verdict.verdict)
+    }
+
+    @Test
+    fun `a host hidden behind a public shortener is checked, the shortener is not`() = runTest {
+        val calls = mutableMapOf<String, MutableList<String>>()
+        fun recorder(name: String) = FakeProvider { calls.getOrPut(name) { mutableListOf() }.add(it); emptyList() }
+        val orchestrator = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            reputation = recorder("reputation"), enrichment = recorder("enrichment"),
+            urlhaus = recorder("urlhaus"), domainAge = recorder("domainAge"),
+            redirect = chain("https://bit.ly/3xAbCd", "https://gcash-verify.top/r", "https://www.gcash.com/")
+        )
+
+        val result = orchestrator.scan("https://bit.ly/3xAbCd")
+
+        assertEquals(Verdict.THREAT, result.verdict.verdict)
+        assertTrue(ruleIds(result).contains("LOCAL_BRAND_SPOOF_gcash"))
+        val asked = setOf("https://www.gcash.com/", "https://gcash-verify.top/r")
+        assertEquals(asked, calls.getValue("reputation").toSet())
+        assertEquals(asked, calls.getValue("enrichment").toSet())
+        assertEquals(asked, calls.getValue("urlhaus").toSet())
+        assertEquals(setOf("gcash.com", "gcash-verify.top"), calls.getValue("domainAge").toSet())
+    }
+
+    @Test
+    fun `a blocklisted host behind a public shortener stays a threat`() = runTest {
+        val orchestrator = orchestrator(
+            reputation = FakeProvider { input ->
+                if (input == "https://paypa1-secure-login.test/r")
+                    listOf(signal(100, SignalStrength.CRITICAL, title = "Flagged by Google Safe Browsing"))
+                else emptyList()
+            },
+            redirect = chain("https://bit.ly/3xAbCd", "https://paypa1-secure-login.test/r", "https://www.google.com/")
+        )
+
+        assertEquals(Verdict.THREAT, orchestrator.scan("https://bit.ly/3xAbCd").verdict.verdict)
+    }
+
+    @Test
+    fun `shorteners and brand-owned links that forward to a trusted site stay safe`() = runTest {
+        val cases = listOf(
+            listOf("https://bit.ly/3xAbCd", "https://www.gcash.com/promo"),
+            listOf("https://shp.ee/abc123", "https://shopee.ph/product/1/2"),
+            listOf("https://ph.shp.ee/abc123", "https://shopee.ph/"),
+            listOf("https://youtu.be/dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+            listOf("https://amzn.to/3abc", "https://www.amazon.com/dp/B000"),
+            listOf("https://apple.net/", "https://www.apple.com/"),
+            // A brand's app-install link carries the brand's name in front of the service's.
+            listOf("https://grab.onelink.me/2695613898?pid=sms", "https://www.grab.com/ph/")
+        )
+        for (hops in cases) {
+            val inputs = mutableListOf<String>()
+            val recorder = FakeProvider { inputs.add(it); emptyList() }
+            val orchestrator = orchestrator(
+                heuristic = LegacyHeuristicEngine(),
+                reputation = recorder, enrichment = recorder, urlhaus = recorder, domainAge = recorder,
+                redirect = chain(*hops.toTypedArray())
+            )
+
+            val result = orchestrator.scan(hops.first(), messageText = promoWording)
+
+            assertEquals(hops.first(), Verdict.SAFE, result.verdict.verdict)
+            assertEquals(hops.first(), listOf("REDIRECT_CROSS_DOMAIN"), ruleIds(result))
+            // One lookup per provider: these hosts forward everyone alike, nothing to ask about.
+            assertEquals(hops.first(), 4, inputs.size)
+        }
+    }
+
+    @Test
+    fun `the shape of a forwarding host's address is not evidence`() = runTest {
+        // Click-trackers have deep subdomains, random labels, long encoded paths and words such
+        // as "click" or "account" in them. None of that says who they are.
+        val tracker = "http://xkqzvbnm.links.click.e.account-mailer-update-example.com/ls/click?upn=" +
+            "%2F".repeat(8) + "a".repeat(220)
+        val orchestrator = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            redirect = chain(tracker, "https://www.lazada.com.ph/")
+        )
+
+        val result = orchestrator.scan(tracker)
+
+        assertEquals(Verdict.SAFE, result.verdict.verdict)
+        assertEquals(listOf("REDIRECT_CROSS_DOMAIN"), ruleIds(result))
+    }
+
+    @Test
+    fun `a finding on both the forwarding host and the destination is counted once`() = runTest {
+        val orchestrator = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            redirect = chain("https://parcel-one.xyz/a", "https://parcel-two.top/b")
+        )
+
+        val result = orchestrator.scan("https://parcel-one.xyz/a", messageText = parcelScam)
+
+        assertEquals(1, ruleIds(result).count { it == "LOCAL_ELEVATED_RISK_TLD" })
+        assertEquals(1, ruleIds(result).count { it == "LOCAL_SMISHING_MESSAGE_PATTERN" })
+        assertEquals(15 + 25 + 10, result.verdict.finalScore)
+    }
+
+    @Test
+    fun `at most two forwarding hosts are looked up`() = runTest {
+        val asked = mutableListOf<String>()
+        val orchestrator = orchestrator(
+            domainAge = FakeProvider { asked.add(it); emptyList() },
+            redirect = chain(
+                "https://one.example/a", "https://two.example/b", "https://three.example/c",
+                "https://four.example/d", "https://landing.example/page"
+            )
+        )
+
+        orchestrator.scan("https://one.example/a")
+
+        assertEquals(setOf("landing.example", "one.example", "two.example"), asked.toSet())
+    }
+
+    @Test
+    fun `a trusted wrapper in front of a forwarding host does not hide it`() = runTest {
+        val carried = "https://gcash-verify.top/r"
+        val orchestrator = orchestrator(
+            heuristic = LegacyHeuristicEngine(),
+            redirect = FakeRedirectResolver {
+                RedirectResolution(
+                    "https://www.gcash.com/", listOf(carried, "https://www.gcash.com/"),
+                    crossedDomains = true, outcome = RedirectOutcome.RESOLVED
+                )
+            }
+        )
+
+        val result = orchestrator.scan("https://www.google.com/url?q=https%3A%2F%2Fgcash-verify.top%2Fr")
+
+        assertTrue(ruleIds(result).contains("LOCAL_BRAND_SPOOF_gcash"))
+        assertNotEquals(Verdict.SAFE, result.verdict.verdict)
     }
 }

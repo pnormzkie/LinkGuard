@@ -1,6 +1,7 @@
 package com.linkguard.app.util
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -143,5 +144,23 @@ class DomainExtractorTest {
     fun `fallback lowercases and strips port`() {
         // Space forces the fallback; it must still strip the port and lowercase
         assertEquals("exam ple.com", DomainExtractor.extract("HTTPS://EXAM PLE.COM:8080/Path"))
+    }
+
+    // ── Site of a host ───────────────────────────────────────────────────────
+
+    @Test
+    fun `site is the last two labels, three under a two-part suffix`() {
+        assertEquals("example.com", DomainExtractor.site("example.com"))
+        assertEquals("example.com", DomainExtractor.site("www.example.com"))
+        assertEquals("example.com", DomainExtractor.site("a.b.Example.com"))
+        assertEquals("bdo.com.ph", DomainExtractor.site("online.bdo.com.ph"))
+        assertEquals("bdo.com.ph", DomainExtractor.site("bdo.com.ph"))
+        assertEquals("bbc.co.uk", DomainExtractor.site("news.bbc.co.uk"))
+    }
+
+    @Test
+    fun `different sites under the same suffix stay different`() {
+        assertNotEquals(DomainExtractor.site("bdo.com.ph"), DomainExtractor.site("bpi.com.ph"))
+        assertNotEquals(DomainExtractor.site("gcash-verify.top"), DomainExtractor.site("gcash.com"))
     }
 }

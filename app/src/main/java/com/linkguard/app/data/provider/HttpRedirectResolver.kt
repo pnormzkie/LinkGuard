@@ -177,12 +177,6 @@ class HttpRedirectResolver(
     companion object {
         private const val TAG = "RedirectResolver"
         private const val USER_AGENT = "LinkGuard-SafetyCheck/1.0"
-        private val SECOND_LEVEL_TLDS = setOf(
-            "com.ph", "net.ph", "org.ph", "gov.ph",
-            "co.uk", "org.uk", "gov.uk",
-            "com.au", "com.sg", "com.my"
-        )
-
         /**
          * True if [host] is a loopback/private/link-local/unique-local address or a local-only
          * name — redirect targets we must not contact (anti-SSRF / LAN probing). Named hosts that
@@ -204,11 +198,7 @@ class HttpRedirectResolver(
             return parsed.newBuilder().scheme("https").build().toString()
         }
 
-        private fun registrableDomain(domain: String): String {
-            val parts = domain.removePrefix("www.").split(".").filter { it.isNotEmpty() }
-            if (parts.size <= 2) return parts.joinToString(".")
-            val lastTwo = parts.takeLast(2).joinToString(".")
-            return if (lastTwo in SECOND_LEVEL_TLDS) parts.takeLast(3).joinToString(".") else lastTwo
-        }
+        // Shared with the orchestrator, which asks the same question about every hop.
+        private fun registrableDomain(domain: String): String = DomainExtractor.site(domain)
     }
 }
