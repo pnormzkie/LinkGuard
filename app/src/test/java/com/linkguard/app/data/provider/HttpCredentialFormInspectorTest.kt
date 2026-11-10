@@ -333,4 +333,43 @@ class HttpCredentialFormInspectorTest {
         assertTrue(inspector.inspect("https://wrapper.test/start").isEmpty())
         assertTrue(trustedInspector.inspect("https://wrapper.test/start").isEmpty())
     }
+
+    // ─── Page content is attacker-written: inspecting it must stay fast ──────────────
+    // The scan waits for this inspection before it reports anything, so a page that made it
+    // slow held back the alert for its own link. Measured 2026-11-10 on the old patterns
+    // (desktop JVM): 64 KB of unterminated "<svg " took 11.9 s, 128 KB took 47.5 s.
+
+    private val passwordForm = """<form><input type="password" name="p"></form>"""
+
+    @Test(timeout = 8_000)
+    fun `a page flooded with unterminated svg tags is inspected quickly`() {
+        val html = "<html><body>$passwordForm<script>/*" + "<svg ".repeat(200 * 1024 / 5) + "*/</script></body></html>"
+        val signals = runBlocking {
+            HttpCredentialFormInspector(clientReturningHtml(200, html)).inspect("https://evil-page.test/login")
+        }
+        assertTrue(signals.any { it.ruleId == "CREDENTIAL_FORM_UNTRUSTED" })
+    }
+
+    @Test(timeout = 8_000)
+    fun `a page flooded with unterminated setTimeout calls is inspected quickly`() {
+        val html = "<html><body>$passwordForm<script>/*" + "setTimeout(".repeat(200 * 1024 / 11) + "*/</script></body></html>"
+        val signals = runBlocking {
+            HttpCredentialFormInspector(clientReturningHtml(200, html)).inspect("https://evil-page.test/login")
+        }
+        assertTrue(signals.any { it.ruleId == "CREDENTIAL_FORM_UNTRUSTED" })
+    }
+
+    @Test
+    fun `svg onload payload and delayed redirect are still detected`() = runBlocking {
+        val svg = """$passwordForm<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" onload="go()"></svg>"""
+        val delayed = """$passwordForm<script>setTimeout("location.href='/next'", 500)</script>"""
+
+        val svgSignals = HttpCredentialFormInspector(clientReturningHtml(200, svg))
+            .inspect("https://evil-page.test/login")
+        val delayedSignals = HttpCredentialFormInspector(clientReturningHtml(200, delayed))
+            .inspect("https://evil-page.test/login")
+
+        assertTrue(svgSignals.any { it.ruleId == "ENCODED_PAGE_PAYLOAD" })
+        assertTrue(delayedSignals.any { it.ruleId == "SCRIPTED_USER_REDIRECTION" })
+    }
 }

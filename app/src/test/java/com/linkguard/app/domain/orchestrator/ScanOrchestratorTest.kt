@@ -340,11 +340,11 @@ class ScanOrchestratorTest {
     @Test
     fun `resolved destination is what gets scanned, tapped url preserved`() = runTest {
         var heuristicInput: String? = null
-        var reputationInput: String? = null
+        val reputationInputs = mutableListOf<String>()
         var domainInput: String? = null
         val orchestrator = orchestrator(
             heuristic = FakeHeuristic { heuristicInput = it; emptyList() },
-            reputation = FakeProvider { reputationInput = it; emptyList() },
+            reputation = FakeProvider { reputationInputs.add(it); emptyList() },
             domain = FakeProvider { domainInput = it; emptyList() },
             redirect = FakeRedirectResolver {
                 RedirectResolution(
@@ -359,7 +359,8 @@ class ScanOrchestratorTest {
         val result = orchestrator.scan("https://sho.rt/a")
 
         assertEquals("https://evil.example/landing", heuristicInput)
-        assertEquals("https://evil.example/landing", reputationInput)
+        // The destination is looked up; since the chain left the tapped site, so is the tapped link.
+        assertEquals(setOf("https://evil.example/landing", "https://sho.rt/a"), reputationInputs.toSet())
         assertEquals("evil.example", domainInput) // providers see the resolved domain
         assertEquals("https://sho.rt/a", result.url) // tapped URL kept for display/history
         assertEquals("https://evil.example/landing", result.resolvedUrl)
@@ -1156,5 +1157,186 @@ class ScanOrchestratorTest {
 
             assertFalse("$type", result.verdict.signals.any { it.ruleId == "DOWNLOADS_ANDROID_APP" })
         }
+    }
+
+    // ─── Evidence about the tapped link survives a redirect ────────────────────────
+    // A phishing server can answer LinkGuard's check with a redirect to a clean site while
+    // real browsers get the phishing page. Only the destination used to be scored, so a link
+    // that was on a blocklist read SAFE.
+
+    private fun crossSiteRedirect(finalUrl: String) = FakeRedirectResolver {
+        RedirectResolution(finalUrl, listOf(it, finalUrl), crossedDomains = true, outcome = RedirectOutcome.RESOLVED)
+    }
+
+    private fun vtSignal(vendors: Int, score: Int, strength: SignalStrength) = ScanSignal(
+        ruleId = "VT_MALICIOUS",
+        title = if (vendors == 1) "1 Vendor Flagged" else "$vendors Vendors Flagged",
+        description = "test",
+        strength = strength,
+        source = SignalSource.ENRICHMENT,
+        score = score
+    )
+
+    @Test
+    fun `blocklisted link stays a threat when its server redirects the check to a trusted site`() = runTest {
+        val tapped = "https://paypa1-secure-login.test/verify"
+        val listed = FakeProvider { input ->
+            if (input == tapped) listOf(signal(100, SignalStrength.CRITICAL, title = "Flagged by Google Safe Browsing"))
+            else emptyList()
+        }
+        for (slot in listOf("reputation", "enrichment", "urlhaus")) {
+            val orchestrator = orchestrator(
+                reputation = if (slot == "reputation") listed else FakeProvider { emptyList() },
+                enrichment = if (slot == "enrichment") listed else FakeProvider { emptyList() },
+                urlhaus = if (slot == "urlhaus") listed else FakeProvider { emptyList() },
+                redirect = crossSiteRedirect("https://www.google.com/")
+            )
+
+            val result = orchestrator.scan(tapped)
+
+            assertEquals(slot, Verdict.THREAT, result.verdict.verdict)
+            // Opening still goes to the destination that was actually checked.
+            assertEquals(slot, "https://www.google.com/", result.verifiedResolvedUrl)
+        }
+    }
+
+    @Test
+    fun `newly registered tapped domain is still reported after a cross-site redirect`() = runTest {
+        val orchestrator = orchestrator(
+            domainAge = FakeProvider { domain ->
+                if (domain == "paypa1-secure-login.test") listOf(
+                    signal(45, SignalStrength.STRONG, SignalSource.DOMAIN_SIGNAL, "Newly registered domain")
+                ) else emptyList()
+            },
+            redirect = crossSiteRedirect("https://www.google.com/")
+        )
+
+        val result = orchestrator.scan("https://paypa1-secure-login.test/verify")
+
+        assertEquals(Verdict.SUSPICIOUS, result.verdict.verdict)
+        assertTrue(result.verdict.secondaryReasons.contains("Newly registered domain"))
+    }
+
+    @Test
+    fun `weak findings about the tapped link do not survive a redirect`() = runTest {
+        // Host-level history and one-vendor hits are supporting evidence. Popular shorteners
+        // and click-trackers carry them, so every resolved short link would turn suspicious.
+        val tapped = "https://sho.rt/a"
+        val weakForTapped = FakeProvider { input ->
+            if (input == tapped || input == "sho.rt") listOf(signal(15, SignalStrength.WEAK, title = "Weak $input"))
+            else emptyList()
+        }
+        val orchestrator = orchestrator(
+            reputation = weakForTapped, enrichment = weakForTapped,
+            urlhaus = weakForTapped, domainAge = weakForTapped,
+            redirect = crossSiteRedirect("https://landing.example/page")
+        )
+
+        val result = orchestrator.scan(tapped)
+
+        assertEquals(Verdict.SAFE, result.verdict.verdict)
+        assertEquals(listOf("REDIRECT_CROSS_DOMAIN"), result.verdict.signals.map { it.ruleId })
+    }
+
+    @Test
+    fun `only blocklist and domain-age checks are repeated for the tapped link`() = runTest {
+        val calls = mutableMapOf<String, MutableList<String>>()
+        fun recorder(name: String) = FakeProvider { calls.getOrPut(name) { mutableListOf() }.add(it); emptyList() }
+        val orchestrator = orchestrator(
+            reputation = recorder("reputation"), domain = recorder("domain"),
+            enrichment = recorder("enrichment"), hybrid = recorder("hybrid"),
+            domainAge = recorder("domainAge"), urlhaus = recorder("urlhaus"),
+            redirect = crossSiteRedirect("https://landing.example/page")
+        )
+
+        orchestrator.scan("https://user:secret@sho.rt/a#frag")
+
+        val bothUrls = setOf("https://landing.example/page", "https://sho.rt/a") // sanitized copy
+        assertEquals(bothUrls, calls.getValue("reputation").toSet())
+        assertEquals(bothUrls, calls.getValue("enrichment").toSet())
+        assertEquals(bothUrls, calls.getValue("urlhaus").toSet())
+        assertEquals(setOf("landing.example", "sho.rt"), calls.getValue("domainAge").toSet())
+        // A DNS-policy block and a sandbox label are weak by design; not repeated.
+        assertEquals(listOf("landing.example"), calls.getValue("domain"))
+        assertEquals(listOf("https://landing.example/page"), calls.getValue("hybrid"))
+    }
+
+    @Test
+    fun `tapped link is not looked up again when the redirect stays on its own site`() = runTest {
+        val inputs = mutableListOf<String>()
+        val recorder = FakeProvider { inputs.add(it); emptyList() }
+        val orchestrator = orchestrator(
+            reputation = recorder, enrichment = recorder, urlhaus = recorder, domainAge = recorder,
+            redirect = FakeRedirectResolver {
+                RedirectResolution(
+                    "https://www.example.com/home", listOf(it, "https://www.example.com/home"),
+                    crossedDomains = false, outcome = RedirectOutcome.RESOLVED
+                )
+            }
+        )
+
+        orchestrator.scan("https://example.com/")
+
+        assertEquals(4, inputs.size) // one lookup per provider: quota is not doubled for www/https hops
+        assertFalse(inputs.contains("https://example.com/"))
+    }
+
+    @Test
+    fun `trusted wrapper is not looked up as a tapped link`() = runTest {
+        val inputs = mutableListOf<String>()
+        val recorder = FakeProvider { inputs.add(it); emptyList() }
+        val orchestrator = orchestrator(
+            reputation = recorder, enrichment = recorder, urlhaus = recorder, domainAge = recorder,
+            redirect = FakeRedirectResolver {
+                RedirectResolution(it, listOf(it), crossedDomains = false, outcome = RedirectOutcome.NO_REDIRECT)
+            }
+        )
+
+        orchestrator.scan("https://www.google.com/url?q=https%3A%2F%2Flanding.example%2Fpage")
+
+        assertEquals(4, inputs.size)
+        assertFalse(inputs.any { it.contains("google.com") })
+    }
+
+    @Test
+    fun `failed lookup of the tapped link reads as partial coverage and is not cached`() = runTest {
+        val tapped = "https://sho.rt/a"
+        var resolverCalls = 0
+        val orchestrator = orchestrator(
+            reputation = FakeProvider { input ->
+                if (input == tapped) throw IOException("Safe Browsing HTTP 429") else emptyList()
+            },
+            redirect = FakeRedirectResolver {
+                resolverCalls++
+                RedirectResolution(
+                    "https://landing.example/page", listOf(it, "https://landing.example/page"),
+                    crossedDomains = true, outcome = RedirectOutcome.RESOLVED
+                )
+            }
+        )
+
+        val first = orchestrator.scan(tapped)
+        orchestrator.scan(tapped)
+
+        assertTrue(first.verdict.secondaryReasons.contains(ScoringEngine.EXTERNAL_CHECKS_PARTIAL_REASON))
+        assertEquals(2, resolverCalls) // an unvetted verdict must be retried, not served from cache
+    }
+
+    @Test
+    fun `the same finding on both ends of a redirect is counted once, the stronger one`() = runTest {
+        val tapped = "https://sho.rt/a"
+        val orchestrator = orchestrator(
+            enrichment = FakeProvider { input ->
+                if (input == tapped) listOf(vtSignal(6, 65, SignalStrength.CRITICAL))
+                else listOf(vtSignal(1, 25, SignalStrength.WEAK))
+            },
+            redirect = crossSiteRedirect("https://landing.example/page")
+        )
+
+        val result = orchestrator.scan(tapped)
+
+        val vt = result.verdict.signals.filter { it.ruleId == "VT_MALICIOUS" }
+        assertEquals(listOf("6 Vendors Flagged"), vt.map { it.title })
+        assertEquals(65 + 10, result.verdict.finalScore) // + the cross-site redirect itself
     }
 }

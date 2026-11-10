@@ -213,22 +213,27 @@ object HeuristicScanner {
         "streak", "odds", "luck", "paid", "registration", "incredible", "winc", "voucher"
     )
 
+    // Message text is written by the sender, so no pattern here may take more than roughly
+    // linear time per starting point. The possessive quantifiers (++, ?+, *+) and the atomic
+    // groups (?>...) match exactly what the plain forms did; they only stop the engine from
+    // retrying every split of a long text that cannot match. With the plain forms 4,000 digits
+    // took two minutes, on the main thread when the link was tapped.
     private val SMISHING_PATTERNS = listOf(
-        Regex("(\\d+[,.]?\\d*) points? (will )?expire", RegexOption.IGNORE_CASE),
-        Regex("(php|₱)\\s?[\\d,]+.*cash.?back", RegexOption.IGNORE_CASE),
-        Regex("(php|₱)\\s?[\\d,]+.*reward", RegexOption.IGNORE_CASE),
+        Regex("\\d++[,.]?+\\d*+ points? (will )?expire", RegexOption.IGNORE_CASE),
+        Regex("(php|₱)\\s?[\\d,]++.*cash.?back", RegexOption.IGNORE_CASE),
+        Regex("(php|₱)\\s?[\\d,]++.*reward", RegexOption.IGNORE_CASE),
         // PH texts usually write pesos as "P5,000"; the lookbehind keeps "Top 10" / "Step 2" out.
         Regex("(?:php|₱|(?<![a-z])p)\\s?\\d[\\d,]*(?:\\.\\d+)?.{0,60}(?:claim|reward|prize|redeem|cash.?back)", RegexOption.IGNORE_CASE),
         // Fake security alerts: an "unusual login" notice that asks the reader to act on a link.
         Regex("(?:unusual|suspicious|unauthori[sz]ed)\\s+(?:log-?in|sign-?in|activity|transaction|access).{0,80}(?:secure|verify|confirm|click|update|log\\s?in)", RegexOption.IGNORE_CASE),
         Regex("congratulations.*pending", RegexOption.IGNORE_CASE),
-        Regex("click.*link.*claim", RegexOption.IGNORE_CASE),
+        Regex("click(?>.*?link)(?>.*?claim)", RegexOption.IGNORE_CASE),
         Regex("visit.*redeem", RegexOption.IGNORE_CASE),
         Regex("account.*suspend", RegexOption.IGNORE_CASE),
-        Regex("verify.*within.*hour", RegexOption.IGNORE_CASE),
+        Regex("verify(?>.*?within)(?>.*?hour)", RegexOption.IGNORE_CASE),
         Regex("otp.*share", RegexOption.IGNORE_CASE),
         Regex("parcel.*held|package.*detained", RegexOption.IGNORE_CASE),
-        Regex("delivery.*fee.*pay", RegexOption.IGNORE_CASE),
+        Regex("delivery(?>.*?fee)(?>.*?pay)", RegexOption.IGNORE_CASE),
         Regex("(winning|incredible).*luck", RegexOption.IGNORE_CASE),
         Regex("ultra high odds", RegexOption.IGNORE_CASE),
         Regex("winning streak", RegexOption.IGNORE_CASE),

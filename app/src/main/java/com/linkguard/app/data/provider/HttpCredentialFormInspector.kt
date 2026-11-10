@@ -463,10 +463,15 @@ class HttpCredentialFormInspector(
             Regex("""(?:account|profile|security|payment|wallet).{0,80}(?:suspend|lock|verify|confirm|expire|unauthori[sz]ed|compromis|urgent|immediately|within\s+(?:24|48)\s+hours)""", RegexOption.IGNORE_CASE)
         private val SUSPICIOUS_PAGE_CODE =
             Regex("""(?:eval\s*\(|atob\s*\(|fromCharCode\s*\(|document\.write\s*\(|unescape\s*\()""", RegexOption.IGNORE_CASE)
+        // Page text is written by the site, so the two open-ended runs below are capped at
+        // PATTERN_SPAN characters. Unbounded, a page of unterminated "<svg " or "setTimeout("
+        // made every one of them rescan the rest of the page (128 KB took 47 s), and the scan
+        // waits for this inspection before it reports anything.
+        private const val PATTERN_SPAN = 512
         private val SVG_OR_DATA_PAYLOAD =
-            Regex("""(?:data:(?:text/html|image/svg\+xml)|<svg\b[^>]*(?:onload|href\s*=\s*["']?data:))""", RegexOption.IGNORE_CASE)
+            Regex("""(?:data:(?:text/html|image/svg\+xml)|<svg\b[^>]{0,$PATTERN_SPAN}(?:onload|href\s*=\s*["']?data:))""", RegexOption.IGNORE_CASE)
         private val CLIPBOARD_OR_DELAYED_REDIRECT =
-            Regex("""(?:navigator\.clipboard|clipboardData|setTimeout\s*\([^)]*(?:location|window\.open)|location\.(?:href|replace|assign)\s*=)""", RegexOption.IGNORE_CASE)
+            Regex("""(?:navigator\.clipboard|clipboardData|setTimeout\s*\([^)]{0,$PATTERN_SPAN}(?:location|window\.open)|location\.(?:href|replace|assign)\s*=)""", RegexOption.IGNORE_CASE)
         private val SIMPLE_SCRIPT_REDIRECT = Regex(
             """(?:window\.|document\.|top\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']|(?:window\.|document\.|top\.)?location\.(?:replace|assign)\s*\(\s*["']([^"']+)["']""",
             RegexOption.IGNORE_CASE

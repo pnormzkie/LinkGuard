@@ -141,14 +141,34 @@ class ScanOrchestrator(
         //    Full-URL providers receive a sanitized copy (no userinfo, no fragment) —
         //    URL credentials and browser-local fragments never leave the device.
         val lookupUrl = UrlPrivacy.sanitizeForExternalLookup(scanUrl)
+        // Everything above scores the destination. A phishing server can answer this app's check
+        // with a redirect to a clean site while real browsers get the phishing page, and then
+        // nothing was ever asked about the link the user received: a blocklisted link read SAFE.
+        // So when the chain left the tapped site, the blocklists and the domain age are asked
+        // about the tapped link too. Not for a same-site hop (www/https — it would double the
+        // provider quota for nothing) and not for a trusted host (a link wrapper).
+        val tappedLookupUrl = resolution
+            ?.takeIf { it.redirected && it.crossedDomains && !KnownDomains.isTrusted(originalDomain) }
+            ?.let { UrlPrivacy.sanitizeForExternalLookup(url) }
+            ?.takeIf { it != lookupUrl }
         val results = if (allowNetworkChecks && lookupUrl != null) {
-            val sbDeferred = async { guarded("SafeBrowsing", lookupUrl, reputationProvider) }
-            val dnsDeferred = async { guarded("NextDNS", domain, domainSignalProvider) }
-            val vtDeferred = async { guarded("VirusTotal", lookupUrl, enrichmentProvider) }
-            val haDeferred = async { guarded("HybridAnalysis", lookupUrl, hybridAnalysisProvider) }
-            val daDeferred = async { guarded("DomainAge", domain, domainAgeProvider) }
-            val uhDeferred = async { guarded("URLhaus", lookupUrl, urlHausProvider) }
-            listOf(sbDeferred, dnsDeferred, vtDeferred, haDeferred, daDeferred, uhDeferred).awaitAll()
+            val checks = mutableListOf(
+                async { guarded("SafeBrowsing", lookupUrl, reputationProvider) },
+                async { guarded("NextDNS", domain, domainSignalProvider) },
+                async { guarded("VirusTotal", lookupUrl, enrichmentProvider) },
+                async { guarded("HybridAnalysis", lookupUrl, hybridAnalysisProvider) },
+                async { guarded("DomainAge", domain, domainAgeProvider) },
+                async { guarded("URLhaus", lookupUrl, urlHausProvider) }
+            )
+            if (tappedLookupUrl != null) {
+                checks += async { guarded("SafeBrowsing (tapped link)", tappedLookupUrl, reputationProvider) }
+                checks += async { guarded("VirusTotal (tapped link)", tappedLookupUrl, enrichmentProvider) }
+                checks += async { guarded("URLhaus (tapped link)", tappedLookupUrl, urlHausProvider) }
+                if (originalDomain != null) {
+                    checks += async { guarded("DomainAge (tapped link)", originalDomain, domainAgeProvider) }
+                }
+            }
+            checks.awaitAll()
         } else {
             // Automatic notification quotas protect network/API resources, never the cheap local
             // detector. null keeps the verdict visibly local-only and prevents safe-result caching.
@@ -156,8 +176,23 @@ class ScanOrchestrator(
         }
         val successfulProviderCount = results.count { it != null }
         val externalCoverageMissing = successfulProviderCount == 0
-        val externalCoveragePartial = successfulProviderCount in 1 until PROVIDER_COUNT
-        results.filterNotNull().forEach { allSignals.addAll(it) }
+        val externalCoveragePartial = successfulProviderCount in 1 until results.size
+        results.take(PROVIDER_COUNT).filterNotNull().forEach { allSignals.addAll(it) }
+        // From the tapped link only decisive findings count. A weak one (host-level history, one
+        // vendor) is supporting evidence that popular shorteners and click-trackers also carry,
+        // so it would turn every resolved short link suspicious. A finding both ends share is
+        // counted once, at the stronger of the two.
+        results.drop(PROVIDER_COUNT).filterNotNull().flatten()
+            .filter { it.strength == SignalStrength.STRONG || it.strength == SignalStrength.CRITICAL }
+            .forEach { tapped ->
+                val sameRule = allSignals.firstOrNull { it.ruleId == tapped.ruleId }
+                if (sameRule == null) {
+                    allSignals.add(tapped)
+                } else if (tapped.score > sameRule.score) {
+                    allSignals.remove(sameRule)
+                    allSignals.add(tapped)
+                }
+            }
 
         Log.d(
             TAG,

@@ -855,4 +855,61 @@ class HeuristicScannerTest {
             assertFalse(url, flags.any { it.contains("no website address", ignoreCase = true) })
         }
     }
+
+    // ─── Message text is attacker-written: matching it must stay fast ────────────────
+    // Measured 2026-11-10 on the old patterns (desktop JVM): 2,000 digits took 15.7 s and
+    // 4,000 took 122 s; a 10,000-character "verify within" text took 7 s. The scan runs on
+    // the main thread when a link is tapped, so one long message froze the verdict screen.
+
+    private val plainLink = "https://my-refund-portal.com/page"
+
+    @Test(timeout = 5_000)
+    fun `a long run of digits in the message does not stall the scan`() {
+        flagsOf(plainLink, "1".repeat(4_000) + " $plainLink")
+    }
+
+    @Test(timeout = 5_000)
+    fun `repeated scam words that never complete a pattern do not stall the scan`() {
+        listOf("verify within ", "delivery fee ", "click link ").forEach { words ->
+            flagsOf(plainLink, words.repeat(25_000 / words.length) + plainLink)
+        }
+    }
+
+    @Test(timeout = 5_000)
+    fun `a long amount after a peso sign does not stall the scan`() {
+        flagsOf(plainLink, "php " + "1,".repeat(12_000) + " $plainLink")
+    }
+
+    @Test
+    fun `rewritten message patterns still match what they matched before`() {
+        listOf(
+            "Your 1,000 points will expire today",
+            "2500 points expire tomorrow",
+            "12.5 points expire soon",
+            "1 point will expire",
+            "Please click the link below to claim it",
+            "Verify your number within one hour",
+            "Delivery attempt failed, a small fee applies, pay here",
+            "PHP 1,500 instant cashback for you",
+            "₱500 reward waiting"
+        ).forEach { message ->
+            assertTrue(message, flagsOf(plainLink, message).any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
+
+    @Test
+    fun `rewritten message patterns still ignore what they ignored before`() {
+        listOf(
+            "Your points balance is 1,000.",
+            "1,000 pointers were added",
+            "Click here to read more",
+            "Verify your email address",
+            "Your delivery arrives tomorrow",
+            // "." never crossed a line break, so words on separate lines are not one pattern.
+            "click\nthe link\nto claim",
+            "verify\nwithin\none hour"
+        ).forEach { message ->
+            assertFalse(message, flagsOf(plainLink, message).any { it.contains("smishing", ignoreCase = true) })
+        }
+    }
 }
