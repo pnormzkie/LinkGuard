@@ -2586,3 +2586,42 @@ A = official v1.47 (base.apk f195d8d0...382acf). B = release-signed build of thi
 - Left on the phone: ~35 test rows in History (smoke links and my-refund-portal.com/claim?n=5xx) and any alerts they raised.
 - Not possible on device: F1 true positive (a blocklisted link whose server redirects off-site) — no safe public fixture exists (Safe Browsing test pages do not redirect); covered by unit tests with fakes only. F3 through the real app — needs a public server serving the crafted page; engine timing above instead.
 - Correction to the earlier report: F2's exposure on Android 13+ through one notification field is ~1,000 chars (4 s of CPU on this phone), not the 4,000-digit / 2-minute case; the longer cases need Android 8-12 (5 KB fields) or several fields joined.
+
+## 2026-11-10 — Close the rest of the redirect cloak before releasing 1.48 (Norman: "Ayusin ngayon, maingat")
+
+Norman chose: count the scam wording of the message and the signs of a fake host on the link that redirected, except known brand short links; also change how the scanner identifies itself; show the false-alarm before/after BEFORE committing.
+Design: a hop that sent the scan to another address could have sent a browser somewhere else, so what is known about that hop must count. "Unvetted hop" = any address in the chain except the last whose host is not trusted, not a public shortener, not a brand-owned link domain (those send everyone to the same place).
+- [x] 1. Survey (curl, both User-Agents, 25 link services): with a mobile-browser UA AppsFlyer app links (GCash, Shopee) answer 301 -> market://details?id=..., which the resolver reports as "Link redirects to an unsafe target" (STRONG 40); with the scanner UA they answer https://play.google.com/... m.me also answered 400. UA change is OUT of this release: it needs app-link handling first.
+- [x] 2. Red tests: 10 new in ScanOrchestratorTest (real LegacyHeuristicEngine); 8 failed on the committed orchestrator (f3e26e7), 2 are guards.
+- [x] 3. ScanOrchestrator: `unvettedForwarders` = every address in the chain except the last whose site differs from the destination and whose host is not a known forwarder; max 2. For each: local findings that say who the host claims to be (brand spoof / typosquat / brand in subdomain / brand on free hosting / lookalike / mixed script / fake .com / IP host / risky extension) plus the message wording, each counted once; and the Safe Browsing, VirusTotal, URLhaus, domain-age lookups (strong or critical only) that f3e26e7 did for the tapped link only. A public shortener in front of the scam host no longer hides it, and a plain shortener link no longer costs four extra lookups.
+  - KnownDomains: URL_SHORTENERS moved here from UrlScanner (same 25), BRAND_FORWARDING_DOMAINS (45, checked live), APP_LINK_SERVICES (7), isKnownForwarder(). DomainExtractor.site() shared with the resolver (same rule, one copy less).
+  - Not carried from a forwarding host: http, keyword in domain or path, subdomain depth, hyphens, random label, long URL, encoding, shortener, file type. Click-trackers share those.
+- [x] 4. `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleRelease` -> 572/572, BUILD SUCCESSFUL, lint 0 errors / 153 warnings. Test build sha256 52014c6c...1476d56.
+- [x] 5. Before/after, 41 scripted chains with the real local rules and clean providers (temporary harness, removed):
+  - attack-like, 11: 9 rose from SAFE 10 to SUSPICIOUS 35 or THREAT 60-90; 1 was already SUSPICIOUS 35 and stayed; 1 is still SAFE 10: an ordinary-looking host with no message text (nothing to go on).
+  - real chains found live that now read SUSPICIOUS 50 (were SAFE 10): pldt.ph -> shopee.ph/amazinggo, gcash.co -> yedpay.com, metrobank.com -> a domain broker, twitter.co -> cenma.cl, unionbank.com -> usbank.com (a different bank; arguable).
+  - legit, 24: 22 unchanged. Changed: promo wording through an unknown click-tracker -> lazada.com.ph, and through glo.be -> globe.com.ph: SAFE 10 -> SUSPICIOUS 35 (the trade-off Norman accepted).
+  - Found and fixed on the way: grab.onelink.me read THREAT 100 (brand name in front of an app-link service) -> APP_LINK_SERVICES.
+- [x] 6. Device A/B on SM-A528B (A = official v1.47, B = release-signed build of this tree, sha256 52014c6c...1476d56, install -r), tap path, cold:
+  | Link | A | B |
+  |---|---|---|
+  | google.com / SB phishing / 192.168.1.1/admin / postman-echo -> example.com / http postman-echo -> SB phishing / google.com/url?q=evil-site.xyz | SAFE 0 / DANGEROUS 100 / SUSPICIOUS 40 / SUSPICIOUS 25 / DANGEROUS 100 / SUSPICIOUS 35 | same six |
+  | gcash.co -> yedpay.com | SAFE 10 | SUSPICIOUS 50 |
+  | metrobank.com -> domain broker | SAFE 10 | SUSPICIOUS 50 |
+  | pldt.ph -> shopee.ph/amazinggo | SUSPICIOUS 25 (chain did not finish in that run) | SUSPICIOUS 50 (x2) |
+  | twitter.co -> cenma.cl | SUSPICIOUS 35 (1 vendor) | DANGEROUS 75 (1 vendor + brand name) |
+  | apple.net, netflix.ph -> the brand site | SUSPICIOUS 40 / 25 (neither chain finished in that run) | SAFE 10 / SAFE 10 |
+  | lbcexpress.ph, AppsFlyer GCash app link, postman-echo -> rappler | SAFE 10 x3 | SAFE 10 x3 |
+  | youtu.be/..., bit.ly/ | SUSPICIOUS 35, DANGEROUS 60 (vendor hits on the destination, old) | same |
+  - Message path: notification "Your parcel is held ... Pay the delivery fee" + postman-echo link that forwards to google.com, then the link tapped. A: SAFE 10 (x4). B: SUSPICIOUS 35, "Message matches known smishing/scam pattern", alert raised (x3).
+  - Provider phase for that link, 6 notification scans each, clean shade: A 0.4-0.5 s (one 3.7 s); B 1.3-3.4 s, no timeouts. The extra lookups cost about 1-2 s on a link forwarded by an unknown host; a domain-age lookup that hangs holds the scan for the 8 s provider limit, seen twice ("DomainAge (forwarding link) timed out").
+  - Test-bed fault, not the app: `cmd notification cancel` does not exist on this phone, so 25 test notifications stayed active, Android refused new ones, and the auto-grouped pile made earlier B runs show VirusTotal / NextDNS timeouts that vanished once the shade was cleared (`am force-stop com.android.shell`). Those earlier timings are discarded.
+  - Phone restored: official v1.47, base.apk f195d8d0...382acf, stay-awake back to 0, no test notifications left. History holds the test rows.
+- [ ] 7. Show Norman the before/after; commit only on his OK.
+- [x] 7. Norman: "commit na"; he asked me to confirm the four uncertain domains myself:
+  - shp.ee KEPT: ph./br./th./my.shp.ee forward to shopee.ph / .com.br / .co.th / .com.my.
+  - smrt.ph ADDED: name servers ns01/03/04.smart.com.ph, organisation-validated certificate issued to Smart Communications, Inc. No verdict changes today, because smart.com.ph itself is not in the trusted list.
+  - gcsh.app REMOVED: registered 2018 at GoDaddy, AWS name servers, but ports 80 and 443 do not answer and no public source ties it to GCash.
+  - glo.be NOT added: nothing ties it to Globe, and Globe states its own SMS never carry links.
+  - After the list change: 572/572, lint 0 errors / 153 warnings. The list change itself was not re-run on the phone.
+- Open, new: mobile-browser UA needs market:// and intent:// handling in the resolver before it can ship. DomainAgeProvider and HttpCredentialFormInspector still keep their own private copy of the site rule.

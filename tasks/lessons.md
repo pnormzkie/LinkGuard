@@ -151,3 +151,15 @@
 **Context:** Full audit, F2, device A/B on SM-A528B.
 **Rule:** Before quoting the impact of a hostile-input bug, check the size limit of the channel that carries the input on the target OS and quote the figure for that size. In device tests put the link first in the text, and check `isKeyguardShowing` before trusting an empty screen read.
 **Status:** active
+
+## 2026-11-10 — Clean up test notifications after every run, and prove the clean-up worked
+**Mistake:** The device scripts cleaned up with `cmd notification cancel`, which this phone does not have. 25 test notifications piled up, Android stopped accepting new ones (later runs showed "no scan"), and the pile made the fixed build look as if it caused provider timeouts. Almost reported a regression that was the test bed.
+**Context:** Device A/B of the forwarding-host fix, SM-A528B, Android 14.
+**Rule:** After posting a test notification, remove it with `am force-stop com.android.shell` and check `cmd notification list` shows none left. When a timing differs between two builds, clear the shade and repeat on both before believing it.
+**Status:** active
+
+## 2026-11-10 — Measure what real services answer before changing how the scanner identifies itself
+**Mistake:** Offered to switch the scanner to a mobile-browser User-Agent as a small add-on. A survey first showed app-install links (GCash, Shopee via AppsFlyer) answer a phone browser with `market://`, which the resolver reports as an unsafe target.
+**Context:** Same task; the change was dropped from the release.
+**Rule:** Any change to the request the scanner sends (User-Agent, method, headers) needs a before/after survey of real link services first, and app-scheme redirects must be handled before a browser identity ships.
+**Status:** active
