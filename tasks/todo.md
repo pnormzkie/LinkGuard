@@ -2625,3 +2625,12 @@ Design: a hop that sent the scan to another address could have sent a browser so
   - glo.be NOT added: nothing ties it to Globe, and Globe states its own SMS never carry links.
   - After the list change: 572/572, lint 0 errors / 153 warnings. The list change itself was not re-run on the phone.
 - Open, new: mobile-browser UA needs market:// and intent:// handling in the resolver before it can ship. DomainAgeProvider and HttpCredentialFormInspector still keep their own private copy of the site rule.
+
+## 2026-11-11 — v1.48 published (device check not done)
+
+- Norman: "rekta release muna and publish if okay na ang lahat", then "ituloy ang release".
+- Contents: f3e26e7 (tapped link checked after an off-site redirect; slow regexes on message and page text), fcd1732 (every forwarding host in the chain examined: its name, the message wording, blocklists, domain age), bump 1.48 / code 49, release notes (7 lines / 315 chars, deliberately general).
+- stage-release: 572/572 tests, 24,687,560 bytes, SHA-256 1EACD2CA...9E1A2BC3.
+- publish.sh: release id 440598837, tag v1.48, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
+- NOT verified on device yet: update dialog 1.48 over 1.47, in-app install, smoke on the published APK. The fixes were A/B-tested on release-signed builds of the same source, except the last list change (gcsh.app removed, smrt.ph added), which is unit-tested only.
+- Not in this release: mobile-browser User-Agent for the scanner (needs market:// and intent:// handling first).
