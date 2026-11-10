@@ -2634,3 +2634,13 @@ Design: a hop that sent the scan to another address could have sent a browser so
 - publish.sh: release id 440598837, tag v1.48, RESULT: PUBLISHED_AND_VERIFIED (downloaded hash == staged).
 - NOT verified on device yet: update dialog 1.48 over 1.47, in-app install, smoke on the published APK. The fixes were A/B-tested on release-signed builds of the same source, except the last list change (gcsh.app removed, smrt.ph added), which is unit-tested only.
 - Not in this release: mobile-browser User-Agent for the scanner (needs market:// and intent:// handling first).
+
+## 2026-11-11 — v1.48 device check (SM-A528B) — PASS
+
+- Update dialog on v1.47: "Version 1.48 / You are on 1.47", all 5 note lines + "Update now" visible without scrolling (tasks/v148-update-dialog.png).
+- In-app update in foreground: installer opened directly ~8 s after "Update now" (no BAL_BLOCK) -> Update -> Play Protect "App scan recommended" (new APK hash) -> Scan app -> "This app looks safe" after ~65 s -> Install -> installed in 4 s. Installed 1.48 / code 49; base.apk SHA-256 1eacd2ca...9e1a2bc3 == staged == published; firstInstallTime unchanged. Counters 18/41/72 before = after (history kept). Download dir holds only LinkGuard-v1.48.apk. Listener still enabled.
+- Smoke on the published APK: google.com SAFE 0%; SB phishing DANGEROUS 100%; http://192.168.1.1/admin SUSPICIOUS 40%; google.com/url?q=https://evil-site.xyz/login SUSPICIOUS 35%; http postman-echo -> SB phishing DANGEROUS 100%; postman-echo -> rappler SAFE 10%; AppsFlyer GCash app link SAFE 10% (GOES TO play.google.com). No crashes.
+- New in 1.48, on the published APK: gcash.co -> yedpay.com SUSPICIOUS 50%; scam-wording notification + postman-echo link that forwards to google.com -> SUSPICIOUS 35% "Message matches known smishing/scam pattern", alert raised.
+- Seen once: lbcexpress.ph SUSPICIOUS 40% with no "GOES TO" (its redirect took longer than the 3 s hop limit, so the link was scored as itself and the brand-name rule fired); 3 re-runs SAFE 10%, hop 2.2-2.5 s. Same behaviour as v1.47 (apple.net read 40% the same way).
+- [ ] Open, S4/P3: a brand-owned forwarding domain whose server is slow reads SUSPICIOUS 40% (brand-name rule) when the hop times out. BRAND_FORWARDING_DOMAINS is not consulted by that rule.
+- Phone left on the published v1.48; stay-awake back to 0; no test notifications left; History holds the test rows.
