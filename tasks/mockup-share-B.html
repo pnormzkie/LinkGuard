@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="mockup-share.css">
+</head>
+<body>
+  <h1>Scenario B — Mag-select ng text, at ang iba pang posibleng resulta</h1>
+  <div class="sub">Para sa mga mensaheng nabasa mo habang bukas ang chat (walang notification), at kung ano ang lalabas kapag ligtas ang link o walang link ang text.</div>
+
+  <div class="row">
+
+    <!-- 1 -->
+    <div class="col">
+      <div class="step"><div class="num">1</div><div class="cap">I-select ang text → "Scan with LinkGuard" <span class="tag">BAGO</span><small>Sa text menu ng Android</small></div></div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>▲ ▮▮▮</span></div>
+        <div class="appbar">Tita Baby <span>chat app</span></div>
+        <div class="chat">
+          <div class="bub">Uy tingnan mo to, may ayuda daw ulit 😮</div>
+          <div class="bub" style="margin-top:62px;"><span class="sel">Mag-register na dito para sa ayuda: https://dswd.gov.ph/ayuda-registration</span></div>
+          <div class="bub me">Totoo ba yan?</div>
+        </div>
+        <div class="selbar"><div>Copy</div><div>Share</div><div class="on">Scan with LinkGuard</div><div>⋮</div></div>
+        <div class="tap" style="left:214px; top:172px;"></div>
+      </div></div>
+      <div class="foot">Kukunin ng LinkGuard ang link sa loob ng napiling text. Depende sa app kung may ganitong menu; kung wala, Share pa rin ang gagamitin.</div>
+    </div>
+
+    <!-- 2 -->
+    <div class="col">
+      <div class="step"><div class="num">2</div><div class="cap">Kapag ligtas ang link <span class="tag old">KASALUKUYAN</span><small>Puwedeng buksan mula mismo rito</small></div></div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>▲ ▮▮▮</span></div>
+        <div class="appbar">Tita Baby <span>chat app</span></div>
+        <div class="scrim"><div class="card">
+          <div class="center"><div class="badge green">✓ SAFE LINK</div></div>
+          <div class="ring green"><div class="pct">0%</div><div class="lbl">RISK</div></div>
+          <div class="chip">
+            <div class="caplabel"><em>Shared link</em></div>
+            <div class="mono">https://dswd.gov.ph/ayuda-registration</div>
+          </div>
+          <div class="reason">This link passed LinkGuard's safety checks.</div>
+          <div class="btn">Open Link</div>
+          <div class="btn out">Close</div>
+        </div></div>
+      </div></div>
+      <div class="foot">Parehong SAFE screen ng Link Shield. "Open Link" = bubuksan sa browser; "Close" = babalik sa chat.</div>
+    </div>
+
+    <!-- 3 -->
+    <div class="col">
+      <div class="step"><div class="num">3</div><div class="cap">Kapag walang link ang text <span class="tag">BAGO</span><small>Sa unang release: sasabihin lang nang tapat</small></div></div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>▲ ▮▮▮</span></div>
+        <div class="appbar">+63 917 555 0142 <span>chat app</span></div>
+        <div class="scrim"><div class="card">
+          <div class="center"><div class="badge grey">No link found</div></div>
+          <div class="chip">
+            <div class="caplabel">Shared text</div>
+            <div class="msg">Ma'am/Sir, na-hold po ang inyong bank account. Tawagan agad ang 0917 555 0142 para ma-verify.</div>
+          </div>
+          <div class="reason">LinkGuard checks links. This text has no link, so there was nothing to scan. That does not mean the message is safe.</div>
+          <div class="btn">Close</div>
+        </div></div>
+      </div></div>
+      <div class="foot">Hindi magsasabing "safe" ang app kapag wala itong sinuri. Ito ang butas na pupunan ng Phase 2 →</div>
+    </div>
+
+    <!-- 4 -->
+    <div class="col">
+      <div class="step"><div class="num later">4</div><div class="cap">Susuriin na rin ang mensahe mismo <span class="tag later">PHASE 2</span><small>Hindi kasama sa unang release</small></div></div>
+      <div class="phone later"><div class="screen">
+        <div class="status"><span>9:41</span><span>▲ ▮▮▮</span></div>
+        <div class="appbar">+63 917 555 0142 <span>chat app</span></div>
+        <div class="scrim"><div class="card">
+          <div class="center"><div class="badge yellow">⚠ POSSIBLE SCAM MESSAGE</div></div>
+          <div class="chip">
+            <div class="caplabel">Shared text</div>
+            <div class="msg">Ma'am/Sir, na-hold po ang inyong bank account. Tawagan agad ang 0917 555 0142 para ma-verify.</div>
+          </div>
+          <div class="sechdr">Why this looks like a scam</div>
+          <div class="flag yellow"><span>⚑</span><span>Asks you to call a number you don't know</span></div>
+          <div class="flag yellow"><span>⚑</span><span>Urgent warning about your account</span></div>
+          <div class="reason" style="margin-top:10px;">Don't call the number in the message. Contact your bank through its official app or the number on your card.</div>
+          <div class="btn">Close</div>
+        </div></div>
+      </div></div>
+      <div class="foot">Dito masasalo ang mga scam na nag-uutos na tumawag. <b>Draft pa lang</b> ang wording at flags; hiwalay na approval at testing ito.</div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <b>Unang release (Phase 1):</b> frames 1–3 at ang buong Scenario A. &nbsp;·&nbsp;
+    <b>Phase 2:</b> frame 4, pagkatapos mapatunayang tumpak ang message patterns.
+    &nbsp;·&nbsp; <span class="tag">BAGO</span> = idadagdag &nbsp; <span class="tag old">KASALUKUYAN</span> = mayroon na &nbsp; <span class="tag later">PHASE 2</span> = susunod
+  </div>
+</body>
+</html>

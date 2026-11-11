@@ -148,7 +148,9 @@
                 android:padding="16dp"
                 android:visibility="gone">
 
+                <!-- Caption set in code: tapped link, shared link(s), or shared text. -->
                 <TextView
+                    android:id="@+id/tvUrlLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/link_tapped_label"

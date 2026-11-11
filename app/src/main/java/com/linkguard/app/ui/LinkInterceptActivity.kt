@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -21,8 +22,11 @@ import com.linkguard.app.databinding.ActivityLinkInterceptBinding
 import com.linkguard.app.databinding.ItemFlagBinding
 import com.linkguard.app.domain.mapper.toLegacy
 import com.linkguard.app.domain.scoring.ScoringEngine
+import com.linkguard.app.scanner.SharedTextIntake
 import com.linkguard.app.util.MonitorPreferences
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 /**
@@ -39,12 +43,25 @@ import kotlinx.coroutines.launch
  *    Every scanned verdict — including SAFE — shows a card and requires a user tap.
  *  - CATEGORY_BROWSABLE callers are deliberately accepted (rejecting them would break
  *    legitimate link taps); the verdict UI, not the caller's identity, is the safeguard.
+ *  - Shared text (ACTION_SEND / ACTION_PROCESS_TEXT) is read through [SharedTextIntake], which
+ *    caps its size before any pattern runs. A shared link is never auto-opened, excluded or not:
+ *    the user asked for a check, so they always get a card.
  */
 class LinkInterceptActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLinkInterceptBinding
-    private lateinit var targetUrl: String
     private var scanJob: Job? = null
+
+    /** History source for this scan: the literals [scanSourceLabel] reads back. */
+    private var sourceApp = "Link Tap"
+    private var senderInfo = "Tapped link"
+
+    /** Caption over the link on a verdict card, and the one for a single unverified link. */
+    private var linkLabel = ""
+    private var singleLinkLabel = ""
+
+    /** Links in shared text beyond [SharedTextIntake.MAX_LINKS]; always 0 for a tapped link. */
+    private var linksNotScanned = 0
 
     /** True while providers are running and no verdict UI has been shown yet. */
     private val isScanning: Boolean
@@ -55,7 +72,19 @@ class LinkInterceptActivity : AppCompatActivity() {
         binding = ActivityLinkInterceptBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setFinishOnTouchOutside(false)
+        // Verdict buttons are wired per-screen (their meaning depends on the verdict).
+        // Fail-safe exit while the scan is running: cancel the scan and close WITHOUT
+        // opening the link. Never forwards the URL.
+        binding.btnCancelScan.setOnClickListener { cancelScanAndFinish() }
 
+        when (intent?.action) {
+            Intent.ACTION_SEND -> startShared(Intent.EXTRA_TEXT)
+            Intent.ACTION_PROCESS_TEXT -> startShared(Intent.EXTRA_PROCESS_TEXT)
+            else -> startTapped()
+        }
+    }
+
+    private fun startTapped() {
         val url = intent?.data?.toString()
         if (url.isNullOrBlank() ||
             !(url.startsWith("http://", true) || url.startsWith("https://", true))
@@ -72,14 +101,36 @@ class LinkInterceptActivity : AppCompatActivity() {
             return
         }
 
-        targetUrl = url
+        singleLinkLabel = getString(R.string.link_tapped_label)
+        linkLabel = singleLinkLabel
         binding.tvScanningUrl.text = url
-        // Verdict buttons are wired per-screen (their meaning depends on the verdict).
-        // Fail-safe exit while the scan is running: cancel the scan and close WITHOUT
-        // opening the link. Never forwards the URL.
-        binding.btnCancelScan.setOnClickListener { cancelScanAndFinish() }
+        scanAndDecide(listOf(url), sharedMessage = null)
+    }
 
-        scanAndDecide(url)
+    /** Text handed over by another app: scan the links in it, or say plainly there were none. */
+    private fun startShared(extraName: String) {
+        // The sending app controls the extras; one that can't be read is the same as no text.
+        val shared = runCatching { intent.getCharSequenceExtra(extraName) }.getOrNull()
+        when (val intake = SharedTextIntake.parse(shared)) {
+            is SharedTextIntake.Result.Links -> {
+                sourceApp = "Shared"
+                senderInfo = ""
+                linksNotScanned = intake.totalFound - intake.urls.size
+                singleLinkLabel = getString(R.string.link_shared_label)
+                linkLabel = when {
+                    intake.urls.size == 1 && intake.totalFound == 1 -> singleLinkLabel
+                    intake.urls.size == intake.totalFound ->
+                        getString(R.string.link_shared_multi_label, intake.urls.size)
+                    else -> getString(
+                        R.string.link_shared_capped_label, intake.urls.size, intake.totalFound
+                    )
+                }
+                binding.tvScanningUrl.text = intake.urls.joinToString("\n")
+                scanAndDecide(intake.urls, sharedMessage = intake.messageText)
+            }
+            is SharedTextIntake.Result.NoLink -> showNoLinkScreen(intake.text)
+            SharedTextIntake.Result.Empty -> showNoLinkScreen(null)
+        }
     }
 
     /** Cancels the in-flight scan (if any) and finishes without opening the link. */
@@ -100,29 +151,38 @@ class LinkInterceptActivity : AppCompatActivity() {
         }
     }
 
-    private fun scanAndDecide(url: String) {
+    /**
+     * Scans every link and shows one card. A tap is always one link; shared text can hold a
+     * few, and the card then shows the riskiest: checking only the first would let whoever
+     * wrote the message put a clean link in front of the bad one.
+     */
+    private fun scanAndDecide(urls: List<String>, sharedMessage: String?) {
         scanJob = lifecycleScope.launch {
-            val legacy = runCatching {
-                // A link that arrived in a notification keeps that message as scan context.
-                val messageText = ScannerProvider.recentMessageContext.lookup(url)
-                ScannerProvider.orchestrator.scan(url, messageText = messageText)
-                    .toLegacy(sourceApp = "Link Tap", senderInfo = "Tapped link")
-            }.getOrNull()
+            val results = urls.map { url ->
+                async {
+                    runCatching {
+                        // The words shared with the link are its scan context; a link that
+                        // arrived in a notification keeps that message instead.
+                        val messageText = sharedMessage
+                            ?: ScannerProvider.recentMessageContext.lookup(url)
+                        ScannerProvider.orchestrator.scan(url, messageText = messageText)
+                            .toLegacy(sourceApp = sourceApp, senderInfo = senderInfo)
+                    }.getOrNull()
+                }
+            }.awaitAll()
 
-            legacy?.let { result ->
-                runCatching { ScanRepository(applicationContext).saveScan(result) }
+            val repository = ScanRepository(applicationContext)
+            results.filterNotNull().forEach { result ->
+                runCatching { repository.saveScan(result) }
             }
 
             if (isFinishing || isDestroyed) return@launch
 
-            when {
-                legacy == null -> {
-                    // The scan itself failed — nothing (not even local heuristics) ran.
-                    // Don't silently forward an unchecked link; let the user decide.
-                    showUncheckedScreen()
-                }
-                legacy.threatLevel == ThreatLevel.SAFE -> showSafeScreen(legacy)
-                else -> showBlockScreen(legacy)
+            when (val outcome = cardOutcomeOf(urls, results, linksNotScanned)) {
+                is CardOutcome.Block -> showBlockScreen(outcome.result)
+                is CardOutcome.ScanFailed -> showUncheckedScreen(outcome.url)
+                CardOutcome.PartlyChecked -> showPartlyCheckedScreen()
+                is CardOutcome.Safe -> showSafeScreen(outcome.result)
             }
         }
     }
@@ -197,18 +257,62 @@ class LinkInterceptActivity : AppCompatActivity() {
     /** Shown when the scan failed entirely (no verdict at all) — let the user choose
      *  rather than silently forwarding an unchecked link. Treated like SUSPICIOUS:
      *  "Don't Open" recommended, "Open anyway" available without a confirm step. */
-    private fun showUncheckedScreen() {
+    private fun showUncheckedScreen(url: String) {
         val color = ContextCompat.getColor(this, R.color.e_amber)
         hideScanningState()
 
         setBadge(color, R.drawable.ic_stat_suspicious, getString(R.string.link_unchecked_title))
-        setTappedLink(targetUrl, null, color)
+        setTappedLink(url, null, color, singleLinkLabel)
         binding.tvReason.text = getString(R.string.link_unchecked_reason)
         binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.e_text2))
         binding.tvReason.visibility = View.VISIBLE
 
         configurePrimary(R.string.btn_dont_open) { finish() }
-        configureSecondary(R.string.btn_open_anyway) { openInBrowser(targetUrl); finish() }
+        configureSecondary(R.string.btn_open_anyway) { openInBrowser(url); finish() }
+        binding.tvDangerOverride.visibility = View.GONE
+        binding.buttonRow.visibility = View.VISIBLE
+    }
+
+    /**
+     * Shared text with more links than were scanned, where the scanned ones found nothing.
+     * Not a green card: whoever wrote the message chose the order of the links.
+     */
+    private fun showPartlyCheckedScreen() {
+        val color = ContextCompat.getColor(this, R.color.e_amber)
+        hideScanningState()
+
+        setBadge(color, R.drawable.ic_stat_suspicious, getString(R.string.share_partly_checked_title))
+        binding.tvReason.text = getString(R.string.share_partly_checked_reason)
+        binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.e_text2))
+        binding.tvReason.visibility = View.VISIBLE
+
+        configurePrimary(R.string.btn_close) { finish() }
+        binding.btnSecondary.visibility = View.GONE
+        binding.tvDangerOverride.visibility = View.GONE
+        binding.buttonRow.visibility = View.VISIBLE
+    }
+
+    /**
+     * Shared text with no link in it. Nothing was scanned, so the card makes no claim about
+     * the message either way. [text] is null when nothing readable was shared.
+     */
+    private fun showNoLinkScreen(text: String?) {
+        val color = ContextCompat.getColor(this, R.color.e_muted)
+        hideScanningState()
+
+        setBadge(color, iconRes = null, getString(R.string.share_no_link_title))
+        if (text != null) {
+            binding.tvUrlLabel.text = getString(R.string.share_text_label)
+            binding.tvUrl.typeface = Typeface.DEFAULT
+            binding.tvUrl.text = text
+            binding.urlChip.visibility = View.VISIBLE
+        }
+        binding.tvReason.text = getString(R.string.share_no_link_reason)
+        binding.tvReason.setTextColor(ContextCompat.getColor(this, R.color.e_text2))
+        binding.tvReason.visibility = View.VISIBLE
+
+        configurePrimary(R.string.btn_close) { finish() }
+        binding.btnSecondary.visibility = View.GONE
         binding.tvDangerOverride.visibility = View.GONE
         binding.buttonRow.visibility = View.VISIBLE
     }
@@ -233,7 +337,8 @@ class LinkInterceptActivity : AppCompatActivity() {
      * (shortener/wrapper), the resolved URL tinted to the verdict colour. Hidden when there
      * was no redirect, so a plain link looks exactly as before.
      */
-    private fun setTappedLink(url: String, resolvedUrl: String?, color: Int) {
+    private fun setTappedLink(url: String, resolvedUrl: String?, color: Int, label: String = linkLabel) {
+        binding.tvUrlLabel.text = label
         binding.tvUrl.text = url
         if (!resolvedUrl.isNullOrBlank() && resolvedUrl != url) {
             binding.tvResolvedUrl.text = resolvedUrl
@@ -247,9 +352,13 @@ class LinkInterceptActivity : AppCompatActivity() {
         binding.urlChip.visibility = View.VISIBLE
     }
 
-    private fun setBadge(color: Int, iconRes: Int, text: String) {
-        binding.ivStatusIcon.setImageResource(iconRes)
-        binding.ivStatusIcon.imageTintList = ColorStateList.valueOf(color)
+    private fun setBadge(color: Int, iconRes: Int?, text: String) {
+        if (iconRes != null) {
+            binding.ivStatusIcon.setImageResource(iconRes)
+            binding.ivStatusIcon.imageTintList = ColorStateList.valueOf(color)
+        } else {
+            binding.ivStatusIcon.visibility = View.GONE
+        }
         binding.tvStatus.text = text
         binding.tvStatus.setTextColor(color)
         binding.statusBadgeContainer.backgroundTintList = ColorStateList.valueOf(color).withAlpha(30)
@@ -335,5 +444,45 @@ class LinkInterceptActivity : AppCompatActivity() {
             }
             runCatching { startActivity(chooser) }
         }
+    }
+}
+
+/**
+ * The result a card should show when several links were checked: the highest threat level,
+ * then the highest score. Ties keep the earliest link, so an all-safe text shows its first.
+ */
+internal fun riskiestOf(results: List<ScanResult>): ScanResult? =
+    results.maxWithOrNull(compareBy<ScanResult> { it.threatLevel }.thenBy { it.riskScore })
+
+/** Which card to show once every scan has returned. */
+internal sealed interface CardOutcome {
+    data class Block(val result: ScanResult) : CardOutcome
+    data class ScanFailed(val url: String) : CardOutcome
+    object PartlyChecked : CardOutcome
+    data class Safe(val result: ScanResult) : CardOutcome
+}
+
+/**
+ * A flagged link always wins. After that, anything that stops the card from vouching for the
+ * whole text comes before SAFE: a scan that failed outright (nothing ran for that link, not
+ * even the local rules), then links that were never scanned because the text held more than
+ * the limit.
+ *
+ * @param results one entry per [urls], null where that scan failed
+ * @param linksNotScanned links found in the text beyond the ones in [urls]
+ */
+internal fun cardOutcomeOf(
+    urls: List<String>,
+    results: List<ScanResult?>,
+    linksNotScanned: Int,
+): CardOutcome {
+    val riskiest = riskiestOf(results.filterNotNull())
+    val failedUrl = urls.filterIndexed { i, _ -> results[i] == null }.firstOrNull()
+    return when {
+        riskiest != null && riskiest.threatLevel != ThreatLevel.SAFE -> CardOutcome.Block(riskiest)
+        failedUrl != null -> CardOutcome.ScanFailed(failedUrl)
+        linksNotScanned > 0 -> CardOutcome.PartlyChecked
+        // Every url has a result here, so riskiest is non-null whenever urls is non-empty.
+        else -> CardOutcome.Safe(riskiest!!)
     }
 }

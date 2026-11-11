@@ -31,6 +31,12 @@ class ScanSourceLabelTest {
     }
 
     @Test
+    fun `a link shared from another app reads as shared`() {
+        // LinkInterceptActivity stores "Shared" with no sender for Share / text-menu scans.
+        assertEquals("Shared", label("Shared", ""))
+    }
+
+    @Test
     fun `manual and QR scans keep their existing labels`() {
         assertEquals("Manual Scan", label("Manual", "You"))
         assertEquals("Manual Scan", label("", ""))

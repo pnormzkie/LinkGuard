@@ -111,6 +111,16 @@
     <string name="link_unchecked_reason">LinkGuard couldn\'t check this link — the scan didn\'t complete. Open it only if you trust the source.</string>
     <string name="link_tapped_label">Tapped Link</string>
     <string name="link_goes_to_label">↳ Goes to</string>
+    <!-- Share to LinkGuard: a link or text handed over from another app -->
+    <string name="share_scan_label">Scan with LinkGuard</string>
+    <string name="link_shared_label">Shared Link</string>
+    <string name="link_shared_multi_label">Shared links: riskiest of %1$d</string>
+    <string name="link_shared_capped_label">Shared links (%2$d): riskiest of the first %1$d</string>
+    <string name="share_partly_checked_title">Not all links checked</string>
+    <string name="share_partly_checked_reason">This text has more links than LinkGuard checks at once. It checked the first few and found no problem with them. The rest were not checked. Share them one at a time to check them.</string>
+    <string name="share_text_label">Shared Text</string>
+    <string name="share_no_link_title">No link found</string>
+    <string name="share_no_link_reason">LinkGuard checks links. This text has no link, so there was nothing to scan. That does not mean the message is safe.</string>
     <string name="risk_label">Risk</string>
     <string name="why_flagged_header">Why this was flagged</string>
     <string name="btn_open_link">Open Link</string>

@@ -163,3 +163,15 @@
 **Context:** Same task; the change was dropped from the release.
 **Rule:** Any change to the request the scanner sends (User-Agent, method, headers) needs a before/after survey of real link services first, and app-scheme redirects must be handled before a browser identity ships.
 **Status:** active
+
+## 2026-11-11 — A limit on what gets scanned must change what the card claims
+**Mistake:** Share to LinkGuard scans the first 3 links of a shared text. My first version showed the riskiest of those three, so 5 links with the bad one 4th read SAFE LINK in green, with only a caption saying "riskiest of the first 3". The sender chooses the order of the links.
+**Context:** Phase 1 of Share to LinkGuard, caught on the emulator before hand-over, not by the unit tests I had written.
+**Rule:** Whenever a scan stops early (link limit, size cap, timeout, quota), the result for "nothing found" must not be SAFE. Give it its own outcome and test it: "clean items in front of unscanned ones". A caption on a green card does not count.
+**Status:** active
+
+## 2026-11-11 — An open-ended repeat of a regex GROUP costs stack, not only time
+**Mistake:** None of mine, found by a new test: `UrlExtractor.BARE_DOMAIN_PATTERN` repeated its label group with `+`. 4,000 characters of "a." ended in StackOverflowError on the JVM. The 2026-11-10 regex lesson only covered slow patterns, and every long-input test used digits or words, never a run that keeps matching the group.
+**Context:** Adding a new text entry point (shared text, up to 4,000 characters) in front of a pattern that had only ever seen notification-sized text.
+**Rule:** Give a repeated group a real upper bound from the domain (`{1,126}` labels for a host name). When a new entry point feeds an existing pattern, test that pattern with a long input that MATCHES the repeated part, at the new entry point's size and well above it.
+**Status:** active
