@@ -34,9 +34,12 @@ object UrlExtractor {
         Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
     )
 
+    // A host name has at most 127 labels. The label group is bounded to that rather than left
+    // open: an open-ended group repeat costs stack per label, and a run of "a.a.a.…" a few
+    // thousand characters long overflowed it.
     private val BARE_DOMAIN_PATTERN: Pattern = Pattern.compile(
         "(?<![\\p{L}\\p{N}_@])(" +
-            "(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]{0,61}[\\p{L}\\p{N}])?\\.)+" +
+            "(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]{0,61}[\\p{L}\\p{N}])?\\.){1,126}" +
             "(?:[\\p{L}]{2,63}|xn--[a-z0-9-]{2,59})" +
             "(?::\\d{1,5})?(?:/[^\\s<>\\\"']*)?" +
             ")",

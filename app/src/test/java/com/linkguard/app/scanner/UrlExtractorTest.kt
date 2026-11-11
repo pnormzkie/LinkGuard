@@ -70,6 +70,22 @@ class UrlExtractorTest {
         assertEquals(listOf("https://Evil.In/login"), UrlExtractor.extractUrls("Open Evil.In/login now"))
     }
 
+    // Found 2026-11-11 while adding Share to LinkGuard: the bare-domain pattern repeated its
+    // label group without a limit, and 4,000 characters of "a." ended in StackOverflowError.
+    @Test(timeout = 5_000)
+    fun `a long run of dotted labels does not overflow the stack`() {
+        listOf(1_000, 4_000, 50_000).forEach { size ->
+            UrlExtractor.extractUrls("a.".repeat(size / 2))
+            UrlExtractor.extractUrls("ab-cd.".repeat(size / 6) + "xyz")
+        }
+    }
+
+    @Test
+    fun `a host with many labels is still extracted whole`() {
+        val host = (1..20).joinToString(".") { "l$it" } + ".example.com"
+        assertEquals(listOf("https://$host/login"), UrlExtractor.extractUrls("Open $host/login now"))
+    }
+
     @Test
     fun `explicit scheme url is not subject to tld allowlist`() {
         assertEquals(listOf("https://PM.This"), UrlExtractor.extractUrls("Open https://PM.This"))
